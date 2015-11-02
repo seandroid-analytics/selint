@@ -96,6 +96,7 @@ class M4MacroParser(object):
             # Parse each file, using the freeze file
             for f in files:
                 if os.path.basename(f) in self.plugins:
+                    self.log.debug("Parsing macros from \"{}\" with plugin \"{}\"".format(f,os.path.basename(f)))
                     # Find the appropriate parser
                     parser = self.plugins[os.path.basename(f)]
                     # Parse f with the appropriate parser

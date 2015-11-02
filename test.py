@@ -36,7 +36,7 @@ def test_expand_macros():
     print "Finished test \"expand_macros()\".\n"
 
 def main():
-    logging.basicConfig(level=logging.DEBUG, format='%(message)s')
+    logging.basicConfig(level=logging.DEBUG)#, format='%(message)s')
     test_expand_macros()
 
 if __name__ == "__main__":
