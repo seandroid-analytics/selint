@@ -22,6 +22,7 @@ import os
 from os import path
 import policysource
 from policysource import policy
+import logging
 
 def test_expand_macros():
     print "Starting test \"expand_macros()\"..."
@@ -35,6 +36,7 @@ def test_expand_macros():
     print "Finished test \"expand_macros()\".\n"
 
 def main():
+    logging.basicConfig(level=logging.DEBUG, format='%(message)s')
     test_expand_macros()
 
 if __name__ == "__main__":

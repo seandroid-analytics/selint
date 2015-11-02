@@ -22,8 +22,10 @@ import os
 import re
 import subprocess
 from subprocess import check_output, CalledProcessError
+import logging
 
 macro_file = "te_macros"
+log = logging.getLogger(__name__)
 
 def expects(f):
     """Return True/False depending on whether the plugin can handle the file"""
@@ -49,7 +51,12 @@ def parse(f,tempdir,m4_freeze_file):
             # Check that the macro definition line is correct
             if not re.match(r"^#\s[a-zA-Z][a-zA-Z0-9_]*\((?:[a-zA-Z0-9_]+,\s?)*(?:[a-zA-Z0-9_]+)\)$",block[1]):
                 # If not, skip this macro.
-                # TODO: add logging
+                lineno = 0
+                for i, l in enumerate(fc.splitlines()):
+                    if block[1] == l:
+                        lineno = i
+                        break
+                log.warning("Bad macro definition at {}:{}".format(f,lineno))
                 continue
             # Tokenize the macro definition line, removing empy tokens
             # "macro(arg1,arg2)" -> ["macro", "arg1", "arg2"]
@@ -69,7 +76,12 @@ def parse(f,tempdir,m4_freeze_file):
                 expansion = subprocess.check_output(command)
             except CalledProcessError as e:
                 # We failed to expand a macro, skip
-                # TODO: add logging
+                lineno = 0
+                for i, l in enumerate(fc.splitlines()):
+                    if block[1] == l:
+                        lineno = i
+                        break
+                log.warning("Failed to expand macro \"{}\" at {}:{}".format(name,f,lineno))
                 continue
             # Add the macro to the macro dictionary
             macros[name] = M4Macro(name, expansion, f, args, comments)
