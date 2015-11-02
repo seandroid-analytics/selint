@@ -23,6 +23,7 @@ import re
 from tempfile import mkdtemp
 import subprocess
 from subprocess import Popen, PIPE, check_output, check_call, CalledProcessError
+from macro import MacroInPolicy
 import macro_plugins
 
 plugin_folder_global = "./macro_plugins"
@@ -31,13 +32,13 @@ policyfiles_global = ["external/sepolicy/security_classes", "external/sepolicy/i
 macronamedef_global = r'^define\(\`([^\']+)\','
 
 def find_macro_files(base_dir,policyfiles):
-    """Find files that contain m4 macro definitions"""
+    """Find files that contain m4 macro definitions."""
     # Regex to match the macro definition string
     macrodef = re.compile(macronamedef_global)
     macro_files = []
     # Get the absolute path of the supplied policy files, remove empty values
-    policy_files = [ os.path.join(os.path.expanduser(base_dir),x) for x in policyfiles if x ]
-    for f in policy_files:
+    pf = join_policy_files(base_dir,policyfiles)
+    for f in pf:
         with open(f,'r') as mf:
             for line in mf:
                 # If this file contains at least one macro definition, append
@@ -48,55 +49,56 @@ def find_macro_files(base_dir,policyfiles):
     return macro_files
 
 def expand_macros(base_dir,policyfiles):
-    """Get a dictionary containing all the m4 macros defined in the supplied files"""
+    """Get a dictionary containing all the m4 macros defined in the supplied files.
+
+    The dictionary maps the macro name to a M4Macro object."""
     macro_files = find_macro_files(base_dir, policyfiles)
     parser = macro_plugins.M4MacroParser()
     macros = parser.parse(macro_files)
     return macros
 
-def expand_macros_old(macro_names,base_dir,policyfiles):
-    macros = {}
+def join_policy_files(base_dir,policyfiles):
+    """Get the absolute path of the supplied policy files, removing empty values"""
+    return [ os.path.join(os.path.expanduser(base_dir),x) for x in policyfiles if x ]
 
-    tempd = mkdtemp()
-    freezefile = os.path.join(tempd,"freezefile")
-    try:
-        # Generate the m4 freeze file with all macro definitions
-        command = ["m4", "-D", "mls_num_sens=1", "-D", "mls_num_cats=1024", "-D", "target_build_variant=eng", "-s"]
-        command.extend(find_macro_files(base_dir,policyfiles))
-        command.extend(["-F", freezefile])
-        with open(os.devnull, "w") as devnull:
-            subprocess.check_call(command, stdout=devnull)
-    except CalledProcessError as e:
-        # We failed to generate the freeze file, abort
-        macros = None
-    else:
-        # Expand each macro using the freeze file
-        tmp = os.path.join(tempd,"macrofile")
-        for macro_name in macro_names:
-            with open(tmp, "w") as mfile:
-                mfile.write(macro_name) #TODO how do we treat parameters?
-                print "Macro name: \"" + macro_name + "\""
-            try:
-                command = ["m4", "-R", freezefile, tmp]
-                print command
-                with open(tmp) as mfile:
-                    print "File content: \"" + mfile.read() + "\""
-                expansion = subprocess.check_output(command)
-            except CalledProcessError as e:
-                # We failed to expand a macro, skip to the next
-                # TODO add macro_name to debug logging
-                continue
-            macros[macro_name] =  expansion
-            # TODO add macro_name to debug logging
-    finally:
-        try:
-            os.remove(freezefile)
-        except OSError:
-            pass
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        os.rmdir(tempd)
-    return macros
+
+def find_macros(base_dir,policyfiles):
+    """Get a list of all the m4 macros used in the supplied files.
+
+    The list contains MacroInPolicy objects."""
+    macros = expand_macros(base_dir,policyfiles)
+    macros_in_policy = []
+    # Get the absolute path of the supplied policy files, remove empty values
+    pf = join_policy_files(base_dir,policyfiles)
+    for f in pf:
+        # For each file
+        if f.endswith(".te"):
+            # If it's a .te file
+            with open(f) as cf:
+                for lineno, line in enumerate(cf, 1):
+                    if not (line.startswith("#")):# or line.startswith("neverallow")):
+                        # If not a comment
+                        for word in re.split('\W+', line):
+                            if word in macros:
+                                # We have found a macro
+                                if macros[word].nargs > 0:
+                                    # Get the arguments
+                                    if re.match('{}\(((?:\w+,\s?)*\w+)\)'.format(word), line):
+                                        args = re.match('{}\(((?:\w+,\s?)*\w+)\)'.format(word), line).group(1)
+                                        args = re.split('\W+', args)
+                                    else:
+                                        # The macro is not valid
+                                        # TODO: add logging
+                                        continue
+                                else:
+                                    # Macro without arguments
+                                    args = []
+                                # Add the new macro to the list
+                                try:
+                                    macros_in_policy.append(MacroInPolicy(macros, f, lineno, word, args))
+                                except Exception as e:
+                                    # Bad macro
+                                    # TODO: add logging e.msg
+                                    pass
+    return macros_in_policy
 
