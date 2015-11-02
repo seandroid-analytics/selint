@@ -1,0 +1,102 @@
+#
+#    Written by Filippo Bonazzi
+#    Copyright (C) 2015 Aalto University
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 2 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+"""TODO: file docstring"""
+
+import os
+from os import path, remove, rmdir
+import re
+from tempfile import mkdtemp
+import subprocess
+from subprocess import Popen, PIPE, check_output, check_call, CalledProcessError
+import macro_plugins
+
+plugin_folder_global = "./macro_plugins"
+base_dir_global = "~/workspace"
+policyfiles_global = ["external/sepolicy/security_classes", "external/sepolicy/initial_sids", "external/sepolicy/access_vectors", "external/sepolicy/global_macros", "external/sepolicy/neverallow_macros", "external/sepolicy/mls_macros", "external/sepolicy/mls", "external/sepolicy/policy_capabilities", "external/sepolicy/te_macros", "external/sepolicy/attributes", "external/sepolicy/ioctl_macros", "external/sepolicy/adbd.te", "external/sepolicy/app.te", "external/sepolicy/atrace.te", "external/sepolicy/binderservicedomain.te", "external/sepolicy/blkid.te", "external/sepolicy/blkid_untrusted.te", "external/sepolicy/bluetooth.te", "external/sepolicy/bootanim.te", "external/sepolicy/clatd.te", "external/sepolicy/debuggerd.te", "external/sepolicy/device.te", "external/sepolicy/dex2oat.te", "external/sepolicy/dhcp.te", "external/sepolicy/dnsmasq.te", "external/sepolicy/domain.te", "external/sepolicy/drmserver.te", "external/sepolicy/dumpstate.te", "external/sepolicy/file.te", "external/sepolicy/fingerprintd.te", "external/sepolicy/fsck.te", "external/sepolicy/fsck_untrusted.te", "external/sepolicy/gatekeeperd.te", "external/sepolicy/gpsd.te", "external/sepolicy/hci_attach.te", "external/sepolicy/healthd.te", "external/sepolicy/hostapd.te", "external/sepolicy/idmap.te", "external/sepolicy/init.te", "external/sepolicy/inputflinger.te", "external/sepolicy/install_recovery.te", "external/sepolicy/installd.te", "external/sepolicy/isolated_app.te", "external/sepolicy/kernel.te", "external/sepolicy/keystore.te", "external/sepolicy/lmkd.te", "external/sepolicy/logd.te", "external/sepolicy/mdnsd.te", "external/sepolicy/mediaserver.te", "external/sepolicy/mtp.te", "external/sepolicy/net.te", "external/sepolicy/netd.te", "external/sepolicy/nfc.te", "external/sepolicy/perfprofd.te", "external/sepolicy/platform_app.te", "external/sepolicy/ppp.te", "external/sepolicy/priv_app.te", "external/sepolicy/property.te", "external/sepolicy/racoon.te", "external/sepolicy/radio.te", "external/sepolicy/recovery.te", "external/sepolicy/rild.te", "external/sepolicy/runas.te", "external/sepolicy/sdcardd.te", "external/sepolicy/service.te", "external/sepolicy/servicemanager.te", "external/sepolicy/sgdisk.te", "external/sepolicy/shared_relro.te", "external/sepolicy/shell.te", "external/sepolicy/slideshow.te", "external/sepolicy/su.te", "external/sepolicy/surfaceflinger.te", "external/sepolicy/system_app.te", "external/sepolicy/system_server.te", "external/sepolicy/tee.te", "external/sepolicy/toolbox.te", "external/sepolicy/tzdatacheck.te", "external/sepolicy/ueventd.te", "external/sepolicy/uncrypt.te", "external/sepolicy/untrusted_app.te", "external/sepolicy/update_engine.te", "external/sepolicy/vdc.te", "external/sepolicy/vold.te", "external/sepolicy/watchdogd.te", "external/sepolicy/wpa.te", "external/sepolicy/zygote.te", "build/target/board/generic/sepolicy/bootanim.te", "build/target/board/generic/sepolicy/device.te", "build/target/board/generic/sepolicy/domain.te", "build/target/board/generic/sepolicy/file.te", "build/target/board/generic/sepolicy/goldfish_setup.te", "build/target/board/generic/sepolicy/init.te", "build/target/board/generic/sepolicy/logd.te", "build/target/board/generic/sepolicy/property.te", "build/target/board/generic/sepolicy/qemu_props.te", "build/target/board/generic/sepolicy/qemud.te", "build/target/board/generic/sepolicy/rild.te", "build/target/board/generic/sepolicy/shell.te", "build/target/board/generic/sepolicy/surfaceflinger.te", "build/target/board/generic/sepolicy/system_server.te", "external/sepolicy/roles", "external/sepolicy/users", "external/sepolicy/initial_sid_contexts", "external/sepolicy/fs_use", "external/sepolicy/genfs_contexts", "external/sepolicy/port_contexts"]
+macronamedef_global = r'^define\(\`([^\']+)\','
+
+def find_macro_files(base_dir,policyfiles):
+    """Find files that contain m4 macro definitions"""
+    # Regex to match the macro definition string
+    macrodef = re.compile(macronamedef_global)
+    macro_files = []
+    # Get the absolute path of the supplied policy files, remove empty values
+    policy_files = [ os.path.join(os.path.expanduser(base_dir),x) for x in policyfiles if x ]
+    for f in policy_files:
+        with open(f,'r') as mf:
+            for line in mf:
+                # If this file contains at least one macro definition, append
+                # it to the list of macro files and skip to the next policy file
+                if macrodef.search(line):
+                    macro_files.append(f)
+                    break
+    return macro_files
+
+def expand_macros(base_dir,policyfiles):
+    """Get a dictionary containing all the m4 macros defined in the supplied files"""
+    macro_files = find_macro_files(base_dir, policyfiles)
+    parser = macro_plugins.M4MacroParser()
+    macros = parser.parse(macro_files)
+    return macros
+
+def expand_macros_old(macro_names,base_dir,policyfiles):
+    macros = {}
+
+    tempd = mkdtemp()
+    freezefile = os.path.join(tempd,"freezefile")
+    try:
+        # Generate the m4 freeze file with all macro definitions
+        command = ["m4", "-D", "mls_num_sens=1", "-D", "mls_num_cats=1024", "-D", "target_build_variant=eng", "-s"]
+        command.extend(find_macro_files(base_dir,policyfiles))
+        command.extend(["-F", freezefile])
+        with open(os.devnull, "w") as devnull:
+            subprocess.check_call(command, stdout=devnull)
+    except CalledProcessError as e:
+        # We failed to generate the freeze file, abort
+        macros = None
+    else:
+        # Expand each macro using the freeze file
+        tmp = os.path.join(tempd,"macrofile")
+        for macro_name in macro_names:
+            with open(tmp, "w") as mfile:
+                mfile.write(macro_name) #TODO how do we treat parameters?
+                print "Macro name: \"" + macro_name + "\""
+            try:
+                command = ["m4", "-R", freezefile, tmp]
+                print command
+                with open(tmp) as mfile:
+                    print "File content: \"" + mfile.read() + "\""
+                expansion = subprocess.check_output(command)
+            except CalledProcessError as e:
+                # We failed to expand a macro, skip to the next
+                # TODO add macro_name to debug logging
+                continue
+            macros[macro_name] =  expansion
+            # TODO add macro_name to debug logging
+    finally:
+        try:
+            os.remove(freezefile)
+        except OSError:
+            pass
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        os.rmdir(tempd)
+    return macros
+
