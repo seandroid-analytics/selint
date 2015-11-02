@@ -35,9 +35,20 @@ def test_expand_macros():
     print "Macros: {}".format(len(macros))
     print "Finished test \"expand_macros()\".\n"
 
+def test_find_macros():
+    print "Starting test \"find_macros()\"..."
+    macros_in_policy = policysource.policy.find_macros(policysource.policy.base_dir_global, policysource.policy.policyfiles_global)
+    for m in macros_in_policy:
+        print m.file_used + ":{}\t".format(m.line_no) + str(m)
+        print m.expand()
+        print "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+    print "Macros: {}".format(len(macros_in_policy))
+    print "Finished test \"find_macros()\".\n"
+
 def main():
     logging.basicConfig(level=logging.DEBUG)#, format='%(message)s')
-    test_expand_macros()
+    #test_expand_macros()
+    test_find_macros()
 
 if __name__ == "__main__":
     main()
