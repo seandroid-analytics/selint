@@ -18,15 +18,15 @@
 #
 """Test various functions for correctness"""
 
-import os
-from os import path
-import policysource
-from policysource import policy
+import os.path
+import policysource.policy as p
 import logging
+import sys
+
 
 def test_expand_macros():
     print "Starting test \"expand_macros()\"..."
-    macros = policysource.policy.expand_macros(policysource.policy.base_dir_global, policysource.policy.policyfiles_global)
+    macros = p.expand_macros(p.base_dir_global, p.policyfiles_global)
     for key, value in macros.iteritems():
         print os.path.basename(value.file_defined) + ":\t" + str(value)
         print "\n".join(value.comments)
@@ -35,20 +35,31 @@ def test_expand_macros():
     print "Macros: {}".format(len(macros))
     print "Finished test \"expand_macros()\".\n"
 
+
 def test_find_macros():
-    print "Starting test \"find_macros()\"..."
-    macros_in_policy = policysource.policy.find_macros(policysource.policy.base_dir_global, policysource.policy.policyfiles_global)
-    for m in macros_in_policy:
-        print m.file_used + ":{}\t".format(m.line_no) + str(m)
-        print m.expand()
-        print "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
-    print "Macros: {}".format(len(macros_in_policy))
-    print "Finished test \"find_macros()\".\n"
+#    print "Starting test \"find_macros()\"..."
+    macros_in_policy = p.find_macros(p.base_dir_global, p.policyfiles_global)
+    if len(macros_in_policy) == 1073:
+        print "PASSED test \"find_macros()\"."
+        sys.exit(0)
+    else:
+        print "FAILED test \"find_macros()\"."
+        sys.exit(1)
+#    for m in macros_in_policy:
+#        print m.file_used + ":{}\t".format(m.line_no) + str(m)
+#        print m.expand()
+#        print "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+#    print "Macros: {}".format(len(macros_in_policy))
+#    print "Finished test \"find_macros()\".\n"
+
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)#, format='%(message)s')
-    #test_expand_macros()
-    test_find_macros()
+    logging.basicConfig()  # level=logging.DEBUG, format='%(message)s')
+    # test_expand_macros()
+    if test_find_macros():
+        return True
+    else:
+        return False
 
 if __name__ == "__main__":
     main()

@@ -20,8 +20,11 @@
 from policysource.macro import M4Macro as M4Macro
 import os
 import re
+import logging
 
 macro_file = "global_macros"
+log = logging.getLogger(__name__)
+
 
 def expects(f):
     """Return True/False depending on whether the plugin can handle the file"""
@@ -30,7 +33,8 @@ def expects(f):
     else:
         return False
 
-def parse(f,tempdir,m4_freeze_file):
+
+def parse(f, tempdir, m4_freeze_file):
     """Parse the file and return a dictionary of macros."""
     # Check that we can handle the file we're served
     if not f or not expects(f):
@@ -42,5 +46,5 @@ def parse(f,tempdir,m4_freeze_file):
         for line in macros_file:
             n = macrodef.search(line)
             if n is not None:
-                macros[n.group(1)] = M4Macro(n.group(1),n.group(2),f)
+                macros[n.group(1)] = M4Macro(n.group(1), n.group(2), f)
     return macros
