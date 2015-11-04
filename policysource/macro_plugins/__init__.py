@@ -108,10 +108,17 @@ class M4MacroParser(object):
                     # Find the appropriate parser
                     parser = self.plugins[os.path.basename(f)]
                     # Parse f with the appropriate parser
-                    f_macros = parser.parse(f, tempdir, m4_freeze_file)
-                    # Update the global macro dictionary
-                    macros.update(f_macros)
-                    self.log.debug("Parsed macros from \"%s\"", f)
+                    try:
+                        f_macros = parser.parse(f, tempdir, m4_freeze_file)
+                    except ValueError as e:
+                        # This really should not happen
+                        # Log and skip
+                        self.log.warning("%s", e.msg)
+                        self.log.warning("Could not parse \"%s\"", f)
+                    else:
+                        # Update the global macro dictionary
+                        macros.update(f_macros)
+                        self.log.debug("Parsed macros from \"%s\"", f)
                 else:
                     # We don't have a parser for this file
                     self.log.debug("No parser for \"%s\"", f)
