@@ -23,14 +23,14 @@ import re
 import subprocess
 import logging
 
-macro_file = "te_macros"
-log = logging.getLogger(__name__)
-blk = r"^#\s[a-zA-Z][a-zA-Z0-9_]*\((?:[a-zA-Z0-9_]+,\s?)*(?:[a-zA-Z0-9_]+)\)$"
+MACRO_FILE = "te_macros"
+LOG = logging.getLogger(__name__)
+BLK = r"^#\s[a-zA-Z][a-zA-Z0-9_]*\((?:[a-zA-Z0-9_]+,\s?)*(?:[a-zA-Z0-9_]+)\)$"
 
 
 def expects(f):
     """Return True/False depending on whether the plugin can handle the file"""
-    if f and os.path.basename(f) == macro_file:
+    if f and os.path.basename(f) == MACRO_FILE:
         return True
     else:
         return False
@@ -52,7 +52,7 @@ def __expand__(name, args, tmp, m4_freeze_file):
         expansion = subprocess.check_output(command)
     except subprocess.CalledProcessError as e:
         # Log the error and change the function return value to None
-        log.warning("%s", e.msg)
+        LOG.warning("%s", e.msg)
         expansion = None
     return expansion
 
@@ -63,7 +63,7 @@ def parse(f, tempdir, m4_freeze_file):
     Raise ValueError if unable to handle the file."""
     # Check that we can handle the file we're served
     if not f or not expects(f):
-        raise ValueError("{} can't handle {}.".format(macro_file, f))
+        raise ValueError("{} can't handle {}.".format(MACRO_FILE, f))
     macros = {}
     # Parse the te_macros file
     # Create a temporary file that will contain, at each iteration, the
@@ -79,11 +79,11 @@ def parse(f, tempdir, m4_freeze_file):
             # Split the macro block in lines, removing empty lines
             block = [x for x in b.splitlines() if x]
             # Check that the macro definition line is correct
-            if not re.match(blk, block[1]):
+            if not re.match(BLK, block[1]):
                 # If not, log the failure and skip this block
                 # Find the macro definition line
                 lineno = fc.splitlines().index(block[1])
-                log.warning("Bad macro definition at %s:%s", f, lineno)
+                LOG.warning("Bad macro definition at %s:%s", f, lineno)
                 continue
             # Tokenize the macro definition line, removing empy tokens
             # "# macro(arg1,arg2)" -> ["macro", "arg1", "arg2"]
@@ -102,7 +102,7 @@ def parse(f, tempdir, m4_freeze_file):
                     new_macro = M4Macro(name, expansion, f, args, comments)
                 except M4MacroError as e:
                     # Log the failure and skip
-                    log.warning("%s", e.msg)
+                    LOG.warning("%s", e.msg)
                 else:
                     # Add the macro to the macro dictionary
                     macros[name] = new_macro
@@ -110,7 +110,7 @@ def parse(f, tempdir, m4_freeze_file):
                 # Log the failure and skip this macro
                 # Find the macro line and report it to the user
                 lineno = fc.splitlines().index(block[1])
-                log.warning("Failed to expand macro \"%s\" at %s:%s",
+                LOG.warning("Failed to expand macro \"%s\" at %s:%s",
                             name, f, lineno)
     try:
         os.remove(tmp)

@@ -26,7 +26,7 @@ import sys
 
 def test_expand_macros():
     print "Starting test \"expand_macros()\"..."
-    macros = p.expand_macros(p.base_dir_global, p.policyfiles_global)
+    macros = p.expand_macros(p.BASE_DIR_GLOBAL, p.POLICYFILES_GLOBAL)
     for key, value in macros.iteritems():
         print os.path.basename(value.file_defined) + ":\t" + str(value)
         print "\n".join(value.comments)
@@ -37,7 +37,7 @@ def test_expand_macros():
 
 
 def test_find_macros():
-    macros_in_policy = p.find_macros(p.base_dir_global, p.policyfiles_global)
+    macros_in_policy = p.find_macros(p.BASE_DIR_GLOBAL, p.POLICYFILES_GLOBAL)
     if len(macros_in_policy) == 1099:
         print "PASSED test \"find_macros()\"."
         sys.exit(0)

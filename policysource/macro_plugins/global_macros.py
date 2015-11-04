@@ -22,13 +22,13 @@ import os
 import re
 import logging
 
-macro_file = "global_macros"
-log = logging.getLogger(__name__)
+MACRO_FILE = "global_macros"
+LOG = logging.getLogger(__name__)
 
 
 def expects(f):
     """Return True/False depending on whether the plugin can handle the file"""
-    if f and os.path.basename(f) == macro_file:
+    if f and os.path.basename(f) == MACRO_FILE:
         return True
     else:
         return False
@@ -40,7 +40,7 @@ def parse(f, tempdir, m4_freeze_file):
     Raise ValueError if unable to handle the file."""
     # Check that we can handle the file we're served
     if not f or not expects(f):
-        raise ValueError("{} can't handle {}.".format(macro_file, f))
+        raise ValueError("{} can't handle {}.".format(MACRO_FILE, f))
     macros = {}
     # Parse the global_macros file
     macrodef = re.compile(r'^define\(\`([^\']+)\',\s+`([^\']+)\'')
@@ -57,8 +57,8 @@ def parse(f, tempdir, m4_freeze_file):
                 except M4MacroError as e:
                     # Log the failure and skip
                     # Find the macro line and report it to the user
-                    log.warning("%s", e.msg)
-                    log.warning("Macro \"%s\" is at %s:%s", name, f, lineno)
+                    LOG.warning("%s", e.msg)
+                    LOG.warning("Macro \"%s\" is at %s:%s", name, f, lineno)
                 else:
                     # Add the new macro to the dictionary
                     macros[name] = new_macro

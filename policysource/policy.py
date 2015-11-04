@@ -23,9 +23,8 @@ from .macro import MacroInPolicy, M4MacroError
 from . import macro_plugins
 import logging
 
-plugin_folder_global = "./macro_plugins"
-base_dir_global = "~/workspace"
-policyfiles_global = [
+BASE_DIR_GLOBAL = "~/workspace"
+POLICYFILES_GLOBAL = [
     "external/sepolicy/security_classes",
     "external/sepolicy/initial_sids",
     "external/sepolicy/access_vectors",
@@ -132,14 +131,13 @@ policyfiles_global = [
     "external/sepolicy/fs_use",
     "external/sepolicy/genfs_contexts",
     "external/sepolicy/port_contexts"]
-macronamedef_global = r'^define\(\`([^\']+)\','
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 def find_macro_files(base_dir, policyfiles):
     """Find files that contain m4 macro definitions."""
     # Regex to match the macro definition string
-    macrodef = re.compile(macronamedef_global)
+    macrodef = re.compile(r'^define\(\`([^\']+)\',')
     macro_files = []
     # Get the absolute path of the supplied policy files, remove empty values
     pf = join_policy_files(base_dir, policyfiles)
@@ -201,10 +199,10 @@ def find_macros(base_dir, policyfiles):
                                         args = re.split(r',\s*', tmp.group(1))
                                     else:
                                         # The macro is not valid
-                                        log.warning("\"%s\" is a macro name "
+                                        LOG.warning("\"%s\" is a macro name "
                                                     "but it is used wrong at "
                                                     "%s:%s:", word, f, lineno)
-                                        log.warning("\"%s\"", line.rstrip())
+                                        LOG.warning("\"%s\"", line.rstrip())
                                         continue
                                 else:
                                     # Macro without arguments
@@ -215,7 +213,7 @@ def find_macros(base_dir, policyfiles):
                                         macros, f, lineno, word, args)
                                 except M4MacroError as e:
                                     # Bad macro, skip
-                                    log.warning("%s", e.msg)
+                                    LOG.warning("%s", e.msg)
                                 else:
                                     # Add the new macro to the list
                                     macros_in_policy.append(nm)
