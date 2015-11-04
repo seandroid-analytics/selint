@@ -38,7 +38,7 @@ def test_expand_macros():
 
 def test_find_macros():
     macros_in_policy = p.find_macros(p.base_dir_global, p.policyfiles_global)
-    if len(macros_in_policy) == 1073:
+    if len(macros_in_policy) == 1099:
         print "PASSED test \"find_macros()\"."
         sys.exit(0)
     else:
@@ -56,7 +56,7 @@ def test_find_macros():
 
 
 def main():
-    logging.basicConfig()  # level=logging.DEBUG, format='%(message)s')
+    logging.basicConfig(level=logging.DEBUG) #, format='%(message)s')
     # test_expand_macros()
     if test_find_macros():
         return True

@@ -15,12 +15,13 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-"""TODO: file docstring"""
+"""Class providing an abstraction for a source SEAndroid policy"""
 
 import os.path
 import re
-from .macro import MacroInPolicy
+from .macro import MacroInPolicy, M4MacroError
 from . import macro_plugins
+import logging
 
 plugin_folder_global = "./macro_plugins"
 base_dir_global = "~/workspace"
@@ -132,6 +133,7 @@ policyfiles_global = [
     "external/sepolicy/genfs_contexts",
     "external/sepolicy/port_contexts"]
 macronamedef_global = r'^define\(\`([^\']+)\','
+log = logging.getLogger(__name__)
 
 
 def find_macro_files(base_dir, policyfiles):
@@ -189,26 +191,32 @@ def find_macros(base_dir, policyfiles):
                         for word in re.split(r'\W+', line):
                             if word in macros:
                                 # We have found a macro
+                                # Check if it has arguments
                                 if macros[word].nargs > 0:
-                                    # Get the arguments
-                                    usage_r = r'{}\(((?:\w+,\s?)*\w+)\)'
-                                    tmp = re.match(usage_r.format(word), line)
+                                    # Check if the syntax is correct
+                                    usage_r = r'\s*' + word + \
+                                        r'\(((?:(?:\w+|\{[^,]+\}),\s?)*(?:\w+|\{[^,]+\}))\)\s*'
+                                    tmp = re.match(usage_r, line)
                                     if tmp:
-                                        args = re.split(r'\W+', tmp.group(1))
+                                        args = re.split(r',\s*', tmp.group(1))
                                     else:
                                         # The macro is not valid
-                                        # TODO: add logging
+                                        log.warning("\"%s\" is a macro name "
+                                                    "but it is used wrong at "
+                                                    "%s:%s:", word, f, lineno)
+                                        log.warning("\"%s\"", line.rstrip())
                                         continue
                                 else:
                                     # Macro without arguments
                                     args = []
-                                # Add the new macro to the list
+                                # Construct the new macro object
                                 try:
-                                    macros_in_policy.append(
-                                        MacroInPolicy(macros, f, lineno,
-                                                      word, args))
-                                except Exception as e:
-                                    # Bad macro
-                                    # TODO: add logging e.msg
-                                    pass
+                                    nm = MacroInPolicy(
+                                        macros, f, lineno, word, args)
+                                except M4MacroError as e:
+                                    # Bad macro, skip
+                                    log.warning("%s", e.msg)
+                                else:
+                                    # Add the new macro to the list
+                                    macros_in_policy.append(nm)
     return macros_in_policy
