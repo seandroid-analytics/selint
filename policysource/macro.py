@@ -20,6 +20,11 @@
 import re
 
 
+class M4MacroError(Exception):
+    """Exception raised by the M4Macro constructor if a macro is not valid"""
+    pass
+
+
 class M4Macro(object):
 
     """Class providing an abstraction for a m4 macro."""
@@ -32,8 +37,9 @@ class M4Macro(object):
                 name = "noname"
             if args is None:
                 args = ["noargs"]
-            raise Exception(
-                "Bad macro \"{}({})\"".format(name, ", ".join(args)))
+            raise M4MacroError(
+                "Bad parameters for macro \"{}({})\"".format(
+                    name, ", ".join(args)))
         # Initialize the macro
         self._name = name
         # Double all curly brackets to make them literal
@@ -54,7 +60,7 @@ class M4Macro(object):
         """Get the macro expansion using the provided arguments."""
         if self.nargs == 0:
             # Ignore supplied arguments
-            return self._expansion
+            return self._expansion.format()
         if args is None:
             # Expand using the definition arguments as placeholders
             return self._expansion.format(*self.args)
@@ -105,8 +111,9 @@ class MacroInPolicy(object):
                 name = "noname"
             if args is None:
                 args = ["noargs"]
-            raise Exception(
-                "Bad macro \"{}({})\"".format(name, ", ".join(args)))
+            raise M4MacroError(
+                "Bad parameters for macro \"{}({})\"".format(
+                    name, ", ".join(args)))
         # Initialize the macro
         # If the macro is a valid macro
         if existing_macros[name] and existing_macros[name].nargs == len(args):
@@ -119,7 +126,7 @@ class MacroInPolicy(object):
             # Record the line number for this usage
             self._line_no = line_no
         else:
-            raise Exception(
+            raise M4MacroError(
                 "Invalid macro \"{}({})\"".format(name, ", ".join(args)))
 
     @property

@@ -92,7 +92,7 @@ class M4MacroParser(object):
             with open(os.devnull, "w") as devnull:
                 subprocess.check_call(command, stdout=devnull)
         except CalledProcessError as e:
-            # TODO: add logging e.msg
+            self.log.error("%s", e.msg)
             self.log.error("Failed to generate freeze file \"%s\". "
                            "Macros cannot be expanded.", m4_freeze_file)
             # We failed to generate the freeze file, abort

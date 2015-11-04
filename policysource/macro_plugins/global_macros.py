@@ -17,7 +17,7 @@
 #
 """Plugin to parse the global_macros file"""
 
-from policysource.macro import M4Macro as M4Macro
+from policysource.macro import M4Macro as M4Macro, M4MacroError as M4MacroError
 import os
 import re
 import logging
@@ -35,16 +35,31 @@ def expects(f):
 
 
 def parse(f, tempdir, m4_freeze_file):
-    """Parse the file and return a dictionary of macros."""
+    """Parse the file and return a dictionary of macros.
+
+    Raise ValueError if unable to handle the file."""
     # Check that we can handle the file we're served
     if not f or not expects(f):
-        return None
+        raise ValueError("{} can't handle {}.".format(macro_file, f))
     macros = {}
-    # global_macros specific parsing
+    # Parse the global_macros file
     macrodef = re.compile(r'^define\(\`([^\']+)\',\s+`([^\']+)\'')
-    with open(f) as macros_file:
-        for line in macros_file:
+    with open(f) as global_macros_file:
+        for lineno, line in enumerate(global_macros_file):
+            # If the line contains a macro, parse it
             n = macrodef.search(line)
             if n is not None:
-                macros[n.group(1)] = M4Macro(n.group(1), n.group(2), f)
+                # Construct the new macro object
+                name = n.group(1)
+                expansion = n.group(2)
+                try:
+                    new_macro = M4Macro(name, expansion, f)
+                except M4MacroError as e:
+                    # Log the failure and skip
+                    # Find the macro line and report it to the user
+                    log.warning("%s", e.msg)
+                    log.warning("Macro \"%s\" is at %s:%s", name, f, lineno)
+                else:
+                    # Add the new macro to the dictionary
+                    macros[name] = new_macro
     return macros

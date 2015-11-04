@@ -17,11 +17,10 @@
 #
 """Plugin to parse the te_macros file"""
 
-from policysource.macro import M4Macro as M4Macro
+from policysource.macro import M4Macro as M4Macro, M4MacroError as M4MacroError
 import os
 import re
 import subprocess
-#from subprocess import check_output, CalledProcessError
 import logging
 
 macro_file = "te_macros"
@@ -37,14 +36,41 @@ def expects(f):
         return False
 
 
+def __expand__(name, args, tmp, m4_freeze_file):
+    """ Expand the macro with the given name and args, using the supplied
+    temporary file and m4 freeze file"""
+
+    with open(tmp, "w") as mfile:
+        # Write the macro to the temporary file
+        # "name(@@ARG0@@, @@ARG1@@, ...)"
+        mfile.write(name + "(" + ", ".join(
+            ["@@ARG{}@@".format(x) for x in range(0, len(args))]) + ")")
+    # Define the expansion command
+    command = ["m4", "-R", m4_freeze_file, tmp]
+    # Try to get the macro expansion with m4
+    try:
+        expansion = subprocess.check_output(command)
+    except subprocess.CalledProcessError as e:
+        # Log the error and change the function return value to None
+        log.warning("%s", e.msg)
+        expansion = None
+    return expansion
+
+
 def parse(f, tempdir, m4_freeze_file):
-    """Parse the file and return a dictionary of macros."""
+    """Parse the file and return a dictionary of macros.
+
+    Raise ValueError if unable to handle the file."""
+    # Check that we can handle the file we're served
     if not f or not expects(f):
-        return None
+        raise ValueError("{} can't handle {}.".format(macro_file, f))
     macros = {}
+    # Parse the te_macros file
+    # Create a temporary file that will contain, at each iteration, the
+    # macro to be expanded by m4. This is better than piping input to m4.
     tmp = os.path.join(tempdir, "te_macrofile")
-    with open(f) as te_file:
-        fc = te_file.read()
+    with open(f) as te_macro_file:
+        fc = te_macro_file.read()
         # Split the file in blocks
         blocks = re.findall("^#+$\n(?:^.*$\n)+?\n", fc, re.MULTILINE)
         for b in blocks:
@@ -54,46 +80,38 @@ def parse(f, tempdir, m4_freeze_file):
             block = [x for x in b.splitlines() if x]
             # Check that the macro definition line is correct
             if not re.match(blk, block[1]):
-                # If not, skip this macro.
-                lineno = 0
-                for i, l in enumerate(fc.splitlines()):
-                    if block[1] == l:
-                        lineno = i
-                        break
+                # If not, log the failure and skip this block
+                # Find the macro definition line
+                lineno = fc.splitlines().index(block[1])
                 log.warning("Bad macro definition at %s:%s", f, lineno)
                 continue
             # Tokenize the macro definition line, removing empy tokens
-            # "macro(arg1,arg2)" -> ["macro", "arg1", "arg2"]
+            # "# macro(arg1,arg2)" -> ["macro", "arg1", "arg2"]
             definition = [x for x in re.split(r'\W+', block[1]) if x]
-            name = definition[0]  # ["macro"]
-            args = definition[1:]  # ["arg1", "arg2"]
+            name = definition[0]    # ["macro"]
+            args = definition[1:]   # ["arg1", "arg2"]
             # Get comments
             for l in block:
                 if l.startswith('#'):
                     comments.append(l)
-            # Expand the macro
-            with open(tmp, "w") as mfile:
-                # Write "name(@@ARG0@@, @@ARG1@@, ...)" to file
-                mfile.write(name + "(" + ", ".join(
-                    ["@@ARG{}@@".format(x) for x in range(0, len(args))]) + ")")
-            try:
-                command = ["m4", "-R", m4_freeze_file, tmp]
-                expansion = subprocess.check_output(command)
-            except subprocess.CalledProcessError as e:
-                # We failed to expand a macro.
-                # TODO: add loggin e.msg
+            # Get the macro expansion
+            expansion = __expand__(name, args, tmp, m4_freeze_file)
+            if expansion:
+                # Construct the new macro object
+                try:
+                    new_macro = M4Macro(name, expansion, f, args, comments)
+                except M4MacroError as e:
+                    # Log the failure and skip
+                    log.warning("%s", e.msg)
+                else:
+                    # Add the macro to the macro dictionary
+                    macros[name] = new_macro
+            else:
+                # Log the failure and skip this macro
                 # Find the macro line and report it to the user
-                lineno = 0
-                for i, l in enumerate(fc.splitlines()):
-                    if block[1] == l:
-                        lineno = i
-                        break
+                lineno = fc.splitlines().index(block[1])
                 log.warning("Failed to expand macro \"%s\" at %s:%s",
                             name, f, lineno)
-                # Skip to the next macro
-                continue
-            # Add the macro to the macro dictionary
-            macros[name] = M4Macro(name, expansion, f, args, comments)
     try:
         os.remove(tmp)
     except OSError:
