@@ -21,7 +21,7 @@ from policysource.macro import M4Macro as M4Macro
 import os
 import re
 import subprocess
-from subprocess import check_output, CalledProcessError
+#from subprocess import check_output, CalledProcessError
 import logging
 
 macro_file = "te_macros"
@@ -60,7 +60,7 @@ def parse(f, tempdir, m4_freeze_file):
                     if block[1] == l:
                         lineno = i
                         break
-                log.warning("Bad macro definition at {}:{}".format(f, lineno))
+                log.warning("Bad macro definition at %s:%s", f, lineno)
                 continue
             # Tokenize the macro definition line, removing empy tokens
             # "macro(arg1,arg2)" -> ["macro", "arg1", "arg2"]
@@ -75,12 +75,11 @@ def parse(f, tempdir, m4_freeze_file):
             with open(tmp, "w") as mfile:
                 # Write "name(@@ARG0@@, @@ARG1@@, ...)" to file
                 mfile.write(name + "(" + ", ".join(
-                    ["@@ARG{}@@".format(x) for x in range(0, len(args))])
-                    + ")")
+                    ["@@ARG{}@@".format(x) for x in range(0, len(args))]) + ")")
             try:
                 command = ["m4", "-R", m4_freeze_file, tmp]
                 expansion = subprocess.check_output(command)
-            except CalledProcessError as e:
+            except subprocess.CalledProcessError as e:
                 # We failed to expand a macro.
                 # TODO: add loggin e.msg
                 # Find the macro line and report it to the user
@@ -89,8 +88,8 @@ def parse(f, tempdir, m4_freeze_file):
                     if block[1] == l:
                         lineno = i
                         break
-                log.warning("Failed to expand macro \"{}\" at "
-                            "{}:{}".format(name, f, lineno))
+                log.warning("Failed to expand macro \"%s\" at %s:%s",
+                            name, f, lineno)
                 # Skip to the next macro
                 continue
             # Add the macro to the macro dictionary

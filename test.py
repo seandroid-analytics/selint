@@ -37,7 +37,6 @@ def test_expand_macros():
 
 
 def test_find_macros():
-#    print "Starting test \"find_macros()\"..."
     macros_in_policy = p.find_macros(p.base_dir_global, p.policyfiles_global)
     if len(macros_in_policy) == 1073:
         print "PASSED test \"find_macros()\"."
@@ -45,6 +44,9 @@ def test_find_macros():
     else:
         print "FAILED test \"find_macros()\"."
         sys.exit(1)
+
+
+#    print "Starting test \"find_macros()\"..."
 #    for m in macros_in_policy:
 #        print m.file_used + ":{}\t".format(m.line_no) + str(m)
 #        print m.expand()

@@ -28,9 +28,9 @@ import logging
 
 
 __all__ = []
-for f in os.listdir(os.path.dirname(__file__)):
-    if f.endswith(".py"):
-        module = os.path.splitext(f)[0]
+for plugin_file in os.listdir(os.path.dirname(__file__)):
+    if plugin_file.endswith(".py"):
+        module = os.path.splitext(plugin_file)[0]
         if not module.startswith('_') and not keyword.iskeyword(module):
             try:
                 __import__(__name__ + '.' + module)
@@ -63,9 +63,9 @@ class M4MacroParser(object):
             if (inspect.isfunction(plugin.expects)
                     and inspect.isfunction(plugin.parse)):
                 self.plugins[p] = plugin
-                self.log.debug("Found plugin \"{}\"".format(p))
+                self.log.debug("Found plugin \"%s\"", p)
             else:
-                self.log.debug("Invalid plugin \"{}\"".format(p))
+                self.log.debug("Invalid plugin \"%s\"", p)
 
     def expects(self):
         """Returns a list of files that the parser can handle."""
@@ -78,11 +78,11 @@ class M4MacroParser(object):
         files = [os.path.abspath(x) for x in files if x]
         # Create a temporary work directory
         tempdir = mkdtemp()
-        self.log.debug("Created temporary directory \"{}\".".format(tempdir))
+        self.log.debug("Created temporary directory \"%s\".", tempdir)
 
         m4_freeze_file = os.path.join(tempdir, "freezefile")
         self.log.debug(
-            "Trying to generate freeze file \"{}\"...".format(m4_freeze_file))
+            "Trying to generate freeze file \"%s\"...", m4_freeze_file)
         try:
             # Generate the m4 freeze file with all macro definitions
             command = ["m4", "-D", "mls_num_sens=1", "-D", "mls_num_cats=1024",
@@ -93,45 +93,45 @@ class M4MacroParser(object):
                 subprocess.check_call(command, stdout=devnull)
         except CalledProcessError as e:
             # TODO: add logging e.msg
-            self.log.error("Failed to generate freeze file \"{}\". "
-                           "Macros cannot be expanded.".format(m4_freeze_file))
+            self.log.error("Failed to generate freeze file \"%s\". "
+                           "Macros cannot be expanded.", m4_freeze_file)
             # We failed to generate the freeze file, abort
             macros = None
         else:
-            self.log.debug("Successfully generated freeze file "
-                           "\"{}\".".format(m4_freeze_file))
+            self.log.debug(
+                "Successfully generated freeze file \"%s\".", m4_freeze_file)
             # Parse each file, using the freeze file
             for f in files:
                 if os.path.basename(f) in self.plugins:
-                    self.log.debug("Parsing macros from \"{}\" with plugin "
-                                   "\"{}\"".format(f, os.path.basename(f)))
+                    self.log.debug("Parsing macros from \"%s\" with plugin "
+                                   "\"%s\"", f, os.path.basename(f))
                     # Find the appropriate parser
                     parser = self.plugins[os.path.basename(f)]
                     # Parse f with the appropriate parser
                     f_macros = parser.parse(f, tempdir, m4_freeze_file)
                     # Update the global macro dictionary
                     macros.update(f_macros)
-                    self.log.debug("Parsed macros from \"{}\"".format(f))
+                    self.log.debug("Parsed macros from \"%s\"", f)
                 else:
                     # We don't have a parser for this file
-                    self.log.debug("No parser for \"{}\"".format(f))
+                    self.log.debug("No parser for \"%s\"", f)
         finally:
             # Try to remove the freeze file
             try:
                 os.remove(m4_freeze_file)
             except OSError:
                 self.log.debug("Trying to remove the freeze file "
-                               "\"{}\"... failed!".format(m4_freeze_file))
+                               "\"%s\"... failed!", m4_freeze_file)
             else:
                 self.log.debug("Trying to remove the freeze file "
-                               "\"{}\"... done!".format(m4_freeze_file))
+                               "\"%s\"... done!", m4_freeze_file)
             # Try to remove the temporary directory
             try:
                 os.rmdir(tempdir)
             except OSError:
                 self.log.debug("Trying to remove the temporary directory "
-                               "\"{}\"... failed!".format(tempdir))
+                               "\"%s\"... failed!", tempdir)
             else:
                 self.log.debug("Trying to remove the temporary directory "
-                               "\"{}\"... done!".format(tempdir))
+                               "\"%s\"... done!", tempdir)
         return macros
