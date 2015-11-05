@@ -1,0 +1,12 @@
+domain_auto_trans(adbd, shell_exec, shell)
+tmpfs_domain(somedomain)
+
+allow adbd devpts:chr_file rw_file_perms;
+allow adbd anr_data_file:file r_file_perms;
+allow adbd bnr_data_file:file x_file_perms;
+allow adbd cnr_data_file:file w_file_perms;
+allow adbd dnr_data_file:file rx_file_perms;
+allow adbd enr_data_file:file ra_file_perms;
+allow adbd fnr_data_file:file rw_file_perms;
+allow adbd gnr_data_file:file rwx_file_perms;
+allow adbd hnr_data_file:file create_file_perms;
