@@ -46,6 +46,7 @@ class TestPolicy(unittest.TestCase):
     def test_expand_macros(self):
         """Test that all macros are expanded as expected."""
         macros = p.expand_macros(gbp.BASE_DIR_GLOBAL, self.policy_files)
+        self.assertFalse(macros is None)
         expected_macros = {}
         f_global = next(
             x for x in self.policy_files if x.endswith("global_macros"))
@@ -149,4 +150,9 @@ allow domain domain_tmpfs:file { read write };
                           "# this domain when creating tmpfs / shmem / ashmem files."])
         expected_macros["tmpfs_domain"] = tmp
         # Finally test
-        self.assertItemsEqual(macros, expected_macros)
+        self.assertEqual(macros, expected_macros)
+
+    def test_find_macros(self):
+        """Test that all macro usages are found"""
+        # TODO: write
+        pass
