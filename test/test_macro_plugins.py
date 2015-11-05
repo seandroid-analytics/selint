@@ -25,28 +25,7 @@ from tempfile import mkdtemp
 import subprocess
 from subprocess import check_call, CalledProcessError
 import logging
-
-BASE_DIR_GLOBAL = "test/test_policy_files"
-MACROFILES_GLOBAL = [
-    "global_macros",
-    "te_macros",
-    "ioctl_macros"]
-POLICYFILES_GLOBAL = [
-    "rules.te"]
-SUPPORTED_MACRO_FILES_GLOBAL = [
-    "global_macros",
-    "te_macros"]
-EXISTING_PLUGINS_GLOBAL = [
-    "global_macros",
-    "te_macros"]
-VALID_PLUGINS_GLOBAL = [
-    "global_macros",
-    "te_macros"]
-
-
-def join_files(basedir, files):
-    return [os.path.join(os.path.expanduser(basedir), x) for x in files if x]
-
+import global_parameters as gbp
 
 class TestMacroPluginArchitecture(unittest.TestCase):
 
@@ -60,16 +39,16 @@ class TestMacroPluginArchitecture(unittest.TestCase):
     def test_plugin_import(self):
         """Test that all plugins in the plugin directory are imported."""
         self.assertTrue(
-            set(macro_plugins.__all__) == set(EXISTING_PLUGINS_GLOBAL))
+            set(macro_plugins.__all__) == set(gbp.EXISTING_PLUGINS_GLOBAL))
 
     def test_valid_plugins(self):
         """Test that all valid plugins are loaded by the parser."""
         self.assertTrue(
-            set(self.parser.expects()) == set(VALID_PLUGINS_GLOBAL))
+            set(self.parser.expects()) == set(gbp.VALID_PLUGINS_GLOBAL))
 
     def test_parse(self):
         """Test that the parser correctly parses the supplied test files."""
-        files = join_files(BASE_DIR_GLOBAL, MACROFILES_GLOBAL)
+        files = gbp.join_files(gbp.BASE_DIR_GLOBAL, gbp.MACROFILES_GLOBAL)
         macros = self.parser.parse(files)
         expected_macros = ["x_file_perms", "r_file_perms", "w_file_perms",
                            "rx_file_perms", "ra_file_perms", "rw_file_perms",
@@ -86,7 +65,7 @@ class TestMacroPlugin(unittest.TestCase):
         self.parser = macro_plugins.M4MacroParser()
         self.tempdir = mkdtemp()
         self.m4_freeze_file = os.path.join(self.tempdir, "freezefile")
-        self.files = join_files(BASE_DIR_GLOBAL, MACROFILES_GLOBAL)
+        self.files = gbp.join_files(gbp.BASE_DIR_GLOBAL, gbp.MACROFILES_GLOBAL)
         try:
             # Generate the m4 freeze file with all macro definitions
             command = ["m4", "-D", "mls_num_sens=1", "-D", "mls_num_cats=1024",
