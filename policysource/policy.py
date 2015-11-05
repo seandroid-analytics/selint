@@ -174,6 +174,7 @@ def find_macros(base_dir, policyfiles):
     """Get a list of all the m4 macros used in the supplied files.
 
     The list contains MacroInPolicy objects."""
+    # TODO: refactor this function
     macros = expand_macros(base_dir, policyfiles)
     macros_in_policy = []
     # Get the absolute path of the supplied policy files, remove empty values

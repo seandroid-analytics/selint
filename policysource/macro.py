@@ -98,6 +98,8 @@ class M4Macro(object):
             tmp += "(" + ", ".join(self.args) + ")"
         return tmp
 
+    # TODO: implement comparison function(s)
+
 
 class MacroInPolicy(object):
 
@@ -168,3 +170,5 @@ class MacroInPolicy(object):
         if self.nargs > 0:
             tmp += "(" + ", ".join(self.args) + ")"
         return tmp
+
+    # TODO: implement comparison function(s)
