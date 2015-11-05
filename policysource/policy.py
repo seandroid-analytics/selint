@@ -131,13 +131,14 @@ POLICYFILES_GLOBAL = [
     "external/sepolicy/fs_use",
     "external/sepolicy/genfs_contexts",
     "external/sepolicy/port_contexts"]
+MACRODEF = r'^define\(\`([^\']+)\','
 LOG = logging.getLogger(__name__)
 
 
 def find_macro_files(base_dir, policyfiles):
     """Find files that contain m4 macro definitions."""
     # Regex to match the macro definition string
-    macrodef = re.compile(r'^define\(\`([^\']+)\',')
+    macrodef = re.compile(MACRODEF)
     macro_files = []
     # Get the absolute path of the supplied policy files, remove empty values
     pf = join_policy_files(base_dir, policyfiles)
