@@ -25,7 +25,8 @@ import logging
 
 MACRO_FILE = "te_macros"
 LOG = logging.getLogger(__name__)
-BLK = r"^#\s[a-zA-Z][a-zA-Z0-9_]*\((?:[a-zA-Z0-9_]+,\s?)*(?:[a-zA-Z0-9_]+)\)$"
+MDL = r"^#\s[a-zA-Z][a-zA-Z0-9_]*\((?:[a-zA-Z0-9_]+,\s?)*(?:[a-zA-Z0-9_]+)\)$"
+BLK_SEP = r"^##+$\n"
 
 
 def expects(f):
@@ -72,22 +73,22 @@ def parse(f, tempdir, m4_freeze_file):
     with open(f) as te_macro_file:
         fc = te_macro_file.read()
         # Split the file in blocks
-        blocks = re.findall("^#+$\n(?:^.*$\n)+?\n", fc, re.MULTILINE)
+        blocks = [x for x in re.split(BLK_SEP, fc, flags=re.MULTILINE) if x]
         for b in blocks:
             # Parse the macro block
             comments = []
             # Split the macro block in lines, removing empty lines
             block = [x for x in b.splitlines() if x]
             # Check that the macro definition line is correct
-            if not re.match(BLK, block[1]):
+            if not re.match(MDL, block[0]):
                 # If not, log the failure and skip this block
                 # Find the macro definition line
-                lineno = fc.splitlines().index(block[1])
+                lineno = fc.splitlines().index(block[0])
                 LOG.warning("Bad macro definition at %s:%s", f, lineno)
                 continue
             # Tokenize the macro definition line, removing empy tokens
             # "# macro(arg1,arg2)" -> ["macro", "arg1", "arg2"]
-            definition = [x for x in re.split(r'\W+', block[1]) if x]
+            definition = [x for x in re.split(r'\W+', block[0]) if x]
             name = definition[0]    # ["macro"]
             args = definition[1:]   # ["arg1", "arg2"]
             # Get comments
@@ -109,7 +110,7 @@ def parse(f, tempdir, m4_freeze_file):
             else:
                 # Log the failure and skip this macro
                 # Find the macro line and report it to the user
-                lineno = fc.splitlines().index(block[1])
+                lineno = fc.splitlines().index(block[0])
                 LOG.warning("Failed to expand macro \"%s\" at %s:%s",
                             name, f, lineno)
     # Try to remove the temporary file
