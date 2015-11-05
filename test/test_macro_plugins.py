@@ -19,7 +19,11 @@
 
 import unittest
 from policysource import macro_plugins as macro_plugins
+import os
 import os.path
+from tempfile import mkdtemp
+import subprocess
+from subprocess import check_call, CalledProcessError
 import logging
 
 BASE_DIR_GLOBAL = "test/test_policy_files"
@@ -38,6 +42,10 @@ EXISTING_PLUGINS_GLOBAL = [
 VALID_PLUGINS_GLOBAL = [
     "global_macros",
     "te_macros"]
+
+
+def join_files(basedir, files):
+    return [os.path.join(os.path.expanduser(basedir), x) for x in files if x]
 
 
 class TestMacroPluginArchitecture(unittest.TestCase):
@@ -61,14 +69,46 @@ class TestMacroPluginArchitecture(unittest.TestCase):
 
     def test_parse(self):
         """Test that the parser correctly parses the supplied test files."""
-        files = [os.path.join(os.path.expanduser(BASE_DIR_GLOBAL), x)
-                 for x in MACROFILES_GLOBAL if x]
+        files = join_files(BASE_DIR_GLOBAL, MACROFILES_GLOBAL)
         macros = self.parser.parse(files)
         expected_macros = ["x_file_perms", "r_file_perms", "w_file_perms",
                            "rx_file_perms", "ra_file_perms", "rw_file_perms",
                            "rwx_file_perms", "create_file_perms",
                            "domain_trans", "domain_auto_trans", "tmpfs_domain"]
         self.assertFalse(macros is None)
-        self.assertTrue(set(macros.keys()) == set(expected_macros))
+        self.assertItemsEqual(macros.keys(), expected_macros)
 
-#suite = unittest.TestLoader().loadTestsFromTestCase(TestMacroPluginArchitecture)
+
+class TestMacroPlugin(unittest.TestCase):
+
+    def setUp(self):
+        logging.basicConfig()
+        self.parser = macro_plugins.M4MacroParser()
+        self.tempdir = mkdtemp()
+        self.m4_freeze_file = os.path.join(self.tempdir, "freezefile")
+        self.files = join_files(BASE_DIR_GLOBAL, MACROFILES_GLOBAL)
+        try:
+            # Generate the m4 freeze file with all macro definitions
+            command = ["m4", "-D", "mls_num_sens=1", "-D", "mls_num_cats=1024",
+                       "-D", "target_build_variant=eng", "-s"]
+            command.extend(self.files)
+            command.extend(["-F", self.m4_freeze_file])
+            with open(os.devnull, "w") as devnull:
+                subprocess.check_call(command, stdout=devnull)
+        except CalledProcessError as e:
+            # We failed to generate the freeze file, abort
+            self.fail(e.msg)
+
+    def tearDown(self):
+        os.remove(self.m4_freeze_file)
+        os.rmdir(self.tempdir)
+
+    def test_global_macros_expects(self):
+        """Test whether the plugin expects the correct file"""
+        f = next(x for x in self.files if x.endswith("global_macros"))
+        self.assertTrue(self.parser.plugins["global_macros"].expects(f))
+
+    def test_te_macros_expects(self):
+        """Test whether the plugin expects the correct file"""
+        f = next(x for x in self.files if x.endswith("te_macros"))
+        self.assertTrue(self.parser.plugins["te_macros"].expects(f))
