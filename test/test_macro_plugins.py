@@ -108,7 +108,27 @@ class TestMacroPlugin(unittest.TestCase):
         f = next(x for x in self.files if x.endswith("global_macros"))
         self.assertTrue(self.parser.plugins["global_macros"].expects(f))
 
+    def test_global_macros_parse(self):
+        """Test whether the plugin parses correctly"""
+        f = next(x for x in self.files if x.endswith("global_macros"))
+        macros = self.parser.plugins["global_macros"].parse(
+            f, self.tempdir, self.m4_freeze_file)
+        expected_macros = ["x_file_perms", "r_file_perms", "w_file_perms",
+                           "rx_file_perms", "ra_file_perms", "rw_file_perms",
+                           "rwx_file_perms", "create_file_perms"]
+        self.assertFalse(macros is None)
+        self.assertItemsEqual(macros.keys(), expected_macros)
+
     def test_te_macros_expects(self):
         """Test whether the plugin expects the correct file"""
         f = next(x for x in self.files if x.endswith("te_macros"))
         self.assertTrue(self.parser.plugins["te_macros"].expects(f))
+
+    def test_te_macros_parse(self):
+        """Test whether the plugin parses correctly"""
+        f = next(x for x in self.files if x.endswith("te_macros"))
+        macros = self.parser.plugins["te_macros"].parse(
+            f, self.tempdir, self.m4_freeze_file)
+        expected_macros = ["domain_trans", "domain_auto_trans", "tmpfs_domain"]
+        self.assertFalse(macros is None)
+        self.assertItemsEqual(macros.keys(), expected_macros)
