@@ -112,8 +112,11 @@ def parse(f, tempdir, m4_freeze_file):
                 lineno = fc.splitlines().index(block[1])
                 LOG.warning("Failed to expand macro \"%s\" at %s:%s",
                             name, f, lineno)
+    # Try to remove the temporary file
     try:
         os.remove(tmp)
     except OSError:
-        pass
+        LOG.debug("Trying to remove temporary file \"%s\"... failed!", tmp)
+    else:
+        LOG.debug("Trying to remove temporary file \"%s\"... done!", tmp)
     return macros
