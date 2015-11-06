@@ -18,20 +18,20 @@
 """Global test parameters and functions."""
 import os.path
 
-BASE_DIR_GLOBAL = "test/test_policy_files"
-MACROFILES_GLOBAL = [
+BASE_DIR = "test/test_policy_files"
+MACROFILES = [
     "global_macros",
     "te_macros",
     "ioctl_macros"]
-POLICYFILES_GLOBAL = [
+POLICYFILES = [
     "rules.te"]
-SUPPORTED_MACRO_FILES_GLOBAL = [
+SUPPORTED_MACRO_FILES = [
     "global_macros",
     "te_macros"]
-EXISTING_PLUGINS_GLOBAL = [
+EXISTING_PLUGINS = [
     "global_macros",
     "te_macros"]
-VALID_PLUGINS_GLOBAL = [
+VALID_PLUGINS = [
     "global_macros",
     "te_macros"]
 

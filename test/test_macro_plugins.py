@@ -40,15 +40,15 @@ class TestMacroPluginArchitecture(unittest.TestCase):
     def test_plugin_import(self):
         """Test that all plugins in the plugin directory are imported."""
         self.assertItemsEqual(macro_plugins.__all__,
-                              gbp.EXISTING_PLUGINS_GLOBAL)
+                              gbp.EXISTING_PLUGINS)
 
     def test_valid_plugins(self):
         """Test that all valid plugins are loaded by the parser."""
-        self.assertItemsEqual(self.parser.expects(), gbp.VALID_PLUGINS_GLOBAL)
+        self.assertItemsEqual(self.parser.expects(), gbp.VALID_PLUGINS)
 
     def test_parse(self):
         """Test that the parser correctly parses the supplied test files."""
-        files = gbp.join_files(gbp.BASE_DIR_GLOBAL, gbp.MACROFILES_GLOBAL)
+        files = gbp.join_files(gbp.BASE_DIR, gbp.MACROFILES)
         macros = self.parser.parse(files)
         expected_macros = ["x_file_perms", "r_file_perms", "w_file_perms",
                            "rx_file_perms", "ra_file_perms", "rw_file_perms",
@@ -65,7 +65,7 @@ class TestMacroPlugin(unittest.TestCase):
         self.parser = macro_plugins.M4MacroParser()
         self.tempdir = mkdtemp()
         self.m4_freeze_file = os.path.join(self.tempdir, "freezefile")
-        self.files = gbp.join_files(gbp.BASE_DIR_GLOBAL, gbp.MACROFILES_GLOBAL)
+        self.files = gbp.join_files(gbp.BASE_DIR, gbp.MACROFILES)
         try:
             # Generate the m4 freeze file with all macro definitions
             command = ["m4", "-D", "mls_num_sens=1", "-D", "mls_num_cats=1024",
