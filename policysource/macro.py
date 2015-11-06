@@ -98,7 +98,25 @@ class M4Macro(object):
             tmp += "(" + ", ".join(self.args) + ")"
         return tmp
 
-    # TODO: implement comparison function(s)
+    def __eq__(self, other):
+        # If they have the same name
+        if(self._name == other._name
+                # And the same expansion
+                and self._expansion == other._expansion
+                # They are defined in the same file
+                and self._file_defined == other._file_defined
+                # They have the same arguments
+                and len(self._args) == len(other._args)
+                and set(self._args) == set(other._args)
+                # And the same comments
+                and len(self._comments) == len(other._comments)
+                and set(self._comments) == set(other._comments)):
+            return True
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 
 class MacroInPolicy(object):
@@ -171,4 +189,20 @@ class MacroInPolicy(object):
             tmp += "(" + ", ".join(self.args) + ")"
         return tmp
 
-    # TODO: implement comparison function(s)
+    def __eq__(self, other):
+        # If they are a usage of the same M4Macro instance
+        if(self._macro == other._macro
+           # With the same arguments
+           and len(self._args) == len(other._args)
+           and set(self._args) == set(other._args)
+           # And with the same expansion (sort of redundant check)
+           and self.expand() == other.expand()
+           # Used in the same place
+           and self._file_used == other._file_used
+           and self._line_no == other._line_no):
+            return True
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
