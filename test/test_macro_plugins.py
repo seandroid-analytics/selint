@@ -27,6 +27,7 @@ from subprocess import check_call, CalledProcessError
 import logging
 import global_parameters as gbp
 
+
 class TestMacroPluginArchitecture(unittest.TestCase):
 
     def setUp(self):
@@ -38,13 +39,12 @@ class TestMacroPluginArchitecture(unittest.TestCase):
 
     def test_plugin_import(self):
         """Test that all plugins in the plugin directory are imported."""
-        self.assertTrue(
-            set(macro_plugins.__all__) == set(gbp.EXISTING_PLUGINS_GLOBAL))
+        self.assertItemsEqual(macro_plugins.__all__,
+                              gbp.EXISTING_PLUGINS_GLOBAL)
 
     def test_valid_plugins(self):
         """Test that all valid plugins are loaded by the parser."""
-        self.assertTrue(
-            set(self.parser.expects()) == set(gbp.VALID_PLUGINS_GLOBAL))
+        self.assertItemsEqual(self.parser.expects(), gbp.VALID_PLUGINS_GLOBAL)
 
     def test_parse(self):
         """Test that the parser correctly parses the supplied test files."""
@@ -54,7 +54,7 @@ class TestMacroPluginArchitecture(unittest.TestCase):
                            "rx_file_perms", "ra_file_perms", "rw_file_perms",
                            "rwx_file_perms", "create_file_perms",
                            "domain_trans", "domain_auto_trans", "tmpfs_domain"]
-        self.assertFalse(macros is None)
+        self.assertIsNotNone(macros)
         self.assertItemsEqual(macros.keys(), expected_macros)
 
 
@@ -95,7 +95,7 @@ class TestMacroPlugin(unittest.TestCase):
         expected_macros = ["x_file_perms", "r_file_perms", "w_file_perms",
                            "rx_file_perms", "ra_file_perms", "rw_file_perms",
                            "rwx_file_perms", "create_file_perms"]
-        self.assertFalse(macros is None)
+        self.assertIsNotNone(macros)
         self.assertItemsEqual(macros.keys(), expected_macros)
 
     def test_te_macros_expects(self):
@@ -109,5 +109,5 @@ class TestMacroPlugin(unittest.TestCase):
         macros = self.parser.plugins["te_macros"].parse(
             f, self.tempdir, self.m4_freeze_file)
         expected_macros = ["domain_trans", "domain_auto_trans", "tmpfs_domain"]
-        self.assertFalse(macros is None)
+        self.assertIsNotNone(macros)
         self.assertItemsEqual(macros.keys(), expected_macros)
