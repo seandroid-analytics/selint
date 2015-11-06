@@ -22,7 +22,6 @@ from policysource import macro_plugins as macro_plugins
 import os
 import os.path
 from tempfile import mkdtemp
-import subprocess
 from subprocess import check_call, CalledProcessError
 import logging
 import global_parameters as gbp
@@ -73,7 +72,7 @@ class TestMacroPlugin(unittest.TestCase):
             command.extend(self.files)
             command.extend(["-F", self.m4_freeze_file])
             with open(os.devnull, "w") as devnull:
-                subprocess.check_call(command, stdout=devnull)
+                check_call(command, stdout=devnull)
         except CalledProcessError as e:
             # We failed to generate the freeze file, abort
             self.fail(e.msg)
