@@ -31,6 +31,7 @@ class M4Macro(object):
 
     def __init__(self, name, expansion, file_defined, args=[], comments=[]):
         # Check if we have enough data
+        # TODO: check that we are supplying enough args to expansion
         if (not name or not expansion or not file_defined or args is None
                 or comments is None):
             if not name:
@@ -104,12 +105,12 @@ class M4Macro(object):
         # And they are defined in the same file
         # And they have the same number of arguments
         # And the same comments
-        if(str(self) == str(other)
-                and self.expand() == other.expand()
-                and self._file_defined == other._file_defined
-                and self.nargs == other.nargs
-                and len(self._comments) == len(other._comments)
-                and "".join(self._comments) == "".join(other._comments)):
+        if str(self) == str(other)\
+                and self.expand() == other.expand()\
+                and self.file_defined == other.file_defined\
+                and self.nargs == other.nargs\
+                and len(self.comments) == len(other.comments)\
+                and "".join(self.comments) == "".join(other.comments):
             return True
         else:
             return False
@@ -137,7 +138,7 @@ class MacroInPolicy(object):
         # If the macro is a valid macro
         if existing_macros[name] and existing_macros[name].nargs == len(args):
             # Link this macro usage with the macro
-            self._macro = existing_macros[name]
+            self.macro = existing_macros[name]
             # Record the specific arguments for this macro usage
             self._args = args
             # Record the file for this usage
@@ -151,11 +152,11 @@ class MacroInPolicy(object):
     @property
     def name(self):
         """Get the macro name"""
-        return self._macro.name
+        return self.macro.name
 
     def expand(self):
         """Get the macro expansion using the specific usage's arguments"""
-        return self._macro.expand(self._args)
+        return self.macro.expand(self._args)
 
     @property
     def file_used(self):
@@ -175,7 +176,7 @@ class MacroInPolicy(object):
     @property
     def args_descriptions(self):
         """Get the descriptions of the macro arguments"""
-        return self._macro.args
+        return self.macro.args
 
     @property
     def nargs(self):
@@ -190,15 +191,14 @@ class MacroInPolicy(object):
 
     def __eq__(self, other):
         # If they are a usage of the same M4Macro instance
-        if(self._macro == other._macro
-           # With the same arguments
-           and len(self._args) == len(other._args)
-           and set(self._args) == set(other._args)
-           # And with the same expansion (sort of redundant check)
-           and self.expand() == other.expand()
-           # Used in the same place
-           and self._file_used == other._file_used
-           and self._line_no == other._line_no):
+        # With the same arguments
+        # And with the same expansion (sort of redundant check)
+        # Used in the same place
+        if self.macro == other.macro\
+                and self.nargs == other.nargs\
+                and self.expand() == other.expand()\
+                and self.file_used == other.file_used\
+                and self.line_no == other.line_no:
             return True
         else:
             return False
