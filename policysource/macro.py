@@ -99,24 +99,23 @@ class M4Macro(object):
         return tmp
 
     def __eq__(self, other):
-        # If they have the same name
-        if(self._name == other._name
-                # And the same expansion
-                and self._expansion == other._expansion
-                # They are defined in the same file
+        # If they have the same representation
+        # And the same expansion
+        # And they are defined in the same file
+        # And they have the same number of arguments
+        # And the same comments
+        if(str(self) == str(other)
+                and self.expand() == other.expand()
                 and self._file_defined == other._file_defined
-                # They have the same arguments
-                and len(self._args) == len(other._args)
-                and set(self._args) == set(other._args)
-                # And the same comments
+                and self.nargs == other.nargs
                 and len(self._comments) == len(other._comments)
-                and set(self._comments) == set(other._comments)):
+                and "".join(self._comments) == "".join(other._comments)):
             return True
         else:
             return False
 
     def __ne__(self, other):
-        return not self.__eq__(other)
+        return not self == other
 
 
 class MacroInPolicy(object):
