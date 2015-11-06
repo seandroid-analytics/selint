@@ -166,7 +166,7 @@ def expand_macros(base_dir, policyfiles):
 
 def join_policy_files(base_dir, policyfiles):
     """Get the absolute path of the policy files, removing empty values"""
-    return [os.path.join(os.path.expanduser(base_dir), x)
+    return [os.path.join(os.path.expanduser(os.path.abspath(base_dir)), x)
             for x in policyfiles if x]
 
 
