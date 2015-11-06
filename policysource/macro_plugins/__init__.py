@@ -22,7 +22,6 @@ import sys
 import keyword
 import inspect
 from tempfile import mkdtemp
-import subprocess
 from subprocess import check_call, CalledProcessError
 import logging
 
@@ -73,6 +72,7 @@ class M4MacroParser(object):
 
     def parse(self, files):
         """Parses a list of files and returns a dictionary of macros."""
+        # TODO: refactor this function, too many branches
         macros = {}
         # Remove empty strings, normalize paths
         files = [os.path.abspath(x) for x in files if x]
@@ -90,7 +90,7 @@ class M4MacroParser(object):
             command.extend(files)
             command.extend(["-F", m4_freeze_file])
             with open(os.devnull, "w") as devnull:
-                subprocess.check_call(command, stdout=devnull)
+                check_call(command, stdout=devnull)
         except CalledProcessError as e:
             self.log.error("%s", e.msg)
             self.log.error("Failed to generate freeze file \"%s\". "
