@@ -216,16 +216,16 @@ class TestPolicy(unittest.TestCase):
         # domain_trans(olddomain, type, newdomain)
         tmp = m.M4Macro("domain_trans", """
 # Old domain may exec the file and transition to the new domain.
-allow olddomain type:file { getattr open read execute };
-allow olddomain newdomain:process transition;
+allow @@ARG0@@ @@ARG1@@:file { getattr open read execute };
+allow @@ARG0@@ @@ARG2@@:process transition;
 # New domain is entered by executing the file.
-allow newdomain type:file { entrypoint open read execute getattr };
+allow @@ARG2@@ @@ARG1@@:file { entrypoint open read execute getattr };
 # New domain can send SIGCHLD to its caller.
-allow newdomain olddomain:process sigchld;
+allow @@ARG2@@ @@ARG0@@:process sigchld;
 # Enable AT_SECURE, i.e. libc secure mode.
-dontaudit olddomain newdomain:process noatsecure;
+dontaudit @@ARG0@@ @@ARG2@@:process noatsecure;
 # XXX dontaudit candidate but requires further study.
-allow olddomain newdomain:process { siginh rlimitinh };
+allow @@ARG0@@ @@ARG2@@:process { siginh rlimitinh };
 """,
                         f_te, ["olddomain", "type", "newdomain"], [
                             "# domain_trans(olddomain, type, newdomain)",
@@ -246,19 +246,19 @@ allow olddomain newdomain:process { siginh rlimitinh };
 # Allow the necessary permissions.
 
 # Old domain may exec the file and transition to the new domain.
-allow olddomain type:file { getattr open read execute };
-allow olddomain newdomain:process transition;
+allow @@ARG0@@ @@ARG1@@:file { getattr open read execute };
+allow @@ARG0@@ @@ARG2@@:process transition;
 # New domain is entered by executing the file.
-allow newdomain type:file { entrypoint open read execute getattr };
+allow @@ARG2@@ @@ARG1@@:file { entrypoint open read execute getattr };
 # New domain can send SIGCHLD to its caller.
-allow newdomain olddomain:process sigchld;
+allow @@ARG2@@ @@ARG0@@:process sigchld;
 # Enable AT_SECURE, i.e. libc secure mode.
-dontaudit olddomain newdomain:process noatsecure;
+dontaudit @@ARG0@@ @@ARG2@@:process noatsecure;
 # XXX dontaudit candidate but requires further study.
-allow olddomain newdomain:process { siginh rlimitinh };
+allow @@ARG0@@ @@ARG2@@:process { siginh rlimitinh };
 
 # Make the transition occur by default.
-type_transition olddomain type:process newdomain;
+type_transition @@ARG0@@ @@ARG1@@:process @@ARG2@@;
 """,
                         f_te, ["olddomain", "type", "newdomain"], [
                             "# domain_auto_trans(olddomain, type, newdomain)",
@@ -270,9 +270,9 @@ type_transition olddomain type:process newdomain;
         expected_macros["domain_auto_trans"] = tmp
         # tmpfs_domain(domain)
         tmp = m.M4Macro("tmpfs_domain", """
-type domain_tmpfs, file_type;
-type_transition domain tmpfs:file domain_tmpfs;
-allow domain domain_tmpfs:file { read write };
+type @@ARG0@@_tmpfs, file_type;
+type_transition @@ARG0@@ tmpfs:file @@ARG0@@_tmpfs;
+allow @@ARG0@@ @@ARG0@@_tmpfs:file { read write };
 """,
                         f_te, ["domain"], [
                             "# tmpfs_domain(domain)",
