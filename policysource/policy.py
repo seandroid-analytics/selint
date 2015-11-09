@@ -170,6 +170,30 @@ def join_policy_files(base_dir, policyfiles):
             for x in policyfiles if x]
 
 
+def __get_macro_args__(macro, word, line, f):
+    """Get the current macro arguments"""
+    # The macro is supposed to have nargs arguments
+    if macro.nargs > 0:
+        # Check if it is actually used with all its arguments
+        usage_r = r'\s*' + word + \
+            r'\(((?:(?:\w+|\{[^,]+\}),\s?)*(?:\w+|\{[^,]+\}))\)\s*'
+        tmp = re.match(usage_r, line)
+        if tmp:
+            # Save the arguments
+            args = re.split(r',\s*', tmp.group(1))
+        else:
+            # The macro usage is not valid
+            LOG.warning("\"%s\" is a macro name "
+                        "but it is used wrong at "
+                        "%s:%s:", word, f, lineno)
+            LOG.warning("\"%s\"", line.rstrip())
+            args = None
+    else:
+        # Macro without arguments
+        args = []
+    return args
+
+
 def find_macros(base_dir, policyfiles):
     """Get a list of all the m4 macros used in the supplied files.
 
@@ -192,31 +216,18 @@ def find_macros(base_dir, policyfiles):
                             if word in macros:
                                 # We have found a macro
                                 # Check if it has arguments
-                                if macros[word].nargs > 0:
-                                    # Check if the syntax is correct
-                                    usage_r = r'\s*' + word + \
-                                        r'\(((?:(?:\w+|\{[^,]+\}),\s?)*(?:\w+|\{[^,]+\}))\)\s*'
-                                    tmp = re.match(usage_r, line)
-                                    if tmp:
-                                        args = re.split(r',\s*', tmp.group(1))
-                                    else:
-                                        # The macro is not valid
-                                        LOG.warning("\"%s\" is a macro name "
-                                                    "but it is used wrong at "
-                                                    "%s:%s:", word, f, lineno)
-                                        LOG.warning("\"%s\"", line.rstrip())
-                                        continue
-                                else:
-                                    # Macro without arguments
-                                    args = []
+                                args == __get_macro_args__(macros[word],
+                                                           word, line, f)
+                                if args is None:
+                                    continue
                                 # Construct the new macro object
                                 try:
-                                    nm = MacroInPolicy(
+                                    newmacro = MacroInPolicy(
                                         macros, f, lineno, word, args)
                                 except M4MacroError as e:
                                     # Bad macro, skip
                                     LOG.warning("%s", e.msg)
                                 else:
                                     # Add the new macro to the list
-                                    macros_in_policy.append(nm)
+                                    macros_in_policy.append(newmacro)
     return macros_in_policy
