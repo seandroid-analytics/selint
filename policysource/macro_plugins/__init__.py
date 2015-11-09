@@ -57,14 +57,14 @@ class M4MacroParser(object):
         self.log = logging.getLogger(self.__class__.__name__)
 
         self.plugins = {}
-        for p in __all__:
-            plugin = globals()[p]
+        for mod in __all__:
+            plugin = globals()[mod]
             if (inspect.isfunction(plugin.expects)
                     and inspect.isfunction(plugin.parse)):
-                self.plugins[p] = plugin
-                self.log.debug("Found plugin \"%s\"", p)
+                self.plugins[mod] = plugin
+                self.log.debug("Found plugin \"%s\"", mod)
             else:
-                self.log.debug("Invalid plugin \"%s\"", p)
+                self.log.debug("Invalid plugin \"%s\"", mod)
 
     def expects(self):
         """Returns a list of files that the parser can handle."""
@@ -101,27 +101,30 @@ class M4MacroParser(object):
             self.log.debug(
                 "Successfully generated freeze file \"%s\".", m4_freeze_file)
             # Parse each file, using the freeze file
-            for f in files:
-                if os.path.basename(f) in self.plugins:
+            for single_file in files:
+                if os.path.basename(single_file) in self.plugins:
                     self.log.debug("Parsing macros from \"%s\" with plugin "
-                                   "\"%s\"", f, os.path.basename(f))
+                                   "\"%s\"", single_file,
+                                   os.path.basename(single_file))
                     # Find the appropriate parser
-                    parser = self.plugins[os.path.basename(f)]
-                    # Parse f with the appropriate parser
+                    parser = self.plugins[os.path.basename(single_file)]
+                    # Parse single_file with the appropriate parser
                     try:
-                        f_macros = parser.parse(f, tempdir, m4_freeze_file)
+                        f_macros = parser.parse(
+                            single_file, tempdir, m4_freeze_file)
                     except ValueError as e:
                         # This really should not happen
                         # Log and skip
                         self.log.warning("%s", e.msg)
-                        self.log.warning("Could not parse \"%s\"", f)
+                        self.log.warning("Could not parse \"%s\"", single_file)
                     else:
                         # Update the global macro dictionary
                         macros.update(f_macros)
-                        self.log.debug("Parsed macros from \"%s\"", f)
+                        self.log.debug(
+                            "Parsed macros from \"%s\"", single_file)
                 else:
                     # We don't have a parser for this file
-                    self.log.debug("No parser for \"%s\"", f)
+                    self.log.debug("No parser for \"%s\"", single_file)
         finally:
             # Try to remove the freeze file
             try:

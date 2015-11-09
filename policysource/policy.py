@@ -141,15 +141,15 @@ def find_macro_files(base_dir, policyfiles):
     macrodef = re.compile(MACRODEF)
     macro_files = []
     # Get the absolute path of the supplied policy files, remove empty values
-    pf = join_policy_files(base_dir, policyfiles)
-    for f in pf:
-        with open(f, 'r') as mf:
-            for line in mf:
+    policy_files = join_policy_files(base_dir, policyfiles)
+    for single_file in policy_files:
+        with open(single_file, 'r') as macro_file:
+            for line in macro_file:
                 # If this file contains at least one macro definition, append
                 # it to the list of macro files and skip to the next policy
                 # file
                 if macrodef.search(line):
-                    macro_files.append(f)
+                    macro_files.append(single_file)
                     break
     return macro_files
 
@@ -170,7 +170,7 @@ def join_policy_files(base_dir, policyfiles):
             for x in policyfiles if x]
 
 
-def __get_macro_args__(macro, word, line, f):
+def __get_macro_args__(macro, word, line, macro_file, lineno):
     """Get the current macro arguments"""
     # The macro is supposed to have nargs arguments
     if macro.nargs > 0:
@@ -185,7 +185,7 @@ def __get_macro_args__(macro, word, line, f):
             # The macro usage is not valid
             LOG.warning("\"%s\" is a macro name "
                         "but it is used wrong at "
-                        "%s:%s:", word, f, lineno)
+                        "%s:%s:", word, macro_file, lineno)
             LOG.warning("\"%s\"", line.rstrip())
             args = None
     else:
@@ -198,32 +198,31 @@ def find_macros(base_dir, policyfiles):
     """Get a list of all the m4 macros used in the supplied files.
 
     The list contains MacroInPolicy objects."""
-    # TODO: refactor this function
     macros = expand_macros(base_dir, policyfiles)
     macros_in_policy = []
     # Get the absolute path of the supplied policy files, remove empty values
-    pf = join_policy_files(base_dir, policyfiles)
-    for f in pf:
+    policy_files = join_policy_files(base_dir, policyfiles)
+    for current_file in policy_files:
         # For each file
-        if f.endswith(".te"):
+        if current_file.endswith(".te"):
             # If it's a .te file
-            with open(f) as cf:
-                for lineno, line in enumerate(cf, 1):
+            with open(current_file) as current_file_content:
+                for lineno, line in enumerate(current_file_content, 1):
                     if not line.startswith("#"):
                         # Ignore comments
-                        # TODO: if line.startswith("neverallow") record it
                         for word in re.split(r'\W+', line):
                             if word in macros:
                                 # We have found a macro
                                 # Check if it has arguments
-                                args == __get_macro_args__(macros[word],
-                                                           word, line, f)
+                                args = __get_macro_args__(macros[word], word,
+                                                          line, current_file,
+                                                          lineno)
                                 if args is None:
                                     continue
                                 # Construct the new macro object
                                 try:
                                     newmacro = MacroInPolicy(
-                                        macros, f, lineno, word, args)
+                                        macros, current_file, lineno, word, args)
                                 except M4MacroError as e:
                                     # Bad macro, skip
                                     LOG.warning("%s", e.msg)

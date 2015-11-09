@@ -26,39 +26,40 @@ MACRO_FILE = "global_macros"
 LOG = logging.getLogger(__name__)
 
 
-def expects(f):
+def expects(expected_file):
     """Return True/False depending on whether the plugin can handle the file"""
-    if f and os.path.basename(f) == MACRO_FILE:
+    if expected_file and os.path.basename(expected_file) == MACRO_FILE:
         return True
     else:
         return False
 
 
-def parse(f, tempdir, m4_freeze_file):
+def parse(f_to_parse, tempdir, m4_freeze_file):
     """Parse the file and return a dictionary of macros.
 
     Raise ValueError if unable to handle the file."""
     # Check that we can handle the file we're served
-    if not f or not expects(f):
-        raise ValueError("{} can't handle {}.".format(MACRO_FILE, f))
+    if not f_to_parse or not expects(f_to_parse):
+        raise ValueError("{} can't handle {}.".format(MACRO_FILE, f_to_parse))
     macros = {}
     # Parse the global_macros file
     macrodef = re.compile(r'^define\(\`([^\']+)\',\s+`([^\']+)\'')
-    with open(f) as global_macros_file:
+    with open(f_to_parse) as global_macros_file:
         for lineno, line in enumerate(global_macros_file):
             # If the line contains a macro, parse it
-            n = macrodef.search(line)
-            if n is not None:
+            macro_match = macrodef.search(line)
+            if macro_match is not None:
                 # Construct the new macro object
-                name = n.group(1)
-                expansion = n.group(2)
+                name = macro_match.group(1)
+                expansion = macro_match.group(2)
                 try:
-                    new_macro = M4Macro(name, expansion, f)
+                    new_macro = M4Macro(name, expansion, f_to_parse)
                 except M4MacroError as e:
                     # Log the failure and skip
                     # Find the macro line and report it to the user
                     LOG.warning("%s", e.msg)
-                    LOG.warning("Macro \"%s\" is at %s:%s", name, f, lineno)
+                    LOG.warning("Macro \"%s\" is at %s:%s",
+                                name, f_to_parse, lineno)
                 else:
                     # Add the new macro to the dictionary
                     macros[name] = new_macro

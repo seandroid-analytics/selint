@@ -29,9 +29,9 @@ MDL = r"^#\s[a-zA-Z][a-zA-Z0-9_]*\((?:[a-zA-Z0-9_]+,\s?)*(?:[a-zA-Z0-9_]+)\)$"
 BLK_SEP = r"^##+$\n"
 
 
-def expects(f):
+def expects(expected_file):
     """Return True/False depending on whether the plugin can handle the file"""
-    if f and os.path.basename(f) == MACRO_FILE:
+    if expected_file and os.path.basename(expected_file) == MACRO_FILE:
         return True
     else:
         return False
@@ -58,33 +58,36 @@ def __expand__(name, args, tmp, m4_freeze_file):
     return expansion
 
 
-def parse(f, tempdir, m4_freeze_file):
+def parse(f_to_parse, tempdir, m4_freeze_file):
     """Parse the file and return a dictionary of macros.
 
     Raise ValueError if unable to handle the file."""
+    # TODO: refactor this function, too many local variables
     # Check that we can handle the file we're served
-    if not f or not expects(f):
-        raise ValueError("{} can't handle {}.".format(MACRO_FILE, f))
+    if not f_to_parse or not expects(f_to_parse):
+        raise ValueError("{} can't handle {}.".format(MACRO_FILE, f_to_parse))
     macros = {}
     # Parse the te_macros file
     # Create a temporary file that will contain, at each iteration, the
     # macro to be expanded by m4. This is better than piping input to m4.
     tmp = os.path.join(tempdir, "te_macrofile")
-    with open(f) as te_macro_file:
-        fc = te_macro_file.read()
+    with open(f_to_parse) as te_macro_file:
+        file_content = te_macro_file.read()
         # Split the file in blocks
-        blocks = [x for x in re.split(BLK_SEP, fc, flags=re.MULTILINE) if x]
-        for b in blocks:
+        blocks = [x for x in re.split(
+            BLK_SEP, file_content, flags=re.MULTILINE) if x]
+        for current_block in blocks:
             # Parse the macro block
             comments = []
             # Split the macro block in lines, removing empty lines
-            block = [x for x in b.splitlines() if x]
+            block = [x for x in current_block.splitlines() if x]
             # Check that the macro definition line is correct
             if not re.match(MDL, block[0]):
                 # If not, log the failure and skip this block
                 # Find the macro definition line
-                lineno = fc.splitlines().index(block[0])
-                LOG.warning("Bad macro definition at %s:%s", f, lineno)
+                lineno = file_content.splitlines().index(block[0])
+                LOG.warning("Bad macro definition at %s:%s",
+                            f_to_parse, lineno)
                 continue
             # Tokenize the macro definition line, removing empy tokens
             # "# macro(arg1,arg2)" -> ["macro", "arg1", "arg2"]
@@ -92,15 +95,16 @@ def parse(f, tempdir, m4_freeze_file):
             name = definition[0]    # ["macro"]
             args = definition[1:]   # ["arg1", "arg2"]
             # Get comments
-            for l in block:
-                if l.startswith('#'):
-                    comments.append(l)
+            for line in block:
+                if line.startswith('#'):
+                    comments.append(line)
             # Get the macro expansion
             expansion = __expand__(name, args, tmp, m4_freeze_file)
             if expansion:
                 # Construct the new macro object
                 try:
-                    new_macro = M4Macro(name, expansion, f, args, comments)
+                    new_macro = M4Macro(
+                        name, expansion, f_to_parse, args, comments)
                 except M4MacroError as e:
                     # Log the failure and skip
                     LOG.warning("%s", e.msg)
@@ -110,9 +114,9 @@ def parse(f, tempdir, m4_freeze_file):
             else:
                 # Log the failure and skip this macro
                 # Find the macro line and report it to the user
-                lineno = fc.splitlines().index(block[0])
+                lineno = file_content.splitlines().index(block[0])
                 LOG.warning("Failed to expand macro \"%s\" at %s:%s",
-                            name, f, lineno)
+                            name, f_to_parse, lineno)
     # Try to remove the temporary file
     try:
         os.remove(tmp)
