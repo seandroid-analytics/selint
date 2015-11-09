@@ -88,8 +88,11 @@ class TestM4Macro(unittest.TestCase):
         self.comments = ["# Some comment lines which are",
                          "# totally unnecessary"]
 
-        self.macro = m.M4Macro(self.name, expansion, self.file_defined,
-                               self.args, self.comments)
+        self.macro_no_args = m.M4Macro(self.name, self.expand,
+                                       self.file_defined)
+        self.macro_with_args = m.M4Macro(self.name, expansion,
+                                         self.file_defined,
+                                         self.args, self.comments)
 
     def tearDown(self):
         self.name = None
@@ -113,49 +116,214 @@ class TestM4Macro(unittest.TestCase):
             m.M4Macro("", "", None)
         with self.assertRaises(m.M4MacroError):
             m.M4Macro(None, None, None)
-        self.assertIsInstance(self.macro, m.M4Macro)
+        # Valid macro
+        self.assertIsInstance(self.macro_no_args, m.M4Macro)
+        self.assertIsInstance(self.macro_with_args, m.M4Macro)
 
     def test_name(self):
-        self.assertEqual(self.macro.name, self.name)
+        self.assertEqual(self.macro_with_args.name, self.name)
+        self.assertEqual(self.macro_no_args.name, self.name)
 
     def test_expand(self):
-        self.assertEqual(self.macro.expand(), self.expand)
+        self.assertEqual(self.macro_with_args.expand(), self.expand)
+        self.assertEqual(self.macro_no_args.expand(), self.expand)
 
     def test_file_defined(self):
-        self.assertEqual(self.macro.file_defined, self.file_defined)
+        self.assertEqual(self.macro_with_args.file_defined, self.file_defined)
+        self.assertEqual(self.macro_no_args.file_defined, self.file_defined)
 
     def test_nargs(self):
-        self.assertEqual(self.macro.nargs, len(self.args))
+        self.assertEqual(self.macro_with_args.nargs, len(self.args))
+        self.assertEqual(self.macro_no_args.nargs, 0)
 
     def test_args(self):
-        self.assertEqual(self.macro.args, self.args)
+        self.assertEqual(self.macro_with_args.args, self.args)
+        self.assertEqual(self.macro_no_args.args, [])
 
     def test_comments(self):
-        self.assertEqual(self.macro.comments, self.comments)
+        self.assertEqual(self.macro_with_args.comments, self.comments)
+        self.assertEqual(self.macro_no_args.comments, [])
 
     def test___repr__(self):
-        representation = self.name + "(" + ", ".join(self.args) + ")"
-        self.assertEqual(str(self.macro), representation)
+        representation_with_args = self.name + "(" + ", ".join(self.args) + ")"
+        self.assertEqual(str(self.macro_with_args), representation_with_args)
+        self.assertEqual(str(self.macro_no_args), self.name)
 
     def test___eq__(self):
-        other = copy.deepcopy(self.macro)
-        self.assertEqual(self.macro, other)
+        other_with_args = copy.deepcopy(self.macro_with_args)
+        other_no_args = copy.deepcopy(self.macro_no_args)
+        self.assertEqual(self.macro_with_args, other_with_args)
+        self.assertEqual(self.macro_no_args, other_no_args)
 
     def test___ne__(self):
-        other = copy.deepcopy(self.macro)
-        other._file_defined = "some_other_file"
-        self.assertNotEqual(self.macro, other)
+        other_with_args = copy.deepcopy(self.macro_with_args)
+        other_no_args = copy.deepcopy(self.macro_no_args)
+        other_with_args._file_defined = "some_other_file"
+        other_no_args._file_defined = "some_other_file"
+        self.assertNotEqual(self.macro_with_args, other_with_args)
+        self.assertNotEqual(self.macro_no_args, other_no_args)
 
 
 class TestMacroInPolicy(unittest.TestCase):
 
     def setUp(self):
-        pass
+        self.macros = {}
+        # Create the necessary M4Macro with arguments
+        self.name = "some_macro"
+        expansion = "{expansion with arguments @@ARG0@@ and @@ARG1@@}"
+        expand_defined = "{expansion with arguments arg0 and arg1}"
+        self.expansion_used = "{expansion with arguments the first and the second}"
+        file_defined = "some_file"
+        self.args_defined = ["arg0", "arg1"]
+        comments = ["# Some comment lines which are",
+                    "# totally unnecessary"]
+        self.macros[self.name] = m.M4Macro(self.name, expansion, file_defined,
+                                           self.args_defined, comments)
+        # Create the necessary M4Macro without arguments
+        self.name2 = "other_macro"
+        self.expansion2 = "{expansion}"
+        file_defined2 = "some_file"
+        self.macros[self.name2] = m.M4Macro(self.name2, self.expansion2,
+                                            file_defined2)
+        # Create the "invalid" invalid macro
+        self.macros["invalid"] = None
+        # Create the MacroInPolicy object with arguments
+        self.file_used = "some_file.te"
+        self.line_used = 5
+        self.args_used = ["the first", "the second"]
+        self.macro_usage_with_args = m.MacroInPolicy(self.macros,
+                                                     self.file_used,
+                                                     self.line_used, self.name,
+                                                     self.args_used)
+        # Create the MacroInPolicy object without arguments
+        self.file_used2 = "some_file.te"
+        self.line_used2 = 6
+        self.macro_usage_no_args = m.MacroInPolicy(self.macros,
+                                                   self.file_used2,
+                                                   self.line_used2, self.name2)
 
     def tearDown(self):
-        pass
+        self.macros[self.name] = None
+        self.macros[self.name2] = None
+        self.macros = None
+        self.name = None
+        self.name2 = None
+        self.expand_used = None
+        self.expansion2 = None
+        self.args_defined = None
+        self.file_used = None
+        self.file_used2 = None
+        self.line_used = None
+        self.line_used2 = None
+        self.args_used = None
+        self.macro_usage_with_args = None
+        self.macro_usage_no_args = None
 
-    # TODO: implement following a similar structure to TestM4Macro
+    def test_constructor(self):
+        """Test the behaviour of the MacroInPolicy constructor"""
+        # Invalid macros
+        # Invalid macros dictionary
+        with self.assertRaises(m.M4MacroError):
+            m.MacroInPolicy(None, self.file_used, self.line_used, self.name,
+                            self.args_used)
+            # Invalid macro file_used
+        with self.assertRaises(m.M4MacroError):
+            m.MacroInPolicy(self.macros, None, self.line_used, self.name,
+                            self.args_used)
+            # Invalid macro line_used
+        with self.assertRaises(m.M4MacroError):
+            m.MacroInPolicy(self.macros, self.file_used, None, self.name,
+                            self.args_used)
+            # Invalid macro line_used
+        with self.assertRaises(m.M4MacroError):
+            m.MacroInPolicy(self.macros, self.file_used, -4, self.name,
+                            self.args_used)
+            # Invalid macro line_used
+        with self.assertRaises(m.M4MacroError):
+            m.MacroInPolicy(self.macros, self.file_used, "4", self.name,
+                            self.args_used)
+            # Invalid macro name
+        with self.assertRaises(m.M4MacroError):
+            m.MacroInPolicy(self.macros, self.file_used, self.line_used,
+                            None, self.args_used)
+            # Invalid macro name
+        with self.assertRaises(m.M4MacroError):
+            m.MacroInPolicy(self.macros, self.file_used, self.line_used,
+                            "", self.args_used)
+            # Invalid macro arguments
+        with self.assertRaises(m.M4MacroError):
+            m.MacroInPolicy(self.macros, self.file_used, self.line_used,
+                            self.name, None)
+            # Invalid macro arguments
+        with self.assertRaises(m.M4MacroError):
+            m.MacroInPolicy(self.macros, self.file_used, self.line_used,
+                            self.name, [])
+            # Invalid macro name
+        with self.assertRaises(m.M4MacroError):
+            m.MacroInPolicy(self.macros, self.file_used, self.line_used,
+                            "missing", self.args_used)
+            # Invalid macro name
+        with self.assertRaises(m.M4MacroError):
+            m.MacroInPolicy(self.macros, self.file_used, self.line_used,
+                            "invalid", self.args_used)
+        # Valid macro
+        self.assertIsInstance(self.macro_usage_with_args, m.MacroInPolicy)
+        self.assertIsInstance(self.macro_usage_no_args, m.MacroInPolicy)
+
+        def test_name(self):
+            self.assertEqual(self.macro_usage_with_args.name, self.name)
+            self.assertEqual(self.macro_usage_no_args.name, self.name2)
+
+        def test_expansion(self):
+            self.assertEqual(
+                self.macro_usage_with_args.expansion, self.expansion_used)
+            self.assertEqual(
+                self.macro_usage_no_args.expansion, self.expansion2)
+
+        def test_file_used(self):
+            self.assertEqual(
+                self.macro_usage_with_args.file_used, self.file_used)
+            self.assertEqual(
+                self.macro_usage_no_args.file_used, self.file_used2)
+
+        def test_line_used(self):
+            self.assertEqual(
+                self.macro_usage_with_args.line_used, self.line_used)
+            self.assertEqual(
+                self.macro_usage_no_args.line_used, self.line_used2)
+
+        def test_nargs(self):
+            self.assertEqual(self.macro_usage_with_args.nargs,
+                             len(self.args_defined))
+            self.assertEqual(self.macro_usage_with_args.nargs,
+                             len(self.args_used))
+            self.assertEqual(self.macro_usage_no_args.nargs, 0)
+
+        def test_args(self):
+            self.assertEqual(self.macro_usage_with_args.args_descriptions,
+                             self.args_defined)
+            self.assertEqual(self.macro_usage_with_args.args, self.args_used)
+            self.assertEqual(self.macro_usage_no_args.args, [])
+
+        def test___repr__(self):
+            representation = self.name +\
+                "(" + ", ".join(self.args_used) + ")"
+            self.assertEqual(str(self.macro_usage_with_args), representation)
+            self.assertEqual(str(self.macro_usage_no_args), self.name2)
+
+        def test___eq__(self):
+            other_with_args = copy.deepcopy(self.macro_usage_with_args)
+            other_no_args = copy.deepcopy(self.macro_usage_no_args)
+            self.assertEqual(self.macro_with_args, other_with_args)
+            self.assertEqual(self.macro_no_args, other_no_args)
+
+        def test___ne__(self):
+            other_with_args = copy.deepcopy(self.macro_with_args)
+            other_no_args = copy.deepcopy(self.macro_no_args)
+            other_with_args._file_used = "some_other_file"
+            other_no_args._file_used = "some_other_file"
+            self.assertNotEqual(self.macro_with_args, other_with_args)
+            self.assertNotEqual(self.macro_no_args, other_no_args)
 
 
 class TestPolicy(unittest.TestCase):
