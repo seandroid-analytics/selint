@@ -29,11 +29,17 @@ class M4Macro(object):
 
     """Class providing an abstraction for a m4 macro."""
 
+    @staticmethod
+    def check_nargs(expansion, args):
+        """Check that the number of arguments in the provided expansion
+        matches the number of provided arguments"""
+        argex = r'@@ARG[0-9]+@@'
+        return len(args) == len(list(set(re.findall(argex, expansion))))
+
     def __init__(self, name, expansion, file_defined, args=[], comments=[]):
         # Check if we have enough data
-        # TODO: check that we are supplying enough args to expansion
         if (not name or not expansion or not file_defined or args is None
-                or comments is None):
+                or not self.check_nargs(expansion, args) or comments is None):
             if not name:
                 name = "noname"
             if args is None:
