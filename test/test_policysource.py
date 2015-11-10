@@ -121,26 +121,38 @@ class TestM4Macro(unittest.TestCase):
         self.assertIsInstance(self.macro_with_args, m.M4Macro)
 
     def test_name(self):
+        self.assertTrue(hasattr(self.macro_with_args, "name"))
+        self.assertTrue(hasattr(self.macro_no_args, "name"))
         self.assertEqual(self.macro_with_args.name, self.name)
         self.assertEqual(self.macro_no_args.name, self.name)
 
     def test_expand(self):
+        self.assertTrue(hasattr(self.macro_with_args, "expand"))
+        self.assertTrue(hasattr(self.macro_no_args, "expand"))
         self.assertEqual(self.macro_with_args.expand(), self.expand)
         self.assertEqual(self.macro_no_args.expand(), self.expand)
 
     def test_file_defined(self):
+        self.assertTrue(hasattr(self.macro_with_args, "file_defined"))
+        self.assertTrue(hasattr(self.macro_no_args, "file_defined"))
         self.assertEqual(self.macro_with_args.file_defined, self.file_defined)
         self.assertEqual(self.macro_no_args.file_defined, self.file_defined)
 
     def test_nargs(self):
+        self.assertTrue(hasattr(self.macro_with_args, "nargs"))
+        self.assertTrue(hasattr(self.macro_no_args, "nargs"))
         self.assertEqual(self.macro_with_args.nargs, len(self.args))
         self.assertEqual(self.macro_no_args.nargs, 0)
 
     def test_args(self):
+        self.assertTrue(hasattr(self.macro_with_args, "args"))
+        self.assertTrue(hasattr(self.macro_no_args, "args"))
         self.assertEqual(self.macro_with_args.args, self.args)
         self.assertEqual(self.macro_no_args.args, [])
 
     def test_comments(self):
+        self.assertTrue(hasattr(self.macro_with_args, "comments"))
+        self.assertTrue(hasattr(self.macro_no_args, "comments"))
         self.assertEqual(self.macro_with_args.comments, self.comments)
         self.assertEqual(self.macro_no_args.comments, [])
 
@@ -270,60 +282,72 @@ class TestMacroInPolicy(unittest.TestCase):
         self.assertIsInstance(self.macro_usage_with_args, m.MacroInPolicy)
         self.assertIsInstance(self.macro_usage_no_args, m.MacroInPolicy)
 
-        def test_name(self):
-            self.assertEqual(self.macro_usage_with_args.name, self.name)
-            self.assertEqual(self.macro_usage_no_args.name, self.name2)
+    def test_name(self):
+        self.assertTrue(hasattr(self.macro_usage_with_args, "name"))
+        self.assertTrue(hasattr(self.macro_usage_no_args, "name"))
+        self.assertEqual(self.macro_usage_with_args.name, self.name)
+        self.assertEqual(self.macro_usage_no_args.name, self.name2)
 
-        def test_expansion(self):
-            self.assertEqual(
-                self.macro_usage_with_args.expansion, self.expansion_used)
-            self.assertEqual(
-                self.macro_usage_no_args.expansion, self.expansion2)
+    def test_expansion(self):
+        self.assertTrue(hasattr(self.macro_usage_with_args, "expansion"))
+        self.assertTrue(hasattr(self.macro_usage_no_args, "expansion"))
+        self.assertEqual(
+            self.macro_usage_with_args.expansion, self.expansion_used)
+        self.assertEqual(
+            self.macro_usage_no_args.expansion, self.expansion2)
 
-        def test_file_used(self):
-            self.assertEqual(
-                self.macro_usage_with_args.file_used, self.file_used)
-            self.assertEqual(
-                self.macro_usage_no_args.file_used, self.file_used2)
+    def test_file_used(self):
+        self.assertTrue(hasattr(self.macro_usage_with_args, "file_used"))
+        self.assertTrue(hasattr(self.macro_usage_no_args, "file_used"))
+        self.assertEqual(
+            self.macro_usage_with_args.file_used, self.file_used)
+        self.assertEqual(
+            self.macro_usage_no_args.file_used, self.file_used2)
 
-        def test_line_used(self):
-            self.assertEqual(
-                self.macro_usage_with_args.line_used, self.line_used)
-            self.assertEqual(
-                self.macro_usage_no_args.line_used, self.line_used2)
+    def test_line_used(self):
+        self.assertTrue(hasattr(self.macro_usage_with_args, "line_used"))
+        self.assertTrue(hasattr(self.macro_usage_no_args, "line_used"))
+        self.assertEqual(
+            self.macro_usage_with_args.line_used, self.line_used)
+        self.assertEqual(
+            self.macro_usage_no_args.line_used, self.line_used2)
 
-        def test_nargs(self):
-            self.assertEqual(self.macro_usage_with_args.nargs,
-                             len(self.args_defined))
-            self.assertEqual(self.macro_usage_with_args.nargs,
-                             len(self.args_used))
-            self.assertEqual(self.macro_usage_no_args.nargs, 0)
+    def test_nargs(self):
+        self.assertTrue(hasattr(self.macro_usage_with_args, "nargs"))
+        self.assertTrue(hasattr(self.macro_usage_no_args, "nargs"))
+        self.assertEqual(self.macro_usage_with_args.nargs,
+                         len(self.args_defined))
+        self.assertEqual(self.macro_usage_with_args.nargs,
+                         len(self.args_used))
+        self.assertEqual(self.macro_usage_no_args.nargs, 0)
 
-        def test_args(self):
-            self.assertEqual(self.macro_usage_with_args.args_descriptions,
-                             self.args_defined)
-            self.assertEqual(self.macro_usage_with_args.args, self.args_used)
-            self.assertEqual(self.macro_usage_no_args.args, [])
+    def test_args(self):
+        self.assertTrue(hasattr(self.macro_usage_with_args, "args"))
+        self.assertTrue(hasattr(self.macro_usage_no_args, "args"))
+        self.assertEqual(self.macro_usage_with_args.args_descriptions,
+                         self.args_defined)
+        self.assertEqual(self.macro_usage_with_args.args, self.args_used)
+        self.assertEqual(self.macro_usage_no_args.args, [])
 
-        def test___repr__(self):
-            representation = self.name +\
-                "(" + ", ".join(self.args_used) + ")"
-            self.assertEqual(str(self.macro_usage_with_args), representation)
-            self.assertEqual(str(self.macro_usage_no_args), self.name2)
+    def test___repr__(self):
+        representation = self.name +\
+            "(" + ", ".join(self.args_used) + ")"
+        self.assertEqual(str(self.macro_usage_with_args), representation)
+        self.assertEqual(str(self.macro_usage_no_args), self.name2)
 
-        def test___eq__(self):
-            other_with_args = copy.deepcopy(self.macro_usage_with_args)
-            other_no_args = copy.deepcopy(self.macro_usage_no_args)
-            self.assertEqual(self.macro_with_args, other_with_args)
-            self.assertEqual(self.macro_no_args, other_no_args)
+    def test___eq__(self):
+        other_with_args = copy.deepcopy(self.macro_usage_with_args)
+        other_no_args = copy.deepcopy(self.macro_usage_no_args)
+        self.assertEqual(self.macro_usage_with_args, other_with_args)
+        self.assertEqual(self.macro_usage_no_args, other_no_args)
 
-        def test___ne__(self):
-            other_with_args = copy.deepcopy(self.macro_with_args)
-            other_no_args = copy.deepcopy(self.macro_no_args)
-            other_with_args._file_used = "some_other_file"
-            other_no_args._file_used = "some_other_file"
-            self.assertNotEqual(self.macro_with_args, other_with_args)
-            self.assertNotEqual(self.macro_no_args, other_no_args)
+    def test___ne__(self):
+        other_with_args = copy.deepcopy(self.macro_usage_with_args)
+        other_no_args = copy.deepcopy(self.macro_usage_no_args)
+        other_with_args._file_used = "some_other_file"
+        other_no_args._file_used = "some_other_file"
+        self.assertNotEqual(self.macro_usage_with_args, other_with_args)
+        self.assertNotEqual(self.macro_usage_no_args, other_no_args)
 
 
 class TestPolicy(unittest.TestCase):
@@ -379,7 +403,8 @@ class TestPolicy(unittest.TestCase):
         expected_macros["rwx_file_perms"] = tmp
         # create_file_perms
         tmp = m.M4Macro("create_file_perms",
-                        "{ create rename setattr unlink rw_file_perms }", f_global)
+                        "{ create rename setattr unlink rw_file_perms }",
+                        f_global)
         expected_macros["create_file_perms"] = tmp
         # domain_trans(olddomain, type, newdomain)
         tmp = m.M4Macro("domain_trans", """
