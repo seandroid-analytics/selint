@@ -129,10 +129,10 @@ class MacroInPolicy(object):
 
     """Class providing an abstraction for an usage of a m4 macro."""
 
-    def __init__(self, existing_macros, file_used, line_no, name, args=[]):
+    def __init__(self, existing_macros, file_used, line_used, name, args=[]):
         # Check that we have enough data
-        if (not existing_macros or not file_used or line_no is None or
-                not isinstance(line_no, int) or int(line_no) < 0 or
+        if (not existing_macros or not file_used or line_used is None or
+                not isinstance(line_used, int) or int(line_used) < 0 or
                 not name or args is None):
             if not name:
                 name = "noname"
@@ -152,7 +152,7 @@ class MacroInPolicy(object):
             # Record the file for this usage
             self._file_used = file_used
             # Record the line number for this usage
-            self._line_no = int(line_no)
+            self._line_used = int(line_used)
         else:
             raise M4MacroError(
                 "Invalid macro \"{}({})\"".format(name, ", ".join(args)))
@@ -175,7 +175,7 @@ class MacroInPolicy(object):
     @property
     def line_used(self):
         """Get the line where the macro was used"""
-        return self._line_no
+        return self._line_used
 
     @property
     def args(self):
@@ -205,9 +205,9 @@ class MacroInPolicy(object):
         # Used in the same place
         if self.macro == other.macro\
                 and self.nargs == other.nargs\
-                and self.expand() == other.expand()\
+                and self.expansion == other.expansion\
                 and self.file_used == other.file_used\
-                and self.line_no == other.line_no:
+                and self.line_used == other.line_used:
             return True
         else:
             return False
