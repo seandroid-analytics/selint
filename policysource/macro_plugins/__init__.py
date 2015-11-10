@@ -83,8 +83,8 @@ class M4MacroParser(object):
             except CalledProcessError as e:
                 # We failed to generate the freeze file, abort
                 self.log.error("%s", e.msg)
-                raise self.M4FreezeFileError("Failed to generate freeze file"
-                                             "\"%s\".", self.freeze_file)
+                raise M4MacroParser.M4FreezeFileError(
+                    "Failed to generate freeze file \"%s\".", self.freeze_file)
             else:
                 # We successfully generated the freeze file
                 self.log.debug("Successfully generated freeze file \"%s\".",
