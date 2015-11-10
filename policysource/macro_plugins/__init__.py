@@ -176,7 +176,7 @@ class M4MacroParser(object):
                 parser = self.__get_parser__(single_file)
                 if parser:
                     # We have a parser for this file
-                    self.log.debug("Parsing macros from \"%s\" with plugin"
+                    self.log.debug("Parsing macros from \"%s\" with plugin "
                                    "\"%s\"", single_file, parser.__name__)
                     f_macros = self.__parse_file__(
                         single_file, parser, tempdir, m4_freeze_file)
@@ -188,6 +188,8 @@ class M4MacroParser(object):
                     self.log.debug("No parser for \"%s\"", single_file)
 
         finally:
+            # Necessary to empty the directory
+            del m4_freeze_file
             # Try to remove the temporary directory
             try:
                 os.rmdir(tempdir)
