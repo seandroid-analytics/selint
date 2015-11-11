@@ -26,7 +26,116 @@ import logging
 MACRO_FILE = "te_macros"
 LOG = logging.getLogger(__name__)
 MDL = r"^#\s[a-zA-Z][a-zA-Z0-9_]*\((?:[a-zA-Z0-9_]+,\s?)*(?:[a-zA-Z0-9_]+)\)$"
-BLK_SEP = r"^##+$\n"
+BLK_SEP = r"^##+$"
+
+
+class TEBlock(object):
+    """Helper class to handle a macro block in the te_macros file."""
+
+    def __init__(self, start, end, content):
+        """Construct a TEBlock object.
+
+        Keyword arguments:
+        start   -- The starting line index, indexed from 0
+        end     -- The non-inclusive end line index, indexed from 0
+        content -- A list containing the block lines, i.e. lines[start, end)
+        """
+        # Sanity check
+        if start + len(content) != end:
+            raise ValueError("Invalid range for the supplied content.")
+        self._start = start
+        self._end = end
+        self._content = content
+        # Check if the macro definition line is correct
+        if re.match(MDL, content[1]):
+            self._valid = True
+            # Tokenize the macro definition line, removing empy tokens
+            # "# macro(arg1,arg2)" -> ["macro", "arg1", "arg2"]
+            definition = [x for x in re.split(r'\W+', content[1]) if x]
+            self._name = definition[0]    # ["macro"]
+            self._args = definition[1:]   # ["arg1", "arg2"]
+        else:
+            self._valid = False
+        # Get comments
+        self._comments = []
+        for line in content[1:]:
+            if line.startswith('#'):
+                self._comments.append(line)
+
+    def start(self, line_number=True):
+        """Return the starting position of the block.
+
+        Keyword arguments:
+        line_number -- if True, return the line number in the file,
+                       i.e. indexed from 1.
+                       if False, return the index in the array,
+                       i.e. indexed from 0."""
+        if line_number:
+            return self._start + 1
+        else:
+            return self._start
+
+    def end(self, line_number=True, inclusive=False):
+        """Return the ending position of the block.
+
+        Keyword arguments:
+        line_number -- if True, return the line number in the file,
+                       i.e. indexed from 1.
+                       if False, return the index in the array,
+                       i.e. indexed from 0.
+        inclusive   -- if True, return an inclusive value, i.e. end]
+                       if False, return a non inclusive value, i.e. end)"""
+        pos = self._end
+        if line_number:
+            pos += 1
+        if inclusive:
+            pos -= 1
+        return pos
+
+    def is_valid(self):
+        """Check if the block contains the correct macro definition line
+         # name(arg0, arg1, ...)"""
+        return self._valid
+
+    @property
+    def mdl(self):
+        """Return the macro definition line."""
+        return self.content[1]
+
+    @property
+    def name(self):
+        """Return the macro name.
+
+        If the macro is not valid the name may be None."""
+        return self._name
+
+    @property
+    def args(self):
+        """Return a list containing the macro args.
+
+        If the macro is not valid, the list may be None."""
+        return self._args
+
+    @property
+    def nargs(self):
+        """Return the number of macro arguments."""
+        return len(self.args)
+
+    @property
+    def content(self):
+        """Return the full block content as a list of lines."""
+        return self._content
+
+    @property
+    def comments(self):
+        """Return the comments in the block."""
+        return self._comments
+
+    def __len__(self):
+        return len(self.content)
+
+    def __repr__(self):
+        return "\n".join(self.content)
 
 
 def expects(expected_file):
@@ -58,11 +167,39 @@ def __expand__(name, args, tmp, m4_freeze_file):
     return expansion
 
 
+def __split__(file_lines):
+    """Split the file in blocks."""
+    blocks = []
+    start = 0
+    previous_is_empty = False
+    for i, line in enumerate(file_lines):
+        if line == "":
+            # Mark if we find a blank line
+            previous_is_empty = True
+        elif previous_is_empty and re.match(BLK_SEP, line):
+            # The current line is a block separator following an empty line
+            # We have a block behind us, process it
+            # List slicing syntax: list[start:end] means [start, end)
+            tmpblk = TEBlock(start, i, file_lines[start:i])
+            blocks.append(tmpblk)
+            LOG.debug("Found block at lines %d-%d (inclusive)",
+                      tmpblk.start(), tmpblk.end(inclusive=True))
+            # Mark the start of the new block
+            start = i
+            # Reset the previous empty line
+            previous_is_empty = False
+    # Handle the last block
+    tmpblk = TEBlock(start, len(file_lines), file_lines[start:])
+    blocks.append(tmpblk)
+    LOG.debug("Found block at lines %d-%d (inclusive)",
+              tmpblk.start(), tmpblk.end(inclusive=True))
+    return blocks
+
+
 def parse(f_to_parse, tempdir, m4_freeze_file):
     """Parse the file and return a dictionary of macros.
 
     Raise ValueError if unable to handle the file."""
-    # TODO: refactor this function, too many local variables
     # Check that we can handle the file we're served
     if not f_to_parse or not expects(f_to_parse):
         raise ValueError("{} can't handle {}.".format(MACRO_FILE, f_to_parse))
@@ -71,52 +208,37 @@ def parse(f_to_parse, tempdir, m4_freeze_file):
     # Create a temporary file that will contain, at each iteration, the
     # macro to be expanded by m4. This is better than piping input to m4.
     tmp = os.path.join(tempdir, "te_macrofile")
+    # Read the te_macros file in as a list of lines
     with open(f_to_parse) as te_macro_file:
-        file_content = te_macro_file.read()
-        # Split the file in blocks
-        blocks = [x for x in re.split(
-            BLK_SEP, file_content, flags=re.MULTILINE) if x]
-        for current_block in blocks:
-            # Parse the macro block
-            comments = []
-            # Split the macro block in lines, removing empty lines
-            block = [x for x in current_block.splitlines() if x]
-            # Check that the macro definition line is correct
-            if not re.match(MDL, block[0]):
-                # If not, log the failure and skip this block
-                # Find the macro definition line
-                lineno = file_content.splitlines().index(block[0])
-                LOG.warning("Bad macro definition at %s:%s",
-                            f_to_parse, lineno)
-                continue
-            # Tokenize the macro definition line, removing empy tokens
-            # "# macro(arg1,arg2)" -> ["macro", "arg1", "arg2"]
-            definition = [x for x in re.split(r'\W+', block[0]) if x]
-            name = definition[0]    # ["macro"]
-            args = definition[1:]   # ["arg1", "arg2"]
-            # Get comments
-            for line in block:
-                if line.startswith('#'):
-                    comments.append(line)
-            # Get the macro expansion
-            expansion = __expand__(name, args, tmp, m4_freeze_file)
-            if expansion:
-                # Construct the new macro object
-                try:
-                    new_macro = M4Macro(
-                        name, expansion, f_to_parse, args, comments)
-                except M4MacroError as e:
-                    # Log the failure and skip
-                    LOG.warning("%s", e.msg)
-                else:
-                    # Add the macro to the macro dictionary
-                    macros[name] = new_macro
+        file_lines = te_macro_file.read().splitlines()
+    # Split the file in blocks
+    blocks = __split__(file_lines)
+    # Parse the macros from the blocks
+    for block in blocks:
+        # Check that the block contains a valid macro definition line
+        # We currently do not care about invalid blocks
+        if not block.is_valid():
+            # Log the failure and skip this block
+            LOG.warning("Bad macro definition at %s:%s",
+                        f_to_parse, block.start())
+            continue
+        # Get the macro expansion
+        expansion = __expand__(block.name, block.args, tmp, m4_freeze_file)
+        if expansion:
+            # If the expansion succeeded, construct the new macro object
+            try:
+                new_macro = M4Macro(block.name, expansion, f_to_parse,
+                                    block.args, block.comments)
+            except M4MacroError as e:
+                # Log the failure and skip
+                LOG.warning("%s", e.msg)
             else:
-                # Log the failure and skip this macro
-                # Find the macro line and report it to the user
-                lineno = file_content.splitlines().index(block[0])
-                LOG.warning("Failed to expand macro \"%s\" at %s:%s",
-                            name, f_to_parse, lineno)
+                # Add the macro to the macro dictionary
+                macros[block.name] = new_macro
+        else:
+            # Log the failure and skip this macro
+            LOG.warning("Failed to expand macro \"%s\" at %s:%s",
+                        block.name, f_to_parse, block.start())
     # Try to remove the temporary file
     try:
         os.remove(tmp)
