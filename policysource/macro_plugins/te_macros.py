@@ -176,16 +176,17 @@ def __split__(file_lines):
         if line == "":
             # Mark if we find a blank line
             previous_is_empty = True
-        elif previous_is_empty and re.match(BLK_SEP, line):
-            # The current line is a block separator following an empty line
-            # We have a block behind us, process it
-            # List slicing syntax: list[start:end] means [start, end)
-            tmpblk = TEBlock(start, i, file_lines[start:i])
-            blocks.append(tmpblk)
-            LOG.debug("Found block at lines %d-%d (inclusive)",
-                      tmpblk.start(), tmpblk.end(inclusive=True))
-            # Mark the start of the new block
-            start = i
+        elif previous_is_empty:
+            if re.match(BLK_SEP, line):
+                # The current line is a block separator following an empty line
+                # We have a block behind us, process it
+                # List slicing syntax: list[start:end] means [start, end)
+                tmpblk = TEBlock(start, i, file_lines[start:i])
+                blocks.append(tmpblk)
+                LOG.debug("Found block at lines %d-%d (inclusive)",
+                          tmpblk.start(), tmpblk.end(inclusive=True))
+                # Mark the start of the new block
+                start = i
             # Reset the previous empty line
             previous_is_empty = False
     # Handle the last block
