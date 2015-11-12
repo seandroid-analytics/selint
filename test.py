@@ -42,10 +42,10 @@ def test_find_macros():
     macros_in_policy = p.find_macros(p.BASE_DIR_GLOBAL, p.POLICYFILES_GLOBAL)
     if len(macros_in_policy) == 1099:
         print "PASSED test \"find_macros()\"."
-        sys.exit(0)
+        return 0
     else:
         print "FAILED test \"find_macros()\"."
-        sys.exit(1)
+        return 1
 
 
 #    print "Starting test \"find_macros()\"..."
@@ -60,42 +60,8 @@ def test_find_macros():
 def main():
     logging.basicConfig(level=logging.DEBUG)  # , format='%(message)s')
     # test_expand_macros()
-    # return test_find_macros():
-    m1 = m.M4Macro("x_file_perms",
-                   "{ getattr execute execute_no_trans }", "global_macros")
-    # TEST 0: Basic sanity check
-    if m1 != m1:
-        print "M4Macro.__eq__(self, other) is not correct."
-    # TEST 1: Copying
-    m2 = copy.deepcopy(m1)
-    if m1 != m2:
-        print "{} is a copy of {} but comparison failed!".format(m1, m2)
-    # TEST 2
-    m3 = m.M4Macro("x_file_perms",
-                   "{ getattr execute execute_no_trans }", "global_macros")
-    if m1 != m3:
-        print "{} and {} should the same but comparison failed!".format(m1, m3)
-    # TEST 3
-    m4 = m.M4Macro("rw_file_perms",
-                   "{ r_file_perms w_file_perms }", "global_macros")
-    m5 = m.M4Macro("x_file_perms",
-                   "{ getattr execute execute_no_trans }", "global_macros")
-    if m4 == m5:
-        print "{} and {} are different but comparison succeeded!".format(m4, m5)
+    sys.exit(test_find_macros())
 
-    # TEST 4
-    m6 = m.M4Macro("some_macro", "{ arg should be here @@ARG0@@ }",
-                   "te_macros", ["some_argument"],
-                   ["# some_macro(some_argument)", "#"])
-    m7 = copy.deepcopy(m6)
-    if m6 != m7:
-        print "{} and {} should the same but comparison failed!".format(m6, m7)
-    # TEST 5
-    m8 = m.M4Macro("some_macro", "{ arg should be here @@ARG0@@ }",
-                   "te_macros", ["some_argument"],
-                   ["# some_macro(some_argument)", "#"])
-    if m6 != m8:
-        print "{} and {} should the same but comparison failed!".format(m6, m8)
 
 if __name__ == "__main__":
     main()

@@ -135,6 +135,12 @@ MACRODEF = r'^define\(\`([^\']+)\','
 LOG = logging.getLogger(__name__)
 
 
+def join_policy_files(base_dir, policyfiles):
+    """Get the absolute path of the policy files, removing empty values"""
+    return [os.path.join(os.path.abspath(os.path.expanduser(base_dir)), x)
+            for x in policyfiles if x]
+
+
 def find_macro_files(base_dir, policyfiles):
     """Find files that contain m4 macro definitions."""
     # Regex to match the macro definition string
@@ -162,12 +168,6 @@ def expand_macros(base_dir, policyfiles):
     parser = macro_plugins.M4MacroParser()
     macros = parser.parse(macro_files)
     return macros
-
-
-def join_policy_files(base_dir, policyfiles):
-    """Get the absolute path of the policy files, removing empty values"""
-    return [os.path.join(os.path.expanduser(os.path.abspath(base_dir)), x)
-            for x in policyfiles if x]
 
 
 def __get_macro_args__(macro, word, line, macro_file, lineno):
