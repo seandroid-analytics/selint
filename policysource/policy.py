@@ -221,8 +221,10 @@ def find_macros(base_dir, policyfiles):
                                     continue
                                 # Construct the new macro object
                                 try:
-                                    newmacro = MacroInPolicy(
-                                        macros, current_file, lineno, word, args)
+                                    newmacro = MacroInPolicy(macros,
+                                                             current_file,
+                                                             lineno, word,
+                                                             args)
                                 except M4MacroError as e:
                                     # Bad macro, skip
                                     LOG.warning("%s", e.msg)
