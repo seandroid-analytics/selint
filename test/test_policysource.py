@@ -100,6 +100,8 @@ class TestM4Macro(unittest.TestCase):
         self.file_defined = None
         self.args = None
         self.comments = None
+        self.macro_no_args = None
+        self.macro_with_args = None
 
     def test_constructor(self):
         """Test the behaviour of the M4Macro constructor"""
@@ -246,11 +248,11 @@ class TestMacroInPolicy(unittest.TestCase):
         with self.assertRaises(m.M4MacroError):
             m.MacroInPolicy(self.macros, self.file_used, None, self.name,
                             self.args_used)
-            # Invalid macro line_used
+            # Invalid macro line_used (negative line number)
         with self.assertRaises(m.M4MacroError):
             m.MacroInPolicy(self.macros, self.file_used, -4, self.name,
                             self.args_used)
-            # Invalid macro line_used
+            # Invalid macro line_used (string)
         with self.assertRaises(m.M4MacroError):
             m.MacroInPolicy(self.macros, self.file_used, "4", self.name,
                             self.args_used)
@@ -266,15 +268,15 @@ class TestMacroInPolicy(unittest.TestCase):
         with self.assertRaises(m.M4MacroError):
             m.MacroInPolicy(self.macros, self.file_used, self.line_used,
                             self.name, None)
-            # Invalid macro arguments
+            # Invalid macro arguments (no args in usage, 2 args in definition)
         with self.assertRaises(m.M4MacroError):
             m.MacroInPolicy(self.macros, self.file_used, self.line_used,
                             self.name, [])
-            # Invalid macro name
+            # Invalid macro name (macro not in macros dictionary)
         with self.assertRaises(m.M4MacroError):
             m.MacroInPolicy(self.macros, self.file_used, self.line_used,
                             "missing", self.args_used)
-            # Invalid macro name
+            # Invalid macro name (dictionary value for key is None)
         with self.assertRaises(m.M4MacroError):
             m.MacroInPolicy(self.macros, self.file_used, self.line_used,
                             "invalid", self.args_used)

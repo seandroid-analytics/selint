@@ -16,4 +16,21 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-python -m unittest discover ./test/
+tmpfile=$(mktemp)
+testno=$(git grep -e "\<def test" ./test/ | wc -l)
+#echo "Running $testno tests"
+python -m unittest discover ./test/ 2>"$tmpfile"
+retval=$?
+cat "$tmpfile"
+actualno=$(grep -oPe '(?<=Ran )[0-9]+(?= test[s]? in)' "$tmpfile")
+if [[ -z $actualno || $testno -ne $actualno ]]
+then
+	>&2 echo "$(($testno-$actualno)) tests present but not recognized!"
+	if [[ $retval -eq 0 ]]
+	then
+		retval=1
+	fi
+fi
+
+rm "$tmpfile"
+exit $retval
