@@ -26,7 +26,7 @@ import difflib
 import copy
 
 
-def macro_deep_print(macro):
+def m4_macro_deep_print(macro):
     print "#############################################################"
     print "Macro: \"{}\"".format(macro)
     print "Name:  \"{}\"".format(macro.name)
@@ -38,42 +38,73 @@ def macro_deep_print(macro):
     print "\n".join(macro.comments)
 
 
-def macro_diff(m1, m2):
+def m4_macro_diff(m1, m2):
+    """Print the diff between macros m1 and m2, i.e. m2 - m1"""
     d = difflib.Differ()
-    if not m1 or not m2:
+    if not m2 or not m1:
         return None
-    if m1 == m2:
+    if m2 == m1:
         return ""
     else:
-        diff = "--- m2: {}\n+++ m1: {}".format(m2, m1)
+        diff = "--- m1: {0}\n+++ m2: {1}".format(m1, m2)
     # Compare names
-    if m1.name != m2.name:
+    if m2.name != m1.name:
         diff += "\n@@ Name @@"
         diff += "\n-{}\n+{}".format(m1.name, m2.name)
     # Compare the expansions
-    if m1.expand() != m2.expand():
+    if m2.expand() != m1.expand():
         diff += "\n@@ Expansion @@"
-        e1 = m1.expand().splitlines()
         e2 = m2.expand().splitlines()
-        for l in list(d.compare(e1, e2)):
+        e1 = m1.expand().splitlines()
+        for l in list(d.compare(e2, e1)):
             diff += "\n{}".format(l)
     # Compare definition files
-    if m1.file_defined != m2.file_defined:
+    if m2.file_defined != m1.file_defined:
         diff += "\n@@ File defined @@"
-        diff += "\n-\"{}\"\n+\"{}\"".format(m1.file_defined, m2.file_defined)
+        for l in list(d.compare([m2.file_defined], [m1.file_defined])):
+            diff += "\n{}".format(l)
     # Compare arguments
-    if m1.nargs != m2.nargs or str(m1) != str(m2):
+    if m2.nargs != m1.nargs or str(m2) != str(m1):
         diff += "\n@@ Arguments @@"
-        for l in list(d.compare(m1.args, m2.args)):
+        for l in list(d.compare(m2.args, m1.args)):
             diff += "\n{}".format(l)
     # Compare comments
-    if (len(m1.comments) != len(m2.comments)
-            or "".join(m1.comments) != "".join(m2.comments)):
+    if (len(m2.comments) != len(m1.comments)
+            or "".join(m2.comments) != "".join(m1.comments)):
         diff += "\n@@ Comments @@"
-        for l in list(d.compare(m1.comments, m2.comments)):
+        for l in list(d.compare(m2.comments, m1.comments)):
             diff += "\n{}".format(l)
     diff += "\n"
     return diff
+
+
+def m4_dict_diff(d1, d2):
+    """Print the diff between dictionaries d1 and d2, i.e. d2 - d1"""
+    missing = []
+    extra = []
+    differing = []
+    for mname in d1.keys():
+        if not d2[mname]:
+            missing.append(mname)
+        else:
+            if d2[mname] != d1[mname]:
+                differing.append(m4_macro_diff(d1[mname], d2[mname]))
+    for mname in d2.keys():
+        if not d1[mname]:
+            extra.append(mname)
+    msg = ""
+    if missing:
+        msg += "\n{} macros are missing:\n".format(len(missing))
+        msg += "\n".join(missing)
+    if extra:
+        msg += "\n{} macros are extra:\n".format(len(extra))
+        msg += "\n".join(extra)
+    if differing:
+        msg += "\n"
+        msg += "\n".join(differing)
+        msg += "\n"
+        msg += "{} macros differ".format(len(differing))
+    return msg
 
 
 class TestM4Macro(unittest.TestCase):
@@ -356,9 +387,7 @@ class TestPolicy(unittest.TestCase):
 
     def setUp(self):
         logging.basicConfig()
-        self.policy_files = []
-        self.policy_files.extend(gbp.MACROFILES)
-        self.policy_files.extend(gbp.POLICYFILES)
+        self.policy_files = gbp.MACROFILES + gbp.POLICYFILES
 
     def tearDown(self):
         self.policy_files = None
@@ -476,30 +505,57 @@ allow @@ARG0@@ @@ARG0@@_tmpfs:file { read write };
         expected_macros["tmpfs_domain"] = tmp
         # Finally test
         self.assertEqual(len(macros), len(expected_macros))
-        self.assertItemsEqual(macros.keys(), expected_macros.keys())
-        missing = []
-        differing = []
-        for mname in expected_macros.keys():
-            if not macros[mname]:
-                missing.append(mname)
-            else:
-                if macros[mname] != expected_macros[mname]:
-                    differing.append(
-                        macro_diff(macros[mname], expected_macros[mname]))
-        msg = ""
-        if missing:
-            msg += "\n{} macros are missing:\n".format(len(missing))
-            msg += "\n".join(missing)
-        if differing:
-            msg += "\n"
-            msg += "\n".join(differing)
-            msg += "\n"
-            msg += "{} macros differ".format(len(differing))
-        if msg:
-            self.maxDiff = None
-            self.fail(msg)
+        self.assertEqual(macros.keys(), expected_macros.keys())
+        self.assertEqual(macros.values(), expected_macros.values())
+        # If you need to know more in detail, you can use m4_dict_diff():
+        # msg = m4_dict_diff(expected_macros, macros)
+        # if msg:
+        #     self.maxDiff = None
+        #     self.fail(msg)
 
     def test_find_macros(self):
         """Test that all macro usages are found"""
-        # TODO: write
-        pass
+        macro_usages = p.find_macros(gbp.BASE_DIR, self.policy_files)
+        self.assertIsNotNone(macro_usages)
+        macros = p.expand_macros(gbp.BASE_DIR, self.policy_files)
+        f_rules = gbp.join_files(gbp.BASE_DIR, ["rules.te"])[0]
+        expected_usages = []
+        # Line 1
+        tmp = m.MacroInPolicy(macros, f_rules, 1, "domain_auto_trans",
+                              ["adbd", "shell_exec", "shell"])
+        expected_usages.append(tmp)
+        # Line 2
+        tmp = m.MacroInPolicy(macros, f_rules, 2,
+                              "tmpfs_domain", ["somedomain"])
+        expected_usages.append(tmp)
+        # Line 4
+        tmp = m.MacroInPolicy(macros, f_rules, 4, "rw_file_perms")
+        expected_usages.append(tmp)
+        # Line 5
+        tmp = m.MacroInPolicy(macros, f_rules, 5, "r_file_perms")
+        expected_usages.append(tmp)
+        # Line 6
+        tmp = m.MacroInPolicy(macros, f_rules, 6, "x_file_perms")
+        expected_usages.append(tmp)
+        # Line 7
+        tmp = m.MacroInPolicy(macros, f_rules, 7, "w_file_perms")
+        expected_usages.append(tmp)
+        # Line 8
+        tmp = m.MacroInPolicy(macros, f_rules, 8, "rx_file_perms")
+        expected_usages.append(tmp)
+        # Line 9
+        tmp = m.MacroInPolicy(macros, f_rules, 9, "ra_file_perms")
+        expected_usages.append(tmp)
+        # Line 10
+        tmp = m.MacroInPolicy(macros, f_rules, 10, "rw_file_perms")
+        expected_usages.append(tmp)
+        # Line 11
+        tmp = m.MacroInPolicy(macros, f_rules, 11, "rwx_file_perms")
+        expected_usages.append(tmp)
+        # Line 12
+        tmp = m.MacroInPolicy(macros, f_rules, 12, "create_file_perms")
+        expected_usages.append(tmp)
+        # Finally test
+        self.assertEqual(len(expected_usages), len(macro_usages))
+        self.maxDiff = None
+        self.assertEqual(expected_usages, macro_usages)
