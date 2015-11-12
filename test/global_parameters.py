@@ -37,4 +37,4 @@ VALID_PLUGINS = [
 
 
 def join_files(basedir, files):
-    return [os.path.join(os.path.expanduser(os.path.abspath(basedir)), x) for x in files if x]
+    return [os.path.join(os.path.abspath(os.path.expanduser(basedir)), x) for x in files if x]
