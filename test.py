@@ -18,12 +18,16 @@
 #
 """Test various functions for correctness"""
 
+import setools
+import setools.policyrep
 import os.path
 import policysource.policy as p
 import policysource.macro as m
 import logging
 import sys
 import copy
+import subprocess
+from tempfile import mkdtemp
 
 
 def test_expand_macros():
@@ -56,11 +60,35 @@ def test_find_macros():
 #    print "Macros: {}".format(len(macros_in_policy))
 #    print "Finished test \"find_macros()\".\n"
 
+def test_selinux_policy():
+    tmpdir = mkdtemp()
+    policy_files = p.join_policy_files(p.BASE_DIR_GLOBAL, p.POLICYFILES_GLOBAL)
+    policy_conf = os.path.join(tmpdir, "policy.conf")
+    command = ['m4']
+    extra_defs = ['mls_num_sens=1', 'mls_num_cats=1024',
+            'target_build_variant=eng']
+    for definition in extra_defs:
+        command.extend(["-D", definition])
+    command.extend(['-s'])
+    command.extend(policy_files)
+    try:
+        with open(policy_conf, "w") as policyconf:
+            subprocess.check_call(command, stdout=policyconf)
+    except subprocess.CalledProcessError as e:
+        print e.msg
+        raise e
+    else:
+        policy = setools.policyrep.SELinuxPolicy(policy_conf)
+
+    os.remove(policy_conf)
+    os.rmdir(tmpdir)
+
 
 def main():
     logging.basicConfig(level=logging.DEBUG)  # , format='%(message)s')
     # test_expand_macros()
-    sys.exit(test_find_macros())
+    #sys.exit(test_find_macros())
+    test_selinux_policy()
 
 
 if __name__ == "__main__":
