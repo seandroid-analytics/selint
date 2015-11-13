@@ -51,6 +51,7 @@ POLICYFILES_GLOBAL = [
     "external/sepolicy/dhcp.te",
     "external/sepolicy/dnsmasq.te",
     "external/sepolicy/domain.te",
+    "external/sepolicy/domain_deprecated.te",
     "external/sepolicy/drmserver.te",
     "external/sepolicy/dumpstate.te",
     "external/sepolicy/file.te",
