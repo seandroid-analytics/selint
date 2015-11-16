@@ -15,18 +15,16 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-"""TODO: file docstring"""
+"""Tests for all functions defined in the macro module"""
 
 import unittest
-import policysource.policy as p
 import policysource.macro as m
-import global_parameters as gbp
-import logging
 import difflib
 import copy
 
 
 def m4_macro_deep_print(macro):
+    """Pretty-print a m4 macro definition"""
     print "#############################################################"
     print "Macro: \"{}\"".format(macro)
     print "Name:  \"{}\"".format(macro.name)
@@ -108,6 +106,7 @@ def m4_dict_diff(d1, d2):
 
 
 class TestM4Macro(unittest.TestCase):
+    """Test the M4Macro class."""
 
     def setUp(self):
         # Full valid macro
@@ -154,53 +153,62 @@ class TestM4Macro(unittest.TestCase):
         self.assertIsInstance(self.macro_with_args, m.M4Macro)
 
     def test_name(self):
+        """Test the behaviour of the name property."""
         self.assertTrue(hasattr(self.macro_with_args, "name"))
         self.assertTrue(hasattr(self.macro_no_args, "name"))
         self.assertEqual(self.macro_with_args.name, self.name)
         self.assertEqual(self.macro_no_args.name, self.name)
 
     def test_expand(self):
+        """Test the behaviour of the expand() method."""
         self.assertTrue(hasattr(self.macro_with_args, "expand"))
         self.assertTrue(hasattr(self.macro_no_args, "expand"))
         self.assertEqual(self.macro_with_args.expand(), self.expand)
         self.assertEqual(self.macro_no_args.expand(), self.expand)
 
     def test_file_defined(self):
+        """Test the behaviour of the file_defined property."""
         self.assertTrue(hasattr(self.macro_with_args, "file_defined"))
         self.assertTrue(hasattr(self.macro_no_args, "file_defined"))
         self.assertEqual(self.macro_with_args.file_defined, self.file_defined)
         self.assertEqual(self.macro_no_args.file_defined, self.file_defined)
 
     def test_nargs(self):
+        """Test the behaviour of the nargs property."""
         self.assertTrue(hasattr(self.macro_with_args, "nargs"))
         self.assertTrue(hasattr(self.macro_no_args, "nargs"))
         self.assertEqual(self.macro_with_args.nargs, len(self.args))
         self.assertEqual(self.macro_no_args.nargs, 0)
 
     def test_args(self):
+        """Test the behaviour of the args property."""
         self.assertTrue(hasattr(self.macro_with_args, "args"))
         self.assertTrue(hasattr(self.macro_no_args, "args"))
         self.assertEqual(self.macro_with_args.args, self.args)
         self.assertEqual(self.macro_no_args.args, [])
 
     def test_comments(self):
+        """Test the behaviour of the comments property."""
         self.assertTrue(hasattr(self.macro_with_args, "comments"))
         self.assertTrue(hasattr(self.macro_no_args, "comments"))
         self.assertEqual(self.macro_with_args.comments, self.comments)
         self.assertEqual(self.macro_no_args.comments, [])
 
     def test___repr__(self):
+        """Test the behaviour of the repr method."""
         representation_with_args = self.name + "(" + ", ".join(self.args) + ")"
         self.assertEqual(str(self.macro_with_args), representation_with_args)
         self.assertEqual(str(self.macro_no_args), self.name)
 
     def test___eq__(self):
+        """Test the behaviour of the eq method."""
         other_with_args = copy.deepcopy(self.macro_with_args)
         other_no_args = copy.deepcopy(self.macro_no_args)
         self.assertEqual(self.macro_with_args, other_with_args)
         self.assertEqual(self.macro_no_args, other_no_args)
 
     def test___ne__(self):
+        """Test the behaviour of the ne method."""
         other_with_args = copy.deepcopy(self.macro_with_args)
         other_no_args = copy.deepcopy(self.macro_no_args)
         other_with_args._file_defined = "some_other_file"
@@ -210,13 +218,13 @@ class TestM4Macro(unittest.TestCase):
 
 
 class TestMacroInPolicy(unittest.TestCase):
+    """Test the MacroInPolicy class."""
 
     def setUp(self):
         self.macros = {}
         # Create the necessary M4Macro with arguments
         self.name = "some_macro"
         expansion = "{expansion with arguments @@ARG0@@ and @@ARG1@@}"
-        expand_defined = "{expansion with arguments arg0 and arg1}"
         self.expansion_used = "{expansion with arguments the first and the second}"
         file_defined = "some_file"
         self.args_defined = ["arg0", "arg1"]
@@ -253,7 +261,7 @@ class TestMacroInPolicy(unittest.TestCase):
         self.macros = None
         self.name = None
         self.name2 = None
-        self.expand_used = None
+        self.expansion_used = None
         self.expansion2 = None
         self.args_defined = None
         self.file_used = None
@@ -265,7 +273,7 @@ class TestMacroInPolicy(unittest.TestCase):
         self.macro_usage_no_args = None
 
     def test_constructor(self):
-        """Test the behaviour of the MacroInPolicy constructor"""
+        """Test the behaviour of the MacroInPolicy constructor."""
         # Invalid macros
         # Invalid macros dictionary
         with self.assertRaises(m.M4MacroError):
@@ -316,12 +324,14 @@ class TestMacroInPolicy(unittest.TestCase):
         self.assertIsInstance(self.macro_usage_no_args, m.MacroInPolicy)
 
     def test_name(self):
+        """Test the behaviour of the name property."""
         self.assertTrue(hasattr(self.macro_usage_with_args, "name"))
         self.assertTrue(hasattr(self.macro_usage_no_args, "name"))
         self.assertEqual(self.macro_usage_with_args.name, self.name)
         self.assertEqual(self.macro_usage_no_args.name, self.name2)
 
     def test_expansion(self):
+        """Test the behaviour of the expansion property."""
         self.assertTrue(hasattr(self.macro_usage_with_args, "expansion"))
         self.assertTrue(hasattr(self.macro_usage_no_args, "expansion"))
         self.assertEqual(
@@ -330,6 +340,7 @@ class TestMacroInPolicy(unittest.TestCase):
             self.macro_usage_no_args.expansion, self.expansion2)
 
     def test_file_used(self):
+        """Test the behaviour of the file_used property."""
         self.assertTrue(hasattr(self.macro_usage_with_args, "file_used"))
         self.assertTrue(hasattr(self.macro_usage_no_args, "file_used"))
         self.assertEqual(
@@ -338,6 +349,7 @@ class TestMacroInPolicy(unittest.TestCase):
             self.macro_usage_no_args.file_used, self.file_used2)
 
     def test_line_used(self):
+        """Test the behaviour of the line_used property."""
         self.assertTrue(hasattr(self.macro_usage_with_args, "line_used"))
         self.assertTrue(hasattr(self.macro_usage_no_args, "line_used"))
         self.assertEqual(
@@ -346,6 +358,7 @@ class TestMacroInPolicy(unittest.TestCase):
             self.macro_usage_no_args.line_used, self.line_used2)
 
     def test_nargs(self):
+        """Test the behaviour of the nargs property."""
         self.assertTrue(hasattr(self.macro_usage_with_args, "nargs"))
         self.assertTrue(hasattr(self.macro_usage_no_args, "nargs"))
         self.assertEqual(self.macro_usage_with_args.nargs,
@@ -355,6 +368,7 @@ class TestMacroInPolicy(unittest.TestCase):
         self.assertEqual(self.macro_usage_no_args.nargs, 0)
 
     def test_args(self):
+        """Test the behaviour of the args property."""
         self.assertTrue(hasattr(self.macro_usage_with_args, "args"))
         self.assertTrue(hasattr(self.macro_usage_no_args, "args"))
         self.assertEqual(self.macro_usage_with_args.args_descriptions,
@@ -363,18 +377,21 @@ class TestMacroInPolicy(unittest.TestCase):
         self.assertEqual(self.macro_usage_no_args.args, [])
 
     def test___repr__(self):
+        """Test the behaviour of the repr method."""
         representation = self.name +\
             "(" + ", ".join(self.args_used) + ")"
         self.assertEqual(str(self.macro_usage_with_args), representation)
         self.assertEqual(str(self.macro_usage_no_args), self.name2)
 
     def test___eq__(self):
+        """Test the behaviour of the eq method."""
         other_with_args = copy.deepcopy(self.macro_usage_with_args)
         other_no_args = copy.deepcopy(self.macro_usage_no_args)
         self.assertEqual(self.macro_usage_with_args, other_with_args)
         self.assertEqual(self.macro_usage_no_args, other_no_args)
 
     def test___ne__(self):
+        """Test the behaviour of the ne method."""
         other_with_args = copy.deepcopy(self.macro_usage_with_args)
         other_no_args = copy.deepcopy(self.macro_usage_no_args)
         other_with_args._file_used = "some_other_file"
