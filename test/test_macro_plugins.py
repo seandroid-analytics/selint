@@ -28,6 +28,7 @@ import global_parameters as gbp
 
 
 class TestMacroPluginArchitecture(unittest.TestCase):
+    """Test the M4Macro parser class."""
 
     def setUp(self):
         logging.basicConfig()
@@ -58,6 +59,7 @@ class TestMacroPluginArchitecture(unittest.TestCase):
 
 
 class TestMacroPlugin(unittest.TestCase):
+    """Test the plugin parser modules"""
 
     def setUp(self):
         logging.basicConfig()
