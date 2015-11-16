@@ -197,7 +197,7 @@ def __split__(file_lines):
     return blocks
 
 
-def parse(f_to_parse, tempdir, m4_freeze_file):
+def parse(f_to_parse, tmpdir, m4_freeze_file):
     """Parse the file and return a dictionary of macros.
 
     Raise ValueError if unable to handle the file."""
@@ -208,10 +208,11 @@ def parse(f_to_parse, tempdir, m4_freeze_file):
     # Parse the te_macros file
     # Create a temporary file that will contain, at each iteration, the
     # macro to be expanded by m4. This is better than piping input to m4.
-    tmp = os.path.join(tempdir, "te_macrofile")
+    tmp = os.path.join(tmpdir, "te_macrofile")
+    LOG.debug("Created temporary file \"%s\"", tmp)
     # Read the te_macros file in as a list of lines
-    with open(f_to_parse) as te_macro_file:
-        file_lines = te_macro_file.read().splitlines()
+    with open(f_to_parse) as ftp:
+        file_lines = ftp.read().splitlines()
     # Split the file in blocks
     blocks = __split__(file_lines)
     # Parse the macros from the blocks

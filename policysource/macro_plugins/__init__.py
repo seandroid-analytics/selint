@@ -57,16 +57,16 @@ class M4MacroParser(object):
 
         """Class for handling an m4 freeze file."""
 
-        def __init__(self, files, tempdir, extra_defs=[], name="freezefile"):
+        def __init__(self, files, tmpdir, extra_defs=[], name="freezefile"):
             """Generate the freeze file with all macro definitions."""
             # Setup logger
             self.log = logging.getLogger(self.__class__.__name__)
             # Setup parameters
             self.files = files
-            self.tempdir = tempdir
+            self.tmpdir = tmpdir
             self.extra_defs = extra_defs
             self.name = name
-            self.freeze_file = os.path.join(tempdir, name)
+            self.freeze_file = os.path.join(tmpdir, name)
             self.command = ["m4"]
             for definition in self.extra_defs:
                 self.command.extend(["-D", definition])
@@ -75,7 +75,7 @@ class M4MacroParser(object):
             self.command.extend(["-F", self.freeze_file])
             self.log.debug("Trying to generate freeze file \"%s\"...",
                            self.freeze_file)
-            self.log.debug("$ %s", self.command)
+            self.log.debug("$ %s", " ".join(self.command))
             try:
                 # Generate the freeze file
                 with open(os.devnull, "w") as devnull:
@@ -101,14 +101,20 @@ class M4MacroParser(object):
                 self.log.debug("Trying to remove the freeze file "
                                "\"%s\"... done!", self.freeze_file)
 
-    def __init__(self):
+    def __init__(self, tmpdir=None):
         """Initialize plugin architecture.
 
         Find all plugins offered by macro_plugins, check that they implement
-        the required methods and add them to the plugin dictionary."""
+        the required methods and add them to the plugin dictionary.
+
+        The parser will need a working directory. If the user does not supply a
+        valid one, the parser will create a temporary directory, which will be
+        destroyed with the object.
+        If the user supplies a valid one, it will be up to the user to manage
+        its lifecycle."""
         # Setup logger
         self.log = logging.getLogger(self.__class__.__name__)
-
+        # Setup plugins
         self.plugins = {}
         for mod in __all__:
             plugin = globals()[mod]
@@ -118,34 +124,64 @@ class M4MacroParser(object):
                 self.log.debug("Found plugin \"%s\"", mod)
             else:
                 self.log.debug("Invalid plugin \"%s\"", mod)
+        # Setup temporary directory
+        if (tmpdir and os.access(tmpdir, os.F_OK) and
+                os.access(tmpdir, os.R_OK | os.W_OK)):
+            # We have been provided with a valid directory
+            # We do not manage it (do not destroy it!)
+            self._tmpdir = tmpdir
+            self._tmpdir_managed = False
+        else:
+            # Create a temporary directory
+            self._tmpdir = mkdtemp()
+            self.log.debug("Created temporary directory \"%s\".", self._tmpdir)
+            # We manage it (we must destroy it when we're done)
+            self._tmpdir_managed = True
+
+    def __del__(self):
+        # Try to remove the temporary directory
+        if self.tmpdir_managed:
+            try:
+                os.rmdir(self.tmpdir)
+            except OSError:
+                self.log.warning("Trying to remove the temporary directory "
+                                 "\"%s\"... failed!", self.tmpdir)
+            else:
+                self.log.debug("Trying to remove the temporary directory "
+                               "\"%s\"... done!", self.tmpdir)
+
+    @property
+    def tmpdir(self):
+        """The parser working directory."""
+        return self._tmpdir
+
+    @property
+    def tmpdir_managed(self):
+        """The parser working directory."""
+        return self._tmpdir_managed
 
     def __get_parser__(self, single_file):
-        """Find the appropriate parser for the given file.
+        """Find the appropriate parser for the given file."""
+        for plg in self.plugins.values():
+            if plg.expects(single_file):
+                return plg
+        return None
 
-        The match is currently based on the basename."""
-        if os.path.basename(single_file) in self.plugins:
-            return self.plugins[os.path.basename(single_file)]
-        else:
-            return None
-
-    def __parse_file__(self, single_file, parser, tempdir, m4_freeze_file):
+    def __parse_file__(self, single_file, parser):
         """Parse a single file"""
         f_macros = None
         try:
             # Parse the file using the appropriate parser
-            f_macros = parser.parse(single_file, tempdir,
-                                    m4_freeze_file.freeze_file)
+            f_macros = parser.parse(single_file, self.tmpdir, self.freeze_file)
         except ValueError as e:
             # This really should not happen, since we have already
             # checked that the plugin accepts the file.
             # Log and skip
             self.log.warning("%s", e.msg)
-            self.log.warning(
-                "Could not parse \"%s\"", single_file)
+            self.log.warning("Could not parse \"%s\"", single_file)
         else:
             # File parsed successfully
-            self.log.debug(
-                "Parsed macros from \"%s\"", single_file)
+            self.log.info("Parsed macros from \"%s\"", single_file)
         return f_macros
 
     def expects(self):
@@ -154,16 +190,14 @@ class M4MacroParser(object):
 
     def parse(self, files):
         """Parses a list of files and returns a dictionary of macros."""
-        # Remove empty strings, normalize paths
-        files = [os.path.abspath(x) for x in files if x]
-        # Create a temporary work directory
-        tempdir = mkdtemp()
-        self.log.debug("Created temporary directory \"%s\".", tempdir)
         # Generate the m4 freeze file with all macro definitions
         extra_defs = ["mls_num_sens=1",
                       "mls_num_cats=1024", "target_build_variant=eng"]
         try:
-            m4_freeze_file = self.M4FreezeFile(files, tempdir, extra_defs)
+            # Generate the freeze file
+            m4_freeze_file = self.M4FreezeFile(files, self.tmpdir, extra_defs)
+            # Point the freeze_file class member to the freeze file path
+            self.freeze_file = m4_freeze_file.freeze_file
         except self.M4FreezeFileError as e:
             # We failed to generate the freeze file, abort
             self.log.error("%s", e.msg)
@@ -178,25 +212,11 @@ class M4MacroParser(object):
                     # We have a parser for this file
                     self.log.debug("Parsing macros from \"%s\" with plugin "
                                    "\"%s\"", single_file, parser.__name__)
-                    f_macros = self.__parse_file__(
-                        single_file, parser, tempdir, m4_freeze_file)
+                    f_macros = self.__parse_file__(single_file, parser)
                     if f_macros:
                         # Update the global macro dictionary
                         macros.update(f_macros)
                 else:
                     # We don't have a parser for this file
                     self.log.debug("No parser for \"%s\"", single_file)
-
-        finally:
-            # Necessary to empty the directory
-            del m4_freeze_file
-            # Try to remove the temporary directory
-            try:
-                os.rmdir(tempdir)
-            except OSError:
-                self.log.debug("Trying to remove the temporary directory "
-                               "\"%s\"... failed!", tempdir)
-            else:
-                self.log.debug("Trying to remove the temporary directory "
-                               "\"%s\"... done!", tempdir)
         return macros

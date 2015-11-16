@@ -151,7 +151,10 @@ class SourcePolicy(object):
         # Setup logging
         self.log = logging.getLogger(self.__class__.__name__)
         # Setup useful infrastructure
-        self._tmpdir = None
+        self._tmpdir = mkdtemp()
+        # Create a temporary work directory
+        self.log.debug("Created temporary directory \"%s\".", self._tmpdir)
+        # Get a list of policy files with full paths
         self._policy_files = self.__join_policy_files__(base_dir, policyfiles)
         # Parse the policy
         self._macro_defs = self.__find_macro_defs__(self._policy_files)
@@ -172,25 +175,26 @@ class SourcePolicy(object):
             try:
                 os.remove(self._policyconf)
             except OSError:
-                # TODO add logging
-                pass
+                self.log.debug("Trying to remove policy.conf file \"%s\"... "
+                        "failed!", self._policyconf)
+            else:
+                self.log.debug("Trying to remove policy.conf file \"%s\"... "
+                        "done!", self._policyconf)
         if self._tmpdir:
             try:
                 os.rmdir(self._tmpdir)
             except OSError:
-                # TODO add logging
-                pass
+                self.log.warning("Trying to remove the temporary directory "
+                                 "\"%s\"... failed!", self._tmpdir)
+            else:
+                self.log.debug("Trying to remove the temporary directory "
+                               "\"%s\"... done!", self._tmpdir)
 
     def __create_policyconf__(self, policy_files, extra_defs):
         """Process the separate policy files with m4 and return a single
         policy.conf file"""
-        # Create a temporary directory for the policy.conf file
-        # If we already have one we can keep it
-        if self._tmpdir is None:
-            self._tmpdir = mkdtemp()
-        tmpdir = self._tmpdir
         # Prepare the output file
-        policyconf = os.path.join(tmpdir, "policy.conf")
+        policyconf = os.path.join(self._tmpdir, "policy.conf")
         # Prepare the m4 command line
         command = ['m4']
         for definition in extra_defs:
@@ -199,6 +203,7 @@ class SourcePolicy(object):
         command.extend(policy_files)
         # Try to run m4
         try:
+            # TODO: no such file or directory???
             with open(policyconf, "w") as pcf:
                 subprocess.check_call(command, stdout=pcf)
         except subprocess.CalledProcessError as e:
@@ -234,7 +239,7 @@ class SourcePolicy(object):
 
         The dictionary maps the macro name to a M4Macro object."""
         macro_files = self.__find_macro_files__(policy_files)
-        parser = macro_plugins.M4MacroParser()
+        parser = macro_plugins.M4MacroParser(self._tmpdir)
         macros = parser.parse(macro_files)
         return macros
 

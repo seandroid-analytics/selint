@@ -34,7 +34,7 @@ def expects(expected_file):
         return False
 
 
-def parse(f_to_parse, tempdir, m4_freeze_file):
+def parse(f_to_parse, tmpdir, m4_freeze_file):
     """Parse the file and return a dictionary of macros.
 
     Raise ValueError if unable to handle the file."""
