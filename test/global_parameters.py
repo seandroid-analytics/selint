@@ -18,7 +18,7 @@
 """Global test parameters and functions."""
 import os.path
 
-BASE_DIR = "test/test_policy_files"
+BASE_DIR = "test/policy_files"
 MACROFILES = [
     "global_macros",
     "te_macros",
