@@ -37,4 +37,7 @@ VALID_PLUGINS = [
 
 
 def join_files(basedir, files):
+    """Join the base directory path to the file paths.
+
+    Returns a list of absolute filenames."""
     return [os.path.join(os.path.abspath(os.path.expanduser(basedir)), x) for x in files if x]
