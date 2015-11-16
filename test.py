@@ -30,65 +30,13 @@ import subprocess
 from tempfile import mkdtemp
 
 
-def test_expand_macros():
-    print "Starting test \"expand_macros()\"..."
-    macros = p.expand_macros(p.BASE_DIR_GLOBAL, p.POLICYFILES_GLOBAL)
-    for key, value in macros.iteritems():
-        print os.path.basename(value.file_defined) + ":\t" + str(value)
-        print "\n".join(value.comments)
-        print value.expand()
-        print "\n"
-    print "Macros: {}".format(len(macros))
-    print "Finished test \"expand_macros()\".\n"
-
-
-def test_find_macros():
-    macros_in_policy = p.find_macros(p.BASE_DIR_GLOBAL, p.POLICYFILES_GLOBAL)
-    if len(macros_in_policy) == 1099:
-        print "PASSED test \"find_macros()\"."
-        return 0
-    else:
-        print "FAILED test \"find_macros()\"."
-        return 1
-
-
-#    print "Starting test \"find_macros()\"..."
-#    for m in macros_in_policy:
-#        print m.file_used + ":{}\t".format(m.line_no) + str(m)
-#        print m.expand()
-#        print "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
-#    print "Macros: {}".format(len(macros_in_policy))
-#    print "Finished test \"find_macros()\".\n"
-
-def test_selinux_policy():
-    tmpdir = mkdtemp()
-    policy_files = p.join_policy_files(p.BASE_DIR_GLOBAL, p.POLICYFILES_GLOBAL)
-    policy_conf = os.path.join(tmpdir, "policy.conf")
-    command = ['m4']
-    extra_defs = ['mls_num_sens=1', 'mls_num_cats=1024',
-            'target_build_variant=eng']
-    for definition in extra_defs:
-        command.extend(["-D", definition])
-    command.extend(['-s'])
-    command.extend(policy_files)
-    try:
-        with open(policy_conf, "w") as policyconf:
-            subprocess.check_call(command, stdout=policyconf)
-    except subprocess.CalledProcessError as e:
-        print e.msg
-        raise e
-    else:
-        policy = setools.policyrep.SELinuxPolicy(policy_conf)
-
-    os.remove(policy_conf)
-    os.rmdir(tmpdir)
+def test_source_policy():
+    pol = p.SourcePolicy(p.BASE_DIR_GLOBAL, p.POLICYFILES_GLOBAL)
 
 
 def main():
     logging.basicConfig(level=logging.DEBUG)  # , format='%(message)s')
-    # test_expand_macros()
-    #sys.exit(test_find_macros())
-    test_selinux_policy()
+    test_source_policy()
 
 
 if __name__ == "__main__":
