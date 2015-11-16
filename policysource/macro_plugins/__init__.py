@@ -137,6 +137,8 @@ class M4MacroParser(object):
             self.log.debug("Created temporary directory \"%s\".", self._tmpdir)
             # We manage it (we must destroy it when we're done)
             self._tmpdir_managed = True
+        # Setup freeze file
+        self.freeze_file = None
 
     def __del__(self):
         # Try to remove the temporary directory
