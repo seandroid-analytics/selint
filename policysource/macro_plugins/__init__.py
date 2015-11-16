@@ -126,7 +126,7 @@ class M4MacroParser(object):
                 self.log.debug("Invalid plugin \"%s\"", mod)
         # Setup temporary directory
         if (tmpdir and os.access(tmpdir, os.F_OK) and
-                os.access(tmpdir, os.R_OK | os.W_OK)):
+                os.access(tmpdir, os.R_OK | os.W_OK | os.X_OK)):
             # We have been provided with a valid directory
             # We do not manage it (do not destroy it!)
             self._tmpdir = tmpdir
