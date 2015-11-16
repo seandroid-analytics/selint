@@ -350,8 +350,10 @@ class SourcePolicy(object):
 
     @property
     def macro_defs(self):
+        """Get the macros defined in the policy source."""
         return self._macro_defs
 
     @property
     def macro_usages(self):
+        """Get the macros used in the policy source."""
         return self._macro_usages
