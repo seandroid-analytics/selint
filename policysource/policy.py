@@ -152,22 +152,32 @@ class SourcePolicy(object):
         self.log = logging.getLogger(self.__class__.__name__)
         # Setup useful infrastructure
         self._tmpdir = mkdtemp()
+        self._policyconf = None
         # Create a temporary work directory
         self.log.debug("Created temporary directory \"%s\".", self._tmpdir)
         # Get a list of policy files with full paths
         self._policy_files = self.__join_policy_files__(base_dir, policyfiles)
-        # Parse the policy
+        if not self._policy_files:
+            raise RuntimeError(
+                "Could not find any policy files to parse, aborting...")
+        # Parse the macros and macro usages in the policy
         self._macro_defs = self.__find_macro_defs__(self._policy_files)
+        if self._macro_defs is None:
+            raise RuntimeError("Error parsing macro definitions, aborting...")
         self._macro_usages = self.__find_macro_usages__(self._policy_files,
                                                         self._macro_defs)
+        if self._macro_usages is None:
+            raise RuntimeError("Error parsing macro usages, aborting...")
         # These will go in some conf file or cli option
         extra_defs = ['mls_num_sens=1', 'mls_num_cats=1024',
                       'target_build_variant=eng']
+        # Create the policyconf
         self._policyconf = self.__create_policyconf__(self._policy_files,
                                                       extra_defs)
         if not self._policyconf:
             raise RuntimeError(
                 "Could not create the policy.conf file, aborting...")
+        # Create the actual policy instance
         self._policy = setools.policyrep.SELinuxPolicy(self._policyconf)
 
     def __del__(self):
@@ -176,10 +186,10 @@ class SourcePolicy(object):
                 os.remove(self._policyconf)
             except OSError:
                 self.log.debug("Trying to remove policy.conf file \"%s\"... "
-                        "failed!", self._policyconf)
+                               "failed!", self._policyconf)
             else:
                 self.log.debug("Trying to remove policy.conf file \"%s\"... "
-                        "done!", self._policyconf)
+                               "done!", self._policyconf)
         if self._tmpdir:
             try:
                 os.rmdir(self._tmpdir)
@@ -203,20 +213,43 @@ class SourcePolicy(object):
         command.extend(policy_files)
         # Try to run m4
         try:
-            # TODO: no such file or directory???
             with open(policyconf, "w") as pcf:
                 subprocess.check_call(command, stdout=pcf)
         except subprocess.CalledProcessError as e:
-            # TODO add logging
-            print e.msg
+            self.log.error(e.msg)
+            self.log.error(
+                "Could not create the policy.conf \"%s\" file", policyconf)
             policyconf = None
         return policyconf
 
-    @staticmethod
-    def __join_policy_files__(base_dir, policyfiles):
+    def __join_policy_files__(self, base_dir, policyfiles):
         """Get the absolute path of the policy files, removing empty values"""
-        return [os.path.join(os.path.abspath(os.path.expanduser(base_dir)), x)
-                for x in policyfiles if x]
+        sanitized_files = []
+        if not base_dir:
+            # If the directory is None or the name is empty
+            self.log.error("Bad policy base directory.")
+            return None
+        # Expand and sanitize the directory name
+        full_dir = os.path.abspath(os.path.expanduser(base_dir))
+        # If the directory does not exist or is not traversable/readable
+        if (not os.access(full_dir, os.F_OK)
+                or not os.access(full_dir, os.X_OK | os.R_OK)):
+            self.log.error("Bad policy base directory \"%s\"", full_dir)
+            return None
+        if not policyfiles:
+            # If policyfiles is None or the list is empty
+            return None
+        # For each non-empty value in the list
+        for each_file in (x for x in policyfiles if x):
+            # Expand and sanitize the file name
+            full_path = os.path.abspath(os.path.join(full_dir, each_file))
+            # If the file exists and is readable, add it to the list
+            if os.access(full_path, os.F_OK) and os.access(full_path, os.R_OK):
+                self.log.debug("Found policy file \"%s\"", full_path)
+                sanitized_files.append(full_path)
+            else:
+                self.log.warning("Bad policy file \"%s\"", full_path)
+        return sanitized_files
 
     def __find_macro_files__(self, policy_files):
         """Find files that contain m4 macro definitions."""
@@ -314,3 +347,11 @@ class SourcePolicy(object):
                                 # Add the new macro to the list
                                 macro_usages.append(n_m)
         return macro_usages
+
+    @property
+    def macro_defs(self):
+        return self._macro_defs
+
+    @property
+    def macro_usages(self):
+        return self._macro_usages
