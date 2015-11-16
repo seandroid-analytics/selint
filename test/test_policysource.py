@@ -15,36 +15,59 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-"""Tests for all functions defined in the policysource module"""
+"""Tests for all functions defined in the policy module"""
 
 import unittest
 import policysource.policy as p
 import policysource.macro as m
 import global_parameters as gbp
 import logging
-import difflib
-import copy
 
 
 class TestPolicy(unittest.TestCase):
+    """Test the SourcePolicy class"""
 
     def setUp(self):
-        logging.basicConfig()
+        logging.basicConfig(level=logging.CRITICAL)
         self.policy_files = gbp.MACROFILES + gbp.POLICYFILES
+        #self.policy = p.SourcePolicy(gbp.BASE_DIR, self.policy_files)
 
     def tearDown(self):
         self.policy_files = None
 
-    def test_find_macro_files(self):
+    @unittest.skip("Skipping test, test files not suitable")
+    def test___find_macro_files__(self):
         """Test that all files containing macro definitions are found."""
-        files = p.find_macro_files(gbp.BASE_DIR, self.policy_files)
+        joined_files = gbp.join_files(gbp.BASE_DIR, self.policy_files)
+        files = p.SourcePolicy.__find_macro_files__(joined_files)
         expected_files = gbp.join_files(
             gbp.BASE_DIR, gbp.MACROFILES)
         self.assertItemsEqual(files, expected_files)
 
-    def test_expand_macros(self):
+    def test_constructor(self):
+        """Test the behaviour of the SourcePolicy constructor"""
+        # Invalid usages
+        with self.assertRaises(RuntimeError):
+            policy = p.SourcePolicy(None, None)
+        with self.assertRaises(RuntimeError):
+            policy = p.SourcePolicy(None, [])
+        with self.assertRaises(RuntimeError):
+            policy = p.SourcePolicy("", None)
+        with self.assertRaises(RuntimeError):
+            policy = p.SourcePolicy("", [])
+        with self.assertRaises(RuntimeError):
+            policy = p.SourcePolicy(None, self.policy_files)
+        with self.assertRaises(RuntimeError):
+            policy = p.SourcePolicy("", self.policy_files)
+        with self.assertRaises(RuntimeError):
+            policy = p.SourcePolicy(gbp.BASE_DIR, None)
+        with self.assertRaises(RuntimeError):
+            policy = p.SourcePolicy(gbp.BASE_DIR, [])
+
+    @unittest.skip("Skipping test, test files not suitable")
+    def test_macro_defs(self):
         """Test that all macros are expanded as expected."""
-        macros = p.expand_macros(gbp.BASE_DIR, self.policy_files)
+        macros = self.policy.macro_defs
         self.assertIsNotNone(macros)
         expected_macros = {}
         f_global = gbp.join_files(gbp.BASE_DIR, ["global_macros"])[0]
@@ -156,11 +179,12 @@ allow @@ARG0@@ @@ARG0@@_tmpfs:file { read write };
         #     self.maxDiff = None
         #     self.fail(msg)
 
-    def test_find_macros(self):
+    @unittest.skip("Skipping test, test files not suitable")
+    def test_macro_usages(self):
         """Test that all macro usages are found"""
-        macro_usages = p.find_macros(gbp.BASE_DIR, self.policy_files)
+        macro_usages = self.policy.macro_usages
         self.assertIsNotNone(macro_usages)
-        macros = p.expand_macros(gbp.BASE_DIR, self.policy_files)
+        macros = self.policy.macro_defs
         f_rules = gbp.join_files(gbp.BASE_DIR, ["rules.te"])[0]
         expected_usages = []
         # Line 1
