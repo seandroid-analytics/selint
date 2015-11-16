@@ -17,6 +17,10 @@
 #
 """Class providing an abstraction for a source SEAndroid policy"""
 
+import setools
+import setools.policyrep
+from tempfile import mkdtemp
+import subprocess
 import os.path
 import re
 from .macro import MacroInPolicy, M4MacroError
@@ -132,104 +136,176 @@ POLICYFILES_GLOBAL = [
     "external/sepolicy/fs_use",
     "external/sepolicy/genfs_contexts",
     "external/sepolicy/port_contexts"]
-MACRODEF = r'^define\(\`([^\']+)\','
-LOG = logging.getLogger(__name__)
 
 
-def join_policy_files(base_dir, policyfiles):
-    """Get the absolute path of the policy files, removing empty values"""
-    return [os.path.join(os.path.abspath(os.path.expanduser(base_dir)), x)
-            for x in policyfiles if x]
+class SourcePolicy(object):
+    """Class representing a source SELinux policy."""
+    regex_macrodef = r'^define\(\`([^\']+)\','
 
+    def __init__(self, base_dir, policyfiles):
+        """Construct a SourcePolicy object by parsing the supplied files.
 
-def find_macro_files(base_dir, policyfiles):
-    """Find files that contain m4 macro definitions."""
-    # Regex to match the macro definition string
-    macrodef = re.compile(MACRODEF)
-    macro_files = []
-    # Get the absolute path of the supplied policy files, remove empty values
-    policy_files = join_policy_files(base_dir, policyfiles)
-    for single_file in policy_files:
-        with open(single_file, 'r') as macro_file:
-            for line in macro_file:
-                # If this file contains at least one macro definition, append
-                # it to the list of macro files and skip to the next policy
-                # file
-                if macrodef.search(line):
-                    macro_files.append(single_file)
-                    break
-    return macro_files
+        Keyword arguments:
+        base_dir    --  A common path for the policy files
+        policyfiles --  A list of file paths, relative to the base dir"""
+        # Setup logging
+        self.log = logging.getLogger(self.__class__.__name__)
+        # Setup useful infrastructure
+        self._tmpdir = None
+        self._policy_files = self.__join_policy_files__(base_dir, policyfiles)
+        # Parse the policy
+        self._macro_defs = self.__find_macro_defs__(self._policy_files)
+        self._macro_usages = self.__find_macro_usages__(self._policy_files,
+                                                        self._macro_defs)
+        # These will go in some conf file or cli option
+        extra_defs = ['mls_num_sens=1', 'mls_num_cats=1024',
+                      'target_build_variant=eng']
+        self._policyconf = self.__create_policyconf__(self._policy_files,
+                                                      extra_defs)
+        if not self._policyconf:
+            raise RuntimeError(
+                "Could not create the policy.conf file, aborting...")
+        self._policy = setools.policyrep.SELinuxPolicy(self._policyconf)
 
+    def __del__(self):
+        if self._policyconf:
+            try:
+                os.remove(self._policyconf)
+            except OSError:
+                # TODO add logging
+                pass
+        if self._tmpdir:
+            try:
+                os.rmdir(self._tmpdir)
+            except OSError:
+                # TODO add logging
+                pass
 
-def expand_macros(base_dir, policyfiles):
-    """Get a dictionary containing all the m4 macros defined in the files.
+    def __create_policyconf__(self, policy_files, extra_defs):
+        """Process the separate policy files with m4 and return a single
+        policy.conf file"""
+        # Create a temporary directory for the policy.conf file
+        # If we already have one we can keep it
+        if self._tmpdir is None:
+            self._tmpdir = mkdtemp()
+        tmpdir = self._tmpdir
+        # Prepare the output file
+        policyconf = os.path.join(tmpdir, "policy.conf")
+        # Prepare the m4 command line
+        command = ['m4']
+        for definition in extra_defs:
+            command.extend(["-D", definition])
+        command.extend(['-s'])
+        command.extend(policy_files)
+        # Try to run m4
+        try:
+            with open(policyconf, "w") as pcf:
+                subprocess.check_call(command, stdout=pcf)
+        except subprocess.CalledProcessError as e:
+            # TODO add logging
+            print e.msg
+            policyconf = None
+        return policyconf
 
-    The dictionary maps the macro name to a M4Macro object."""
-    macro_files = find_macro_files(base_dir, policyfiles)
-    parser = macro_plugins.M4MacroParser()
-    macros = parser.parse(macro_files)
-    return macros
+    @staticmethod
+    def __join_policy_files__(base_dir, policyfiles):
+        """Get the absolute path of the policy files, removing empty values"""
+        return [os.path.join(os.path.abspath(os.path.expanduser(base_dir)), x)
+                for x in policyfiles if x]
 
+    def __find_macro_files__(self, policy_files):
+        """Find files that contain m4 macro definitions."""
+        # Regex to match the macro definition string
+        macrodef_r = re.compile(self.regex_macrodef)
+        macro_files = []
+        for single_file in policy_files:
+            with open(single_file, 'r') as macro_file:
+                for line in macro_file:
+                    # If this file contains at least one macro definition,
+                    # append it to the list of macro files and skip to
+                    # the next policy file
+                    if macrodef_r.search(line):
+                        macro_files.append(single_file)
+                        break
+        return macro_files
 
-def __get_macro_args__(macro, word, line, macro_file, lineno):
-    """Get the current macro arguments"""
-    # The macro is supposed to have nargs arguments
-    if macro.nargs > 0:
-        # Check if it is actually used with all its arguments
-        usage_r = r'\s*' + word + \
-            r'\(((?:(?:\w+|\{[^,]+\}),\s?)*(?:\w+|\{[^,]+\}))\)\s*'
-        tmp = re.match(usage_r, line)
-        if tmp:
-            # Save the arguments
-            args = re.split(r',\s*', tmp.group(1))
+    def __find_macro_defs__(self, policy_files):
+        """Get a dictionary containing all the m4 macros defined in the files.
+
+        The dictionary maps the macro name to a M4Macro object."""
+        macro_files = self.__find_macro_files__(policy_files)
+        parser = macro_plugins.M4MacroParser()
+        macros = parser.parse(macro_files)
+        return macros
+
+    @staticmethod
+    def __build_regex_nargs__(name, nargs):
+        """Build a regex to match a macro usage, given the name and number of
+        arguments."""
+        # Match spaces, followed by the name, an opening parenthesis, $nargs
+        # comma-separed strings/curly bracket blocks, a closing parenthesis
+        # and spaces. E.g.: name = foo, nargs = 3
+        # reg = r'\s*foo\(((?:(?:\w+|\{[^,]+\}),\s?){3}(?:\w+|\{[^,]+\}))\)\s*'
+        # will match foo(arg0, {argument 1}, arg2)
+        if nargs < 1:
+            return None
+        reg = r'\s*{}\(('.format(name)
+        if nargs > 1:
+            reg += r'(?:(?:\w+|\{[^,]+\}),\s?){' + str(nargs - 1) + '}'
+        reg += r'(?:\w+|\{[^,]+\}))\)\s*'
+        return reg
+
+    def __get_macro_usage_args__(self, macro, line):
+        """Get the current macro arguments"""
+        # macroargs = r'\(((?:(?:\w+|\{[^,]+\}),\s?)*(?:\w+|\{[^,]+\}))\)\s*'
+        # The macro is supposed to have nargs arguments
+        if macro.nargs > 0:
+            # Check if it is actually used with all its arguments
+            usage_r = self.__build_regex_nargs__(macro.name, macro.nargs)
+            tmp = re.match(usage_r, line)
+            if tmp:
+                # Save the arguments
+                args = re.split(r',\s*', tmp.group(1))
+            else:
+                args = None
         else:
-            # The macro usage is not valid
-            LOG.warning("\"%s\" is a macro name "
-                        "but it is used wrong at "
-                        "%s:%s:", word, macro_file, lineno)
-            LOG.warning("\"%s\"", line.rstrip())
-            args = None
-    else:
-        # Macro without arguments
-        args = []
-    return args
+            # Macro without arguments
+            args = []
+        return args
 
+    def __find_macro_usages__(self, policy_files, macros):
+        """Get a list of all the m4 macros used in the supplied files.
 
-def find_macros(base_dir, policyfiles):
-    """Get a list of all the m4 macros used in the supplied files.
-
-    The list contains MacroInPolicy objects."""
-    macros = expand_macros(base_dir, policyfiles)
-    macros_in_policy = []
-    # Get the absolute path of the supplied policy files, remove empty values
-    policy_files = join_policy_files(base_dir, policyfiles)
-    for current_file in policy_files:
-        # For each file
-        if current_file.endswith(".te"):
-            # If it's a .te file
+        The list contains MacroInPolicy objects."""
+        macro_usages = []
+        for current_file in (x for x in policy_files if x.endswith(".te")):
+            # For each .te file
             with open(current_file) as current_file_content:
                 for lineno, line in enumerate(current_file_content, 1):
-                    if not line.startswith("#"):
+                    if line.startswith("#"):
                         # Ignore comments
-                        for word in re.split(r'\W+', line):
-                            if word in macros:
-                                # We have found a macro
-                                # Check if it has arguments
-                                args = __get_macro_args__(macros[word], word,
-                                                          line, current_file,
-                                                          lineno)
-                                if args is None:
-                                    continue
-                                # Construct the new macro object
-                                try:
-                                    newmacro = MacroInPolicy(macros,
-                                                             current_file,
-                                                             lineno, word,
-                                                             args)
-                                except M4MacroError as e:
-                                    # Bad macro, skip
-                                    LOG.warning("%s", e.msg)
-                                else:
-                                    # Add the new macro to the list
-                                    macros_in_policy.append(newmacro)
-    return macros_in_policy
+                        continue
+                    for word in re.split(r'\W+', line):
+                        if word in macros:
+                            # We have found a macro
+                            # Get the arguments
+                            args = self.__get_macro_usage_args__(
+                                macros[word], line)
+                            if args is None:
+                                # The macro usage is not valid
+                                self.log.warning("\"%s\" is a macro name but "
+                                                 "it is used wrong at %s:%s:",
+                                                 word, current_file, lineno)
+                                self.log.warning("\"%s\"", line.rstrip())
+                                continue
+                            # Construct the new macro object
+                            try:
+                                n_m = MacroInPolicy(macros, current_file,
+                                                    lineno, word, args)
+                            except M4MacroError as e:
+                                # Bad macro, skip
+                                self.log.warning("%s", e.msg)
+                            else:
+                                # Add the new macro to the list
+                                macro_usages.append(n_m)
+        return macro_usages
