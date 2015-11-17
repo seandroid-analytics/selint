@@ -32,11 +32,21 @@ from tempfile import mkdtemp
 
 def test_source_policy():
     pol = p.SourcePolicy(p.BASE_DIR_GLOBAL, p.POLICYFILES_GLOBAL)
+    if len(pol.macro_defs) != 61:
+        print "Some macro definitions were not recognized!"
+        print "Definitions recognized: {}".format(len(pol.macro_defs))
+        return False
+    if len(pol.macro_usages) != 1108:
+        print "Some macro usages were not recognized!"
+        print "Usages recognized: {}".format(len(pol.macro_usages))
+        return False
+    return True
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)  # , format='%(message)s')
-    test_source_policy()
+    logging.basicConfig()#level=logging.DEBUG)  # , format='%(message)s')
+    if not test_source_policy():
+        sys.exit(1)
 
 
 if __name__ == "__main__":
