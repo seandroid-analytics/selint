@@ -179,6 +179,26 @@ class SourcePolicy(object):
                 "Could not create the policy.conf file, aborting...")
         # Create the actual policy instance
         self._policy = setools.policyrep.SELinuxPolicy(self._policyconf)
+        # Initialise some useful variables
+        # Attributes
+        self._attributes = {}
+        for attr in self.policy.typeattributes():
+            self._attributes[str(attr)] = set(str(x) for x in attr.expand())
+        # Types
+        self._types = set()
+        for tpe in self.policy.types():
+            self._types.add(str(tpe))
+        # Classes
+        self._classes = {}
+        for cls in self.policy.classes():
+            try:
+                cmn = cls.common
+            except setools.policyrep.exception.NoCommon:
+                cmnset = cls.perms
+            else:
+                cmnset = self.policy.lookup_common(cmn).perms
+                cmnset.update(cls.perms)
+            self._classes[str(cls)] = cmnset
 
     def __del__(self):
         if self._policyconf:
@@ -357,3 +377,29 @@ class SourcePolicy(object):
     def macro_usages(self):
         """Get the macros used in the policy source."""
         return self._macro_usages
+
+    @property
+    def policy(self):
+        """Get the SELinuxPolicy policy."""
+        return self._policy
+
+    @property
+    def attributes(self):
+        """Get the SELinuxPolicy attributes.
+
+        Returns a a dictionary (attr, set(types))."""
+        return self._attributes
+
+    @property
+    def types(self):
+        """Get the SELinuxPolicy types.
+
+        Returns a set of types."""
+        return self._types
+
+    @property
+    def classes(self):
+        """Get the SELinuxPolicy security classes.
+
+        Returns a dictionary (class, set(permissions))"""
+        return self._classes
