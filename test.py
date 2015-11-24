@@ -33,6 +33,10 @@ import shutil
 
 
 def get_rule_blocks(rule):
+    """Split the supplied rule in the component blocks.
+
+    Returns a list of blocks.
+    e.g. ["rule type", "subject", "object", "class", "perms"]"""
     if rule.count("{") != rule.count("}"):
         raise ValueError("Mismatched separators in \"{}\"".format(rule))
     nest_lvl = 0
@@ -99,23 +103,8 @@ def get_rule_blocks(rule):
     return blocks
 
 
-# def multiplex_rule(options):
-#    rules = []
-#    if len(options[4]) > 1:
-#        sortuniqed = sorted(list(set(options[4])))
-#        perms = " { " + " ".join(sortuniqed) + " };"
-#    else:
-#        perms = " " + options[4][0] + ";"
-#    for rule_type in options[0]:
-#        for subject in options[1]:
-#            for obj in options[2]:
-#                for seclass in options[3]:
-#                    rules.append(rule_type + " " + subject + " " + obj + ":"
-#                                 + seclass + perms)
-#    return rules
-
-
 def multiplex_rule(options):
+    """Expand a list of rule element options into all the combinations."""
     rules = {}
     rtype = options[0]
     add = []
@@ -307,11 +296,10 @@ def expand_terule(blocks, policy):
 
 def expand_rule(rule, policy):
     """ Attributes must be a dictionary of (attribute, [types])"""
-    options = []
     blocks = get_rule_blocks(rule)
     if blocks[0] in ("allow", "auditallow", "dontaudit", "neverallow"):
         rules = expand_avrule(blocks, policy)
-    elif blocks[0] in ("type_transition"):
+    elif blocks[0] in ("type_transition", "type_change", "type_member", "typebounds"):
         rules = expand_terule(blocks, policy)
     return rules
 
@@ -330,7 +318,8 @@ def test_source_policy():
     ##### Reparse #####
     mapping = {}
     group = []
-    separator = ""
+    current_file = ""
+    current_line = ""
     with open("/home/bonazzf1/tmp/policy.conf") as policy_conf:
         file_content = policy_conf.read().splitlines()
     for line in file_content:
@@ -388,9 +377,9 @@ def test_source_policy():
             current_line = int(new_line.group(1))
             continue
     #mapfile = open("mapfile", "w")
-    #for m in mapping:
+    # for m in mapping:
     #    mapfile.write(str(m) + "\n\t" + str(mapping[m]) + "\n")
-    #mapfile.close()
+    # mapfile.close()
     ##### END Reparse #####
     nallow = 0
     nauditallow = 0
@@ -405,7 +394,7 @@ def test_source_policy():
         if printedr in mapping:
             touched.add(printedr)
             #mapped.write(str(rule) + "\n")
-            #for tpl in mapping[printedr]:
+            # for tpl in mapping[printedr]:
             #    mapped.write("\t{} {}:{}\n".format(tpl[0], tpl[1], tpl[2]))
             if rule.ruletype == "allow":
                 nallow += 1
@@ -420,8 +409,8 @@ def test_source_policy():
         else:
             #notmapped.write(printedr + "\n")
             pass
-    #mapped.close()
-    #notmapped.close()
+    # mapped.close()
+    # notmapped.close()
     nmapped_allow = 0
     nmapped_auditallow = 0
     nmapped_dontaudit = 0
@@ -439,11 +428,11 @@ def test_source_policy():
             nmapped_neverallow += 1
         if rule_name.startswith("type_transition"):
             nmapped_typetrans += 1
-        #if rule_name not in touched:
+        # if rule_name not in touched:
         #    nottouched.write("{} ".format(rule_name))
         #    for i in rule:
         #        nottouched.write("{}:{}\n".format(i[0], i[1]))
-    #nottouched.close()
+    # nottouched.close()
     print "{0}/{1} rules in mapping found".format(nallow + nauditallow +
                                                   ndontaudit + nneverallow +
                                                   ntypetrans, len(mapping))
