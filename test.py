@@ -103,54 +103,14 @@ def get_rule_blocks(rule):
     return blocks
 
 
-def multiplex_rule(options):
-    """Expand a list of rule element options into all the combinations."""
-    rules = {}
-    rtype = options[0]
-    add = []
-    # If this is a type transition, add the default type
-    if rtype == "type_transition":
-        if len(options[4]) > 1:
-            raise ValueError("Bad type_transition parsing")
-        add.extend(options[4])
-        if len(options) == 6 and options[5]:
-            if len(options[5]) > 1:
-                raise ValueError("Bad type_transition parsing")
-            # If this is a name transition, also add the name
-            add.extend(options[5])
-    # If this is an AV rule, add the permission set
-    elif rtype in ("allow", "auditallow", "dontaudit", "neverallow"):
-        if len(options[4]) > 1:
-            sortuniqed = sorted(list(set(options[4])))
-            add.append("{ " + " ".join(sortuniqed) + " }")
-        else:
-            add.extend(options[4])
-    add = " ".join(add)
-    # Expand self
-    if "self" in options[2]:
-        for sub in options[1]:
-            for cls in options[3]:
-                base = "{} {} {}:{}".format(rtype, sub, sub, cls)
-                full = "{} {} {}:{} {};".format(rtype, sub, sub, cls, add)
-                rules[base] = full
-    else:
-        for sub in options[1]:
-            for obj in options[2]:
-                for cls in options[3]:
-                    base = "{} {} {}:{}".format(rtype, sub, obj, cls)
-                    full = "{} {} {}:{} {};".format(rtype, sub, obj, cls, add)
-                    rules[base] = full
-    return rules
-
-
 def expand_block(block, block_type, attributes=None, types=None, classes=None, for_class=None):
-    """Expand a rule block given its syntactical role.
+    """Expand a rule block given its semantic role.
 
     Expands attributes, sets ({...}), subtract (-), complement (~),
     complementary sets (~{...}) and wildcard (*)."""
     # The list of alternatives for the block
     options = None
-    if block.startswith("{") and block.endswith("}"):
+    if block.startswith("{"):
         ############### Complex block ###############
         if block_type == "type" and not attributes:
             raise ValueError("Bad block type")
@@ -226,32 +186,32 @@ def expand_avrule(blocks, policy):
     if "self" in options[2]:
         # If the rule has target "self", expand the object to the proper
         # subject
-        for sub in options[1]:
-            for cls in options[3]:
-                perms = expand_block(blocks[4], "perms",
-                                     classes=policy.classes,
-                                     for_class=cls)
-                if len(perms) > 1:
-                    permstr = "{ " + " ".join(perms) + " };"
-                else:
-                    permstr = "{};".format(perms[0])
-                base = "{} {} {}:{}".format(rtype, sub, sub, cls)
-                full = "{} {}".format(base, permstr)
+        for cls in options[3]:
+            perms = expand_block(blocks[4], "perms",
+                                 classes=policy.classes,
+                                 for_class=cls)
+            if len(perms) > 1:
+                permstr = "{ " + " ".join(perms) + " };"
+            else:
+                permstr = perms[0] + ";"
+            for sub in options[1]:
+                base = rtype + " " + sub + " " + sub + ":" + cls
+                full = base + " " + permstr
                 rules[base] = full
     else:
         # Expand the rule fully
-        for sub in options[1]:
-            for obj in options[2]:
-                for cls in options[3]:
-                    perms = expand_block(blocks[4], "perms",
-                                         classes=policy.classes,
-                                         for_class=cls)
-                    if len(perms) > 1:
-                        permstr = "{ " + " ".join(perms) + " };"
-                    else:
-                        permstr = "{};".format(perms[0])
-                    base = "{} {} {}:{}".format(rtype, sub, obj, cls)
-                    full = "{} {}".format(base, permstr)
+        for cls in options[3]:
+            perms = expand_block(blocks[4], "perms",
+                                 classes=policy.classes,
+                                 for_class=cls)
+            if len(perms) > 1:
+                permstr = "{ " + " ".join(perms) + " };"
+            else:
+                permstr = perms[0] + ";"
+            for sub in options[1]:
+                for obj in options[2]:
+                    base = rtype + " " + sub + " " + obj + ":" + cls
+                    full = base + " " + permstr
                     rules[base] = full
     return rules
 
@@ -260,7 +220,14 @@ def expand_terule(blocks, policy):
     """Return a dictionary of rules expanded from a list of TERule blocks.
 
     The dictionary maps ("ruletype source target:class", full rule repr)."""
-    if len(blocks) < 5 or len(blocks) > 6:
+    if len(blocks) == 6:
+        # It's a name transition: add default type and object name
+        add = blocks[4] + blocks[5] + ";"
+    elif len(blocks) == 5:
+        # It's a simple type transition: add only the default type
+        add = blocks[4] + ";"
+    else:
+        # Invalid number of blocks
         raise ValueError("Invalid rule")
     # The rule type is static
     rtype = blocks[0]
@@ -282,14 +249,8 @@ def expand_terule(blocks, policy):
     for sub in options[1]:
         for obj in options[2]:
             for cls in options[3]:
-                if len(blocks) == 6:
-                    # It's a name transition: add default type and object name
-                    add = "{} {};".format(blocks[4], blocks[5])
-                else:
-                    # It's a simple type transition: add only the default type
-                    add = "{};".format(blocks[4])
-                base = "{} {} {}:{}".format(rtype, sub, obj, cls)
-                full = "{} {}".format(base, add)
+                base = rtype + " " + sub + " " + obj + ":" + cls
+                full = base + " " + add
                 rules[base] = full
     return rules
 
@@ -301,6 +262,8 @@ def expand_rule(rule, policy):
         rules = expand_avrule(blocks, policy)
     elif blocks[0] in ("type_transition", "type_change", "type_member", "typebounds"):
         rules = expand_terule(blocks, policy)
+    else:
+        raise ValueError("Unsupported rule")
     return rules
 
 
@@ -323,20 +286,21 @@ def test_source_policy():
     with open("/home/bonazzf1/tmp/policy.conf") as policy_conf:
         file_content = policy_conf.read().splitlines()
     for line in file_content:
+        # Remove extra whitespace
+        line = line.strip()
         # Skip blank lines
-        if not line or re.match(r"^\s+$", line):
+        if not line:
             continue
         # If this line is not a comment
-        if not re.match(r'^\s*#', line):
-            if not group and not re.match(r'^\s*(allow|auditallow|dontaudit|neverallow|type_transition)\s', line):
+        if not line.startswith("#"):
+            if not group and not line.startswith(("allow", "auditallow", "dontaudit", "neverallow", "type_transition")):
                 # If this rule is new and not one of those we are looking for
                 continue
             else:
                 # If we have something in the group or a new valid rule
                 # Remove possible in-line comments
-                line = re.sub(r'\s*#.*', '', line)
-                # Remove spaces
-                line = line.strip()
+                if "#" in line:
+                    line = re.sub(r'\s*#.*', '', line)
                 # Append the current line to the group
                 group.append(line)
                 # If we have not found the end of the rule yet, read next line
@@ -364,18 +328,14 @@ def test_source_policy():
                 # Read the next line
                 continue
         # Check if this line marks the start of a new file
-        new_file = re.match(r'#\s?line 1 "([^"]+)"', line)
-        if new_file:
+        elif line.startswith(r'#line 1 "'):
             # If it does, process it and skip to the next line right away
-            current_file = new_file.group(1)
+            current_file = re.match(r'#line 1 "([^"]+)"', line).group(1)
             current_line = 1
-            continue
         # Check if this line marks a new line in the current file
-        new_line = re.match(r'#\s?line ([0-9]+)', line)
-        if new_line:
+        elif line.startswith(r'#line '):
             # If it does, process it and skip to the next line right away
-            current_line = int(new_line.group(1))
-            continue
+            current_line = int(re.match(r'#line ([0-9]+)', line).group(1))
     #mapfile = open("mapfile", "w")
     # for m in mapping:
     #    mapfile.write(str(m) + "\n\t" + str(mapping[m]) + "\n")
