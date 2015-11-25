@@ -340,9 +340,14 @@ class SourcePolicy(object):
             # For each .te file
             with open(current_file) as current_file_content:
                 for lineno, line in enumerate(current_file_content, 1):
+                    # Remove extra whitespace
+                    line = line.strip()
                     if line.startswith("#"):
                         # Ignore comments
                         continue
+                    # Ignore end-of-line comments
+                    if "#" in line:
+                        line = re.sub(r'\s*#.*', '', line)
                     for word in re.split(r'\W+', line):
                         if word in macros:
                             # We have found a macro
