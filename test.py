@@ -36,11 +36,6 @@ def test_source_policy():
         print "Usages recognized: {}".format(len(pol.macro_usages))
         return False
     shutil.copyfile(pol._policyconf, "/home/bonazzf1/tmp/policy.conf")
-    mapper = mp.Mapper(
-        pol._policyconf, pol.attributes, pol.types, pol.classes)
-    mapping = mapper.get_mapping()
-    if not mapping:
-        return False
     nallow = 0
     nauditallow = 0
     ndontaudit = 0
@@ -51,10 +46,10 @@ def test_source_policy():
     #notmapped = open("notmapped.txt", "w")
     for rule in pol.policy.terules():
         printedr = "{0.ruletype} {0.source} {0.target}:{0.tclass}".format(rule)
-        if printedr in mapping:
+        if printedr in pol.mapping:
             touched.add(printedr)
             #mapped.write(str(rule) + "\n")
-            # for tpl in mapping[printedr]:
+            # for tpl in pol.mapping[printedr]:
             #    mapped.write("\t{} {}:{}\n".format(tpl[0], tpl[1], tpl[2]))
             if rule.ruletype == "allow":
                 nallow += 1
@@ -77,7 +72,7 @@ def test_source_policy():
     nmapped_neverallow = 0
     nmapped_typetrans = 0
     #nottouched = open("nottouched.txt", "w")
-    for rule_name, rule in mapping.iteritems():
+    for rule_name, rule in pol.mapping.iteritems():
         if rule_name.startswith("allow"):
             nmapped_allow += 1
         if rule_name.startswith("auditallow"):
@@ -95,7 +90,7 @@ def test_source_policy():
     # nottouched.close()
     print "{0}/{1} rules in mapping found".format(nallow + nauditallow +
                                                   ndontaudit + nneverallow +
-                                                  ntypetrans, len(mapping))
+                                                  ntypetrans, len(pol.mapping))
     print "Allow: {0}/{1}/{2}".format(
         nallow, pol.policy.allow_count, nmapped_allow)
     print "Auditallow: {0}/{1}/{2}".format(

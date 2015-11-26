@@ -24,6 +24,7 @@ import subprocess
 import os.path
 import re
 from .macro import MacroInPolicy, M4MacroError
+from .mapping import Mapper
 from . import macro_plugins
 import logging
 
@@ -140,6 +141,7 @@ POLICYFILES_GLOBAL = [
 
 class SourcePolicy(object):
     """Class representing a source SELinux policy."""
+    # pylint: disable=too-many-instance-attributes
     regex_macrodef = r'^define\(\`([^\']+)\','
 
     def __init__(self, base_dir, policyfiles):
@@ -180,28 +182,16 @@ class SourcePolicy(object):
         # Create the actual policy instance
         self._policy = setools.policyrep.SELinuxPolicy(self._policyconf)
         # Initialise some useful variables
-        # TODO extract to method
-        # Attributes
-        self._attributes = {}
-        for attr in self.policy.typeattributes():
-            self._attributes[str(attr)] = set(str(x) for x in attr.expand())
-        # TODO extract to method
-        # Types
-        self._types = set()
-        for tpe in self.policy.types():
-            self._types.add(str(tpe))
-        # TODO extract to method
-        # Classes
-        self._classes = {}
-        for cls in self.policy.classes():
-            try:
-                cmn = cls.common
-            except setools.policyrep.exception.NoCommon:
-                cmnset = cls.perms
-            else:
-                cmnset = self.policy.lookup_common(cmn).perms
-                cmnset.update(cls.perms)
-            self._classes[str(cls)] = cmnset
+        self._attributes = self.__compute_attributes()
+        self._types = self.__compute_types()
+        self._classes = self.__compute_classes()
+        # Build the origin file/line mapping
+        mapper = Mapper(self._policyconf, self.attributes,
+                        self.types, self.classes)
+        self._mapping = mapper.get_mapping()
+        if not self._mapping:
+            raise RuntimeError(
+                "Error creating the file/line mapping, aborting...")
 
     def __del__(self):
         if self._policyconf:
@@ -376,6 +366,39 @@ class SourcePolicy(object):
                                 macro_usages.append(n_m)
         return macro_usages
 
+    def __compute_attributes(self):
+        """Get the SELinuxPolicy attributes as a dictionary of sets.
+
+        Return a dictionary (attribute, set(types))."""
+        attributes = {}
+        for attr in self.policy.typeattributes():
+            attributes[str(attr)] = set(str(x) for x in attr.expand())
+        return attributes
+
+    def __compute_types(self):
+        """Get the set of SELinuxPolicy types as a set of strings."""
+        types = set()
+        for tpe in self.policy.types():
+            types.add(str(tpe))
+        return types
+
+    def __compute_classes(self):
+        """Get the SELinuxPolicy classes as a dictionary of sets.
+
+        Return a dictionary (class, set(perms)).
+        Each set contains all the permissions for the associated class,
+        both inherited from commons and directly assigned."""
+        classes = {}
+        for cls in self.policy.classes():
+            try:
+                cmn = cls.common
+            except setools.policyrep.exception.NoCommon:
+                cmnset = cls.perms
+            else:
+                cmnset = cls.perms.union(self.policy.lookup_common(cmn).perms)
+            classes[str(cls)] = cmnset
+        return classes
+
     @property
     def macro_defs(self):
         """Get the macros defined in the policy source."""
@@ -411,3 +434,13 @@ class SourcePolicy(object):
 
         Returns a dictionary (class, set(permissions))"""
         return self._classes
+
+    @property
+    def mapping(self):
+        """Get the mapping between policy rules and origin file/line.
+
+        Return a dictionary (base, [(full, file, line)]) where the key is
+        the rule as "rule_type subject object:class", and the value is a list
+        of tuples (full rule representation, origin file, line number in file)
+        for each full rule matching the base rule."""
+        return self._mapping
