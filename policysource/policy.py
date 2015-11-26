@@ -180,14 +180,17 @@ class SourcePolicy(object):
         # Create the actual policy instance
         self._policy = setools.policyrep.SELinuxPolicy(self._policyconf)
         # Initialise some useful variables
+        # TODO extract to method
         # Attributes
         self._attributes = {}
         for attr in self.policy.typeattributes():
             self._attributes[str(attr)] = set(str(x) for x in attr.expand())
+        # TODO extract to method
         # Types
         self._types = set()
         for tpe in self.policy.types():
             self._types.add(str(tpe))
+        # TODO extract to method
         # Classes
         self._classes = {}
         for cls in self.policy.classes():
