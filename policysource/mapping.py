@@ -94,8 +94,7 @@ class Mapper(object):
                     # Expand the rule
                     try:
                         rules = self.expand_rule(original_rule)
-                    except (ValueError, IndexError) as e:
-                        # TODO remove IndexError
+                    except ValueError as e:
                         self.log.warning(e)
                         self.log.warning("Could not expand rule \"%s\""
                                          " at %s:%s", original_rule,
