@@ -198,8 +198,8 @@ class SourcePolicy(object):
             try:
                 os.remove(self._policyconf)
             except OSError:
-                self.log.debug("Trying to remove policy.conf file \"%s\"... "
-                               "failed!", self._policyconf)
+                self.log.warning("Trying to remove policy.conf file \"%s\"... "
+                                 "failed!", self._policyconf)
             else:
                 self.log.debug("Trying to remove policy.conf file \"%s\"... "
                                "done!", self._policyconf)
