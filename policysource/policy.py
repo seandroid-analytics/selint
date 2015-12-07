@@ -153,10 +153,11 @@ class SourcePolicy(object):
         # Setup logging
         self.log = logging.getLogger(self.__class__.__name__)
         # Setup useful infrastructure
-        self._tmpdir = mkdtemp()
         self._policyconf = None
         # Create a temporary work directory
+        self._tmpdir = mkdtemp()
         self.log.debug("Created temporary directory \"%s\".", self._tmpdir)
+
         # Get a list of policy files with full paths
         self._policy_files = self.__join_policy_files__(base_dir, policyfiles)
         if not self._policy_files:
