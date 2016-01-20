@@ -1,0 +1,52 @@
+#!/usr/bin/python2
+#
+# Written by Filippo Bonazzi
+# Copyright (C) 2016 Aalto University
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+"""TODO: file docstring"""
+
+import argparse
+import logging
+import policysource
+import sys
+import plugins
+
+
+# Parse arguments
+parser = argparse.ArgumentParser(
+    description="SELinux source policy analysis tool.",
+    epilog="If not differently specified, all available plugins will be run.")
+# List the available plugins
+parser.add_argument("-l", "--list", action="store_true",
+                    help="list the available plugins and exit")
+# Select the plugins to run (default: all). Specify either with a whitelist
+# or a blacklist, but not both
+plugin_group = parser.add_mutually_exclusive_group()
+# Plugin whitelist
+plugin_group.add_argument("-o", "--only", metavar="<PLUGINS>",
+                          choices=plugins.available_plugins, nargs="+",
+                          help="specify the plugins to run [Default: run all]")
+# Plugin blacklist
+plugin_group.add_argument("-n", "--not", metavar="<PLUGINS>",
+                          choices=plugins.available_plugins, nargs="+",
+                          help="specify the plugins not to run [Default: run all]")
+
+args = parser.parse_args()
+
+if args.list:
+    # List available plugins and exit
+    print "Available plugins:"
+    print "\n".join(plugins.available_plugins)
+    sys.exit(0)
