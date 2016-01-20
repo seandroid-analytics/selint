@@ -20,6 +20,7 @@
 import argparse
 import logging
 import policysource
+import policysource.policy
 import sys
 import plugins
 
@@ -35,11 +36,11 @@ parser.add_argument("-l", "--list", action="store_true",
 # or a blacklist, but not both
 plugin_group = parser.add_mutually_exclusive_group()
 # Plugin whitelist
-plugin_group.add_argument("-o", "--only", metavar="<PLUGINS>",
+plugin_group.add_argument("-w", "--whitelist", metavar="<PLUGIN>",
                           choices=plugins.available_plugins, nargs="+",
                           help="specify the plugins to run [Default: run all]")
 # Plugin blacklist
-plugin_group.add_argument("-n", "--not", metavar="<PLUGINS>",
+plugin_group.add_argument("-b", "--blacklist", metavar="<PLUGIN>",
                           choices=plugins.available_plugins, nargs="+",
                           help="specify the plugins not to run [Default: run all]")
 
@@ -50,3 +51,22 @@ if args.list:
     print "Available plugins:"
     print "\n".join(plugins.available_plugins)
     sys.exit(0)
+
+if args.whitelist:
+    selected_plugins = list(args.whitelist)
+elif args.blacklist:
+    selected_plugins = [
+        x for x in plugins.available_plugins if x not in args.blacklist]
+else:
+    selected_plugins = list(plugins.available_plugins)
+
+# Setup logging
+logging.basicConfig()
+# Create policy
+policy = policysource.policy.SourcePolicy(
+    policysource.policy.BASE_DIR_GLOBAL,
+    policysource.policy.POLICYFILES_GLOBAL)
+# Run plugins
+for plg in selected_plugins:
+    print "Running plugin " + plg + "..."
+    plugins.get_plugin(plg).main(policy)

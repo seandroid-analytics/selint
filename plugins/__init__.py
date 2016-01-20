@@ -20,9 +20,15 @@ import os
 import os.path
 import sys
 import keyword
+import inspect
+import logging
+
+# Setup logging
+LOG = logging.getLogger(__name__)
 
 # Recognize plugins
 available_plugins = []
+__plugins = {}
 for plugin_file in os.listdir(os.path.dirname(__file__)):
     if plugin_file.endswith(".py"):
         plugin = os.path.splitext(plugin_file)[0]
@@ -32,6 +38,19 @@ for plugin_file in os.listdir(os.path.dirname(__file__)):
             except:
                 e = sys.exc_info()
                 print e
+                LOG.debug("Found invalid plugin \"%s\"", plugin)
             else:
-                available_plugins.append(plugin)
+                if inspect.isfunction(locals()[plugin].main):
+                    available_plugins.append(plugin)
+                    __plugins[plugin] = locals()[plugin]
+                    LOG.debug("Found valid plugin \"%s\"", plugin)
+                else:
+                    LOG.debug("Found invalid plugin \"%s\"", plugin)
 available_plugins.sort()
+
+
+def get_plugin(name):
+    if name in __plugins:
+        return __plugins[name]
+    else:
+        return None
