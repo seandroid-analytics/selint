@@ -19,8 +19,9 @@
 import policysource
 import policysource.policy
 
+
 def main(policy):
-    if not isinstance(policy,policysource.policy.SourcePolicy):
+    if not isinstance(policy, policysource.policy.SourcePolicy):
         raise ValueError("Invalid policy")
 
     print policy.regex_macrodef
