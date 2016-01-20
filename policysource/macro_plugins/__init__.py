@@ -27,6 +27,7 @@ import logging
 
 
 __all__ = []
+__plugins__ = {}
 for plugin_file in os.listdir(os.path.dirname(__file__)):
     if plugin_file.endswith(".py"):
         module = os.path.splitext(plugin_file)[0]
@@ -38,6 +39,7 @@ for plugin_file in os.listdir(os.path.dirname(__file__)):
                 print e
             else:
                 __all__.append(module)
+                __plugins__[module] = locals()[module]
 __all__.sort()
 
 
@@ -117,7 +119,7 @@ class M4MacroParser(object):
         # Setup plugins
         self.plugins = {}
         for mod in __all__:
-            plugin = globals()[mod]
+            plugin = __plugins__[mod]
             if (inspect.isfunction(plugin.expects)
                     and inspect.isfunction(plugin.parse)):
                 self.plugins[mod] = plugin
