@@ -17,11 +17,11 @@
 #
 """TODO: file docstring"""
 
+import sys
 import argparse
 import logging
 import policysource
 import policysource.policy
-import sys
 import plugins
 
 
