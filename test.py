@@ -18,15 +18,80 @@
 #
 """Test various functions for correctness"""
 
+import os
+import os.path
 import policysource.policy as p
 import policysource.mapping as mp
+import policysource.macro
 import logging
 import sys
 import shutil
+import config
+
+
+def get_policy_files():
+    ALL_POLICY_FILES = []
+    if not config.BASE_DIR_GLOBAL:
+        # If the directory is None or the name is empty
+        logging.error("Bad policy base directory.")
+        sys.exit(1)
+    # Expand and sanitize the directory name
+    FULL_BASE_DIR = os.path.abspath(os.path.expanduser(config.BASE_DIR_GLOBAL))
+    # If the directory does not exist or is not traversable/readable
+    if (not os.access(FULL_BASE_DIR, os.F_OK)
+            or not os.access(FULL_BASE_DIR, os.X_OK | os.R_OK)):
+        logging.error("Bad policy base directory \"%s\"", FULL_BASE_DIR)
+        sys.exit(1)
+    # Check that we have at least one file/directory
+    if not config.TEFILES_DIRS and not config.POLICYFILES_STATIC_PRE and not config.POLICYFILES_STATIC_TE and not config.POLICYFILES_STATIC_POST:
+        logging.error("No policy files specified.")
+        sys.exit(1)
+    # Add the static policy files that go before the .te files
+    for f in config.POLICYFILES_STATIC_PRE:
+        if f:
+            full_f = os.path.abspath(os.path.join(FULL_BASE_DIR, f))
+            if os.path.isfile(full_f):
+                # TODO: add access checks from policysource/policy.py:131
+                ALL_POLICY_FILES.append(full_f)
+    # Pick up the .te files from the supplied directories
+    for d in config.TEFILES_DIRS:
+        full_d = os.path.abspath(os.path.join(FULL_BASE_DIR, d))
+        files = sorted(os.listdir(full_d))
+        for f in files:
+            if f:
+                full_f = os.path.join(full_d, f)
+                if f.endswith(".te") and os.path.isfile(full_f):
+                    # TODO: add access checks from policysource/policy.py:131
+                    ALL_POLICY_FILES.append(full_f)
+    # Add the static .te files, if any
+    for f in config.POLICYFILES_STATIC_TE:
+        if f:
+            full_f = os.path.abspath(os.path.join(FULL_BASE_DIR, f))
+            if os.path.isfile(full_f):
+                # TODO: add access checks from policysource/policy.py:131
+                ALL_POLICY_FILES.append(full_f)
+    # Add the static policy files that go after the .te files
+    for f in config.POLICYFILES_STATIC_POST:
+        if f:
+            full_f = os.path.abspath(os.path.join(FULL_BASE_DIR, f))
+            if os.path.isfile(full_f):
+                # TODO: add access checks from policysource/policy.py:131
+                ALL_POLICY_FILES.append(full_f)
+    # Final sanity check
+    if not ALL_POLICY_FILES:
+        logging.error("No policy files found.")
+        sys.exit(1)
+    return ALL_POLICY_FILES
+
+
+def print_usages():
+    pol = p.SourcePolicy(get_policy_files())
+    for m in pol.macro_usages:
+        print str(m) + " {}:{}".format(m.file_used, m.line_used)
 
 
 def test_source_policy():
-    pol = p.SourcePolicy(p.BASE_DIR_GLOBAL, p.POLICYFILES_GLOBAL)
+    pol = p.SourcePolicy(get_policy_files())
     if len(pol.macro_defs) != 61:
         print "Some macro definitions were not recognized!"
         print "Definitions recognized: {}".format(len(pol.macro_defs))
@@ -106,8 +171,9 @@ def test_source_policy():
 
 def main():
     logging.basicConfig()  # level=logging.DEBUG)  # , format='%(message)s')
-    if not test_source_policy():
-        sys.exit(1)
+    # if not test_source_policy():
+    #    sys.exit(1)
+    print_usages()
 
 
 if __name__ == "__main__":

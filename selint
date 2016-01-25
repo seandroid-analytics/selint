@@ -17,13 +17,15 @@
 #
 """TODO: file docstring"""
 
+import os
+import os.path
 import sys
 import argparse
 import logging
 import policysource
 import policysource.policy
 import plugins
-
+import config
 
 # Parse arguments
 parser = argparse.ArgumentParser(
@@ -62,10 +64,65 @@ else:
 
 # Setup logging
 logging.basicConfig()
+# Compute list of policy files
+# TODO: add CLI option in addition to config file
+ALL_POLICY_FILES = []
+if not config.BASE_DIR_GLOBAL:
+    # If the directory is None or the name is empty
+    logging.error("Bad policy base directory.")
+    sys.exit(1)
+# Expand and sanitize the directory name
+FULL_BASE_DIR = os.path.abspath(os.path.expanduser(config.BASE_DIR_GLOBAL))
+# If the directory does not exist or is not traversable/readable
+if (not os.access(FULL_BASE_DIR, os.F_OK)
+        or not os.access(FULL_BASE_DIR, os.X_OK | os.R_OK)):
+    logging.error("Bad policy base directory \"%s\"", FULL_BASE_DIR)
+    sys.exit(1)
+# Check that we have at least one file/directory
+if not config.TEFILES_DIRS and not config.POLICYFILES_STATIC_PRE and not config.POLICYFILES_STATIC_POST:
+    logging.error("No policy files specified.")
+    sys.exit(1)
+# Add the static policy files that go before the .te files
+for f in config.POLICYFILES_STATIC_PRE:
+    if f:
+        full_f = os.path.abspath(os.path.join(FULL_BASE_DIR, f))
+        if os.path.isfile(full_f):
+            # TODO: add access checks from policysource/policy.py:131
+            ALL_POLICY_FILES.append(full_f)
+# Pick up the .te files from the supplied directories
+for d in config.TEFILES_DIRS:
+    full_d = os.path.abspath(os.path.join(FULL_BASE_DIR, d))
+    files = sorted(os.listdir(full_d))
+    for f in files:
+        if f:
+            full_f = os.path.join(full_d, f)
+            if f.endswith(".te") and os.path.isfile(full_f):
+                # TODO: add access checks from policysource/policy.py:131
+                ALL_POLICY_FILES.append(full_f)
+# Add the static .te files, if any
+for f in config.POLICYFILES_STATIC_TE:
+    if f:
+        full_f = os.path.abspath(os.path.join(FULL_BASE_DIR, f))
+        if os.path.isfile(full_f):
+            # TODO: add access checks from policysource/policy.py:131
+            ALL_POLICY_FILES.append(full_f)
+# Add the static policy files that go after the .te files
+for f in config.POLICYFILES_STATIC_POST:
+    if f:
+        full_f = os.path.abspath(os.path.join(FULL_BASE_DIR, f))
+        if os.path.isfile(full_f):
+            # TODO: add access checks from policysource/policy.py:131
+            ALL_POLICY_FILES.append(full_f)
+# Final sanity check
+if not ALL_POLICY_FILES:
+    logging.error("No policy files found.")
+    sys.exit(1)
+# TODO: add debug options, print this with debug?
+# print "\n".join(ALL_POLICY_FILES)
+
+
 # Create policy
-policy = policysource.policy.SourcePolicy(
-    policysource.policy.BASE_DIR_GLOBAL,
-    policysource.policy.POLICYFILES_GLOBAL)
+policy = policysource.policy.SourcePolicy(ALL_POLICY_FILES)
 # Run plugins
 for plg in selected_plugins:
     print "Running plugin " + plg + "..."

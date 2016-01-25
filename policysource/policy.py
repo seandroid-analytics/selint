@@ -31,128 +31,17 @@ from .mapping import Mapper
 from . import macro_plugins
 import logging
 
-BASE_DIR_GLOBAL = "~/workspace"
-POLICYFILES_GLOBAL = [
-    "external/sepolicy/security_classes",
-    "external/sepolicy/initial_sids",
-    "external/sepolicy/access_vectors",
-    "external/sepolicy/global_macros",
-    "external/sepolicy/neverallow_macros",
-    "external/sepolicy/mls_macros",
-    "external/sepolicy/mls",
-    "external/sepolicy/policy_capabilities",
-    "external/sepolicy/te_macros",
-    "external/sepolicy/attributes",
-    "external/sepolicy/ioctl_macros",
-    "external/sepolicy/adbd.te",
-    "external/sepolicy/app.te",
-    "external/sepolicy/atrace.te",
-    "external/sepolicy/binderservicedomain.te",
-    "external/sepolicy/blkid.te",
-    "external/sepolicy/blkid_untrusted.te",
-    "external/sepolicy/bluetooth.te",
-    "external/sepolicy/bootanim.te",
-    "external/sepolicy/clatd.te",
-    "external/sepolicy/debuggerd.te",
-    "external/sepolicy/device.te",
-    "external/sepolicy/dex2oat.te",
-    "external/sepolicy/dhcp.te",
-    "external/sepolicy/dnsmasq.te",
-    "external/sepolicy/domain.te",
-    "external/sepolicy/domain_deprecated.te",
-    "external/sepolicy/drmserver.te",
-    "external/sepolicy/dumpstate.te",
-    "external/sepolicy/file.te",
-    "external/sepolicy/fingerprintd.te",
-    "external/sepolicy/fsck.te",
-    "external/sepolicy/fsck_untrusted.te",
-    "external/sepolicy/gatekeeperd.te",
-    "external/sepolicy/gpsd.te",
-    "external/sepolicy/hci_attach.te",
-    "external/sepolicy/healthd.te",
-    "external/sepolicy/hostapd.te",
-    "external/sepolicy/idmap.te",
-    "external/sepolicy/init.te",
-    "external/sepolicy/inputflinger.te",
-    "external/sepolicy/install_recovery.te",
-    "external/sepolicy/installd.te",
-    "external/sepolicy/isolated_app.te",
-    "external/sepolicy/kernel.te",
-    "external/sepolicy/keystore.te",
-    "external/sepolicy/lmkd.te",
-    "external/sepolicy/logd.te",
-    "external/sepolicy/mdnsd.te",
-    "external/sepolicy/mediaserver.te",
-    "external/sepolicy/mtp.te",
-    "external/sepolicy/net.te",
-    "external/sepolicy/netd.te",
-    "external/sepolicy/nfc.te",
-    "external/sepolicy/perfprofd.te",
-    "external/sepolicy/platform_app.te",
-    "external/sepolicy/ppp.te",
-    "external/sepolicy/priv_app.te",
-    "external/sepolicy/property.te",
-    "external/sepolicy/racoon.te",
-    "external/sepolicy/radio.te",
-    "external/sepolicy/recovery.te",
-    "external/sepolicy/rild.te",
-    "external/sepolicy/runas.te",
-    "external/sepolicy/sdcardd.te",
-    "external/sepolicy/service.te",
-    "external/sepolicy/servicemanager.te",
-    "external/sepolicy/sgdisk.te",
-    "external/sepolicy/shared_relro.te",
-    "external/sepolicy/shell.te",
-    "external/sepolicy/slideshow.te",
-    "external/sepolicy/su.te",
-    "external/sepolicy/surfaceflinger.te",
-    "external/sepolicy/system_app.te",
-    "external/sepolicy/system_server.te",
-    "external/sepolicy/tee.te",
-    "external/sepolicy/toolbox.te",
-    "external/sepolicy/tzdatacheck.te",
-    "external/sepolicy/ueventd.te",
-    "external/sepolicy/uncrypt.te",
-    "external/sepolicy/untrusted_app.te",
-    "external/sepolicy/update_engine.te",
-    "external/sepolicy/vdc.te",
-    "external/sepolicy/vold.te",
-    "external/sepolicy/watchdogd.te",
-    "external/sepolicy/wpa.te",
-    "external/sepolicy/zygote.te",
-    "build/target/board/generic/sepolicy/bootanim.te",
-    "build/target/board/generic/sepolicy/device.te",
-    "build/target/board/generic/sepolicy/domain.te",
-    "build/target/board/generic/sepolicy/file.te",
-    "build/target/board/generic/sepolicy/goldfish_setup.te",
-    "build/target/board/generic/sepolicy/init.te",
-    "build/target/board/generic/sepolicy/logd.te",
-    "build/target/board/generic/sepolicy/property.te",
-    "build/target/board/generic/sepolicy/qemu_props.te",
-    "build/target/board/generic/sepolicy/qemud.te",
-    "build/target/board/generic/sepolicy/rild.te",
-    "build/target/board/generic/sepolicy/shell.te",
-    "build/target/board/generic/sepolicy/surfaceflinger.te",
-    "build/target/board/generic/sepolicy/system_server.te",
-    "external/sepolicy/roles",
-    "external/sepolicy/users",
-    "external/sepolicy/initial_sid_contexts",
-    "external/sepolicy/fs_use",
-    "external/sepolicy/genfs_contexts",
-    "external/sepolicy/port_contexts"]
-
 
 class SourcePolicy(object):
     """Class representing a source SELinux policy."""
     # pylint: disable=too-many-instance-attributes
     regex_macrodef = r'^define\(\`([^\']+)\','
 
-    def __init__(self, base_dir, policyfiles):
+    def __init__(self, policyfiles):
         """Construct a SourcePolicy object by parsing the supplied files.
 
         Keyword arguments:
-        base_dir    --  A common path for the policy files
-        policyfiles --  A list of file paths, relative to the base dir"""
+        policyfiles --  The policy files as a list of absolute paths."""
         # Setup logging
         self.log = logging.getLogger(self.__class__.__name__)
         # Setup useful infrastructure
@@ -162,7 +51,7 @@ class SourcePolicy(object):
         self.log.debug("Created temporary directory \"%s\".", self._tmpdir)
 
         # Get a list of policy files with full paths
-        self._policy_files = self.__join_policy_files__(base_dir, policyfiles)
+        self._policy_files = policyfiles
         if not self._policy_files:
             raise RuntimeError(
                 "Could not find any policy files to parse, aborting...")

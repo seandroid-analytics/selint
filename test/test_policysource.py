@@ -48,21 +48,11 @@ class TestPolicy(unittest.TestCase):
         """Test the behaviour of the SourcePolicy constructor"""
         # Invalid usages
         with self.assertRaises(RuntimeError):
-            policy = p.SourcePolicy(None, None)
+            policy = p.SourcePolicy(None)
         with self.assertRaises(RuntimeError):
-            policy = p.SourcePolicy(None, [])
+            policy = p.SourcePolicy([])
         with self.assertRaises(RuntimeError):
-            policy = p.SourcePolicy("", None)
-        with self.assertRaises(RuntimeError):
-            policy = p.SourcePolicy("", [])
-        with self.assertRaises(RuntimeError):
-            policy = p.SourcePolicy(None, self.policy_files)
-        with self.assertRaises(RuntimeError):
-            policy = p.SourcePolicy("", self.policy_files)
-        with self.assertRaises(RuntimeError):
-            policy = p.SourcePolicy(gbp.BASE_DIR, None)
-        with self.assertRaises(RuntimeError):
-            policy = p.SourcePolicy(gbp.BASE_DIR, [])
+            policy = p.SourcePolicy("")
 
     @unittest.skip("Skipping test, test files not suitable")
     def test_macro_defs(self):
