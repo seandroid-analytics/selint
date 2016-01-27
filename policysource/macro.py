@@ -21,6 +21,10 @@
 """Classes providing abstractions for m4 macros."""
 
 import re
+import os
+import tempfile
+import subprocess
+import logging
 
 
 class M4MacroError(Exception):
@@ -28,21 +32,190 @@ class M4MacroError(Exception):
     pass
 
 
+class M4MacroExpanderError(Exception):
+    """Exception raised by the M4MacroExpander constructor"""
+    pass
+
+
+class M4MacroExpander(object):
+    """Class providing a way to expand m4 macros."""
+
+    def __init__(self, macro_files, tmpdir=None):
+        """Initialize a macro expander.
+
+        Create a freeze file with the supplied macro definition files,
+        and set it up to be used to expand m4 macros."""
+        # Setup logger
+        self.log = logging.getLogger(self.__class__.__name__)
+        # Setup temporary directory
+        if (tmpdir and os.access(tmpdir, os.F_OK) and
+                os.access(tmpdir, os.R_OK | os.W_OK | os.X_OK)):
+            # We have been provided with a valid directory
+            # We do not manage it (do not destroy it!)
+            self._tmpdir = tmpdir
+            self._tmpdir_managed = False
+        else:
+            # Create a temporary directory
+            self._tmpdir = tempfile.mkdtemp()
+            self.log.debug("Created temporary directory \"%s\".", self._tmpdir)
+            # We manage it (we must destroy it when we're done)
+            self._tmpdir_managed = True
+        # Setup freeze file
+        # TODO: put in config file or cli options
+        extra_defs = ["mls_num_sens=1",
+                      "mls_num_cats=1024", "target_build_variant=eng"]
+        try:
+            self.freeze_file = M4FreezeFile(
+                macro_files, self.tmpdir, extra_defs)
+        except M4FreezeFileError as e:
+            # We failed to generate the freeze file, abort
+            self.log.error("%s", e.msg)
+            raise M4MacroExpanderError(e.msg)
+        # Create a temporary file that will contain, at each request, the
+        # macro to be expanded by m4. This is better than piping input to m4.
+        # mkstemp() returns a tuple containing a handle to an open file
+        # and the absolute pathname of that file, in that order
+        tpl = tempfile.mkstemp(dir=self.tmpdir)
+        os.close(tpl[0])
+        self._tmp = tpl[1]
+        self.log.debug("Created temporary file \"%s\".", self.tmp)
+        # Define the expansion command
+        self.expansion_command = ["m4", "-R",
+                                  self.freeze_file.freeze_file, self.tmp]
+
+    def __del__(self):
+        """Clean up the temporary file, the freeze file and the
+        temporary directory"""
+        # Remove the temporary file
+        try:
+            os.remove(self.tmp)
+        except OSError:
+            self.log.warning("Trying to remove the temporary file"
+                             " \"%s\"... failed!", self.tmp)
+        else:
+            self.log.debug("Trying to remove the temporary file"
+                           " \"%s\"... done!", self.tmp)
+        # Force removal of the freeze file
+        del self.freeze_file
+        # Try to remove the temporary directory if managed
+        if self.tmpdir_managed:
+            try:
+                os.rmdir(self.tmpdir)
+            except OSError:
+                self.log.warning("Trying to remove the temporary directory"
+                                 " \"%s\"... failed!", self.tmpdir)
+            else:
+                self.log.debug("Trying to remove the temporary directory"
+                               " \"%s\"... done!", self.tmpdir)
+
+    def expand(self, text):
+        """Expand a string of text representing a m4 macro."""
+        # Write the macro to the temporary file
+        with open(self.tmp, "w") as mfile:
+            mfile.write(text)
+        # Try to get the macro expansion with m4
+        try:
+            expansion = subprocess.check_output(self.expansion_command)
+        except subprocess.CalledProcessError as e:
+            # Log the error and change the function return value to None
+            self.log.warning("%s", e.msg)
+            expansion = None
+        return expansion
+
+    def dump(self, text):
+        """Dump the definition of a m4 macro."""
+        # Write the command to a temporary file
+        with open(self.tmp, "w") as mfile:
+            mfile.write("dumpdef(`{}')".format(text))
+        # Run the m4 command
+        try:
+            definition = subprocess.check_output(self.expansion_command)
+        except subprocess.CalledProcessError as e:
+            # Log the error and change the function return value to None
+            self.log.warning("%s", e.msg)
+            definition = None
+        return definition
+
+    @property
+    def tmpdir(self):
+        """Get the temporary directory used by the expander."""
+        return self._tmpdir
+
+    @property
+    def tmpdir_managed(self):
+        """Check if the temporary directory used by the expander is
+        managed by the expander."""
+        return self._tmpdir_managed
+
+    @property
+    def tmp(self):
+        """Get the temporary file used by the expander."""
+        return self._tmp
+
+
+class M4FreezeFileError(Exception):
+    """Exception raised by the M4FreezeFile constructor if file creation
+    failed"""
+    pass
+
+
+class M4FreezeFile(object):
+
+    """Class for handling an m4 freeze file."""
+
+    def __init__(self, files, tmpdir, extra_defs=[], name="freezefile"):
+        """Generate the freeze file with all macro definitions."""
+        # Setup logger
+        self.log = logging.getLogger(self.__class__.__name__)
+        # Setup parameters
+        self.files = files
+        self.tmpdir = tmpdir
+        self.extra_defs = extra_defs
+        self.name = name
+        self.freeze_file = os.path.join(tmpdir, name)
+        self.command = ["m4"]
+        for definition in self.extra_defs:
+            self.command.extend(["-D", definition])
+        self.command.extend(["-s"])
+        self.command.extend(self.files)
+        self.command.extend(["-F", self.freeze_file])
+        self.log.debug("Trying to generate freeze file \"%s\"...",
+                       self.freeze_file)
+        self.log.debug("$ %s", " ".join(self.command))
+        try:
+            # Generate the freeze file
+            with open(os.devnull, "w") as devnull:
+                subprocess.check_call(self.command, stdout=devnull)
+        except subprocess.CalledProcessError as e:
+            # We failed to generate the freeze file, abort
+            self.log.error("%s", e.msg)
+            raise M4MacroParser.M4FreezeFileError(
+                "Failed to generate freeze file \"%s\".", self.freeze_file)
+        else:
+            # We successfully generated the freeze file
+            self.log.debug("Successfully generated freeze file \"%s\".",
+                           self.freeze_file)
+
+    def __del__(self):
+        """Delete the freeze file"""
+        try:
+            os.remove(self.freeze_file)
+        except OSError:
+            self.log.debug("Trying to remove the freeze file "
+                           "\"%s\"... failed!", self.freeze_file)
+        else:
+            self.log.debug("Trying to remove the freeze file "
+                           "\"%s\"... done!", self.freeze_file)
+
+
 class M4Macro(object):
 
     """Class providing an abstraction for a m4 macro."""
 
-    @staticmethod
-    def check_nargs(expansion, args):
-        """Check that the number of arguments in the provided expansion
-        matches the number of provided arguments"""
-        argex = r'@@ARG[0-9]+@@'
-        return len(args) == len(list(set(re.findall(argex, expansion))))
-
-    def __init__(self, name, expansion, file_defined, args=[], comments=[]):
+    def __init__(self, name, expander, file_defined, args=[], comments=[]):
         # Check if we have enough data
-        if (not name or not expansion or not file_defined or args is None
-                or not self.check_nargs(expansion, args) or comments is None):
+        if (not name or not expander or not file_defined or args is None
+                or comments is None):
             if not name:
                 name = "noname"
             if args is None:
@@ -52,11 +225,7 @@ class M4Macro(object):
                     name, ", ".join(args)))
         # Initialize the macro
         self._name = name
-        # Double all curly brackets to make them literal
-        expansion = re.sub(r"([{}])", r"\1\1", expansion)
-        # Substitute @@ARGN@@ with {N} to format the argument for Python
-        # substitution
-        self._expansion = re.sub(r"@@ARG([0-9]+)@@", r"{\1}", expansion)
+        self._expander = expander
         self._file_defined = file_defined
         self._args = args
         self._comments = comments
@@ -70,15 +239,20 @@ class M4Macro(object):
         """Get the macro expansion using the provided arguments."""
         if self.nargs == 0:
             # Ignore supplied arguments
-            return self._expansion.format()
+            return self._expander.expand(self.name)
         if args is None:
-            # Expand using the definition arguments as placeholders
-            return self._expansion.format(*self.args)
-        # Remove empty arguments
-        args = [x for x in args if x]
+            # Return the expansion as defined in the macro definition
+            # Don't expand the macro with the placeholder arguments, as that
+            # breaks on macros that expect numeric arguments
+            # e.g. "gen_sens(N)" will not terminate if N is not a number
+            # TODO: maybe remove the first line? ("name:", not actually in exp)
+            # "\n".join(expansion.splitlines()[1:])
+            return self._expander.dump(self.name)
+        # Prepare the macro for expansion
+        text = self.name + "(" + ", ".join(args) + ")"
         if len(args) == len(self.args):
             # Expand using the given arguments
-            return self._expansion.format(*args)
+            return self._expander.expand(text)
         else:
             return None
 
@@ -148,7 +322,7 @@ class MacroInPolicy(object):
         # If the macro is a valid macro
         if name in existing_macros and existing_macros[name]\
                 and existing_macros[name].nargs == len(args):
-            # Link this macro usage with the macro
+            # Link this macro usage with the macro definition
             self.macro = existing_macros[name]
             # Record the specific arguments for this macro usage
             self._args = args
@@ -167,8 +341,30 @@ class MacroInPolicy(object):
 
     @property
     def expansion(self):
-        """Get the macro expansion using the specific usage's arguments"""
-        return self.macro.expand(self._args)
+        """Get the macro expansion using the specific usage's arguments."""
+        # If we have not generated the macro expansion yet, generate it on the
+        # fly and save it for future use
+        if not hasattr(self, _expansion):
+            # TODO: warning: expand() can return None if the number of
+            # arguments is wrong. This should not happen, maybe put some more
+            # checks to be sure?
+            self._expansion = self.macro.expand(self.args)
+            self._expansion_linelen = len(self._expansion.splitlines())
+        return self._expansion
+
+    @property
+    def expansion_linelen(self):
+        """Get the length in lines of the macro expansion with the specific
+        arguments."""
+        # If we have not generated the macro expansion yet, generate it on the
+        # fly and save it for future use
+        if not hasattr(self, _expansion):
+            # TODO: warning: expand() can return None if the number of
+            # arguments is wrong. This should not happen, maybe put some more
+            # checks to be sure?
+            self._expansion = self.macro.expand(self.args)
+            self._expansion_linelen = len(self._expansion.splitlines())
+        return self._expansion_linelen
 
     @property
     def file_used(self):

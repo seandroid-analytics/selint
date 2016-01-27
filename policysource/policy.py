@@ -87,6 +87,11 @@ class SourcePolicy(object):
                 "Error creating the file/line mapping, aborting...")
 
     def __del__(self):
+        # Remove the macro usages and definitions to remove the associated
+        # temporary files
+        del self._macro_usages
+        del self._macro_defs
+        # Delete the policy.conf file
         if self._policyconf:
             try:
                 os.remove(self._policyconf)
@@ -96,6 +101,7 @@ class SourcePolicy(object):
             else:
                 self.log.debug("Trying to remove policy.conf file \"%s\"... "
                                "done!", self._policyconf)
+        # Try to remove the temporary directory
         if self._tmpdir:
             try:
                 os.rmdir(self._tmpdir)

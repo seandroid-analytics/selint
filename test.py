@@ -92,11 +92,11 @@ def print_usages():
 
 def test_source_policy():
     pol = p.SourcePolicy(get_policy_files())
-    if len(pol.macro_defs) != 61:
+    if len(pol.macro_defs) != 62:
         print "Some macro definitions were not recognized!"
         print "Definitions recognized: {}".format(len(pol.macro_defs))
         return False
-    if len(pol.macro_usages) != 1103:
+    if len(pol.macro_usages) != 1148:
         print "Some macro usages were not recognized!"
         print "Usages recognized: {}".format(len(pol.macro_usages))
         return False
@@ -171,9 +171,9 @@ def test_source_policy():
 
 def main():
     logging.basicConfig()  # level=logging.DEBUG)  # , format='%(message)s')
-    # if not test_source_policy():
-    #    sys.exit(1)
-    print_usages()
+    if not test_source_policy():
+        sys.exit(1)
+    # print_usages()
 
 
 if __name__ == "__main__":
