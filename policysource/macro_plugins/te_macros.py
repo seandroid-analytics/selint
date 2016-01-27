@@ -20,10 +20,10 @@
 #
 """Plugin to parse the te_macros file"""
 
-import policysource.macro
 import os
 import re
 import logging
+import policysource.macro
 
 MACRO_FILE = "te_macros"
 LOG = logging.getLogger(__name__)
@@ -142,10 +142,7 @@ class TEBlock(object):
 
 def expects(expected_file):
     """Return True/False depending on whether the plugin can handle the file"""
-    if expected_file and os.path.basename(expected_file) == MACRO_FILE:
-        return True
-    else:
-        return False
+    return expected_file and os.path.basename(expected_file) == MACRO_FILE
 
 
 def __split__(file_lines):

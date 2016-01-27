@@ -24,9 +24,8 @@ from os import path
 import sys
 import keyword
 import inspect
-from subprocess import check_call, CalledProcessError
-import policysource.macro
 import logging
+import policysource.macro
 
 
 __all__ = []
@@ -78,6 +77,9 @@ class M4MacroParser(object):
                 self.log.debug("Invalid plugin \"%s\"", mod)
         # Setup temporary directory passthrough
         self._tmpdir = tmpdir
+        self._tmpdir_managed = False
+        # Setup macro expander variable
+        self.macro_expander = None
 
     @property
     def tmpdir(self):
@@ -101,8 +103,6 @@ class M4MacroParser(object):
         f_macros = None
         try:
             # Parse the file using the appropriate parser
-            # TODO: rework this, pass only the expander and change plugins to
-            # only need the expander
             f_macros = parser.parse(single_file, self.macro_expander)
         except ValueError as e:
             # This really should not happen, since we have already

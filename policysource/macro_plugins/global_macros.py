@@ -20,11 +20,10 @@
 #
 """Plugin to parse the global_macros file"""
 
-import policysource.macro
 import os
 import re
-import subprocess
 import logging
+import policysource.macro
 
 MACRO_FILE = "global_macros"
 LOG = logging.getLogger(__name__)
@@ -32,10 +31,7 @@ LOG = logging.getLogger(__name__)
 
 def expects(expected_file):
     """Return True/False depending on whether the plugin can handle the file"""
-    if expected_file and os.path.basename(expected_file) == MACRO_FILE:
-        return True
-    else:
-        return False
+    return expected_file and os.path.basename(expected_file) == MACRO_FILE
 
 
 def parse(f_to_parse, macro_expander):

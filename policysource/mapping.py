@@ -62,7 +62,7 @@ class Mapper(object):
         mapping = {}
         group = []
         current_file = ""
-        current_line = ""
+        current_line = None
         with open(self.policy_conf) as policy_conf:
             file_content = policy_conf.read().splitlines()
         # Process each line in the policy.conf file

@@ -20,16 +20,16 @@
 #
 """Class providing an abstraction for a source SEAndroid policy"""
 
-import setools
-import setools.policyrep
 from tempfile import mkdtemp
 import subprocess
 import os.path
 import re
+import logging
+import setools
+import setools.policyrep
 from .macro import MacroInPolicy, M4MacroError
 from .mapping import Mapper
 from . import macro_plugins
-import logging
 
 
 class SourcePolicy(object):
