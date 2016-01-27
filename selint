@@ -38,13 +38,13 @@ parser.add_argument("-l", "--list", action="store_true",
 # or a blacklist, but not both
 plugin_group = parser.add_mutually_exclusive_group()
 # Plugin whitelist
-plugin_group.add_argument("-w", "--whitelist", metavar="<PLUGIN>",
-                          choices=plugins.available_plugins, nargs="+",
-                          help="specify the plugins to run [Default: run all]")
+plugin_group.add_argument(
+    "-w", "--whitelist", metavar="<PLUGIN>", choices=plugins.available_plugins,
+    nargs="+", help="specify the plugins to run [Default: run all]")
 # Plugin blacklist
-plugin_group.add_argument("-b", "--blacklist", metavar="<PLUGIN>",
-                          choices=plugins.available_plugins, nargs="+",
-                          help="specify the plugins not to run [Default: run all]")
+plugin_group.add_argument(
+    "-b", "--blacklist", metavar="<PLUGIN>", choices=plugins.available_plugins,
+    nargs="+", help="specify the plugins not to run [Default: run all]")
 
 args = parser.parse_args()
 
