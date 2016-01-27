@@ -46,6 +46,9 @@ class SourcePolicy(object):
         self.log = logging.getLogger(self.__class__.__name__)
         # Setup useful infrastructure
         self._policyconf = None
+        # These will go in some conf file or cli option
+        self.extra_defs = ['mls_num_sens=1', 'mls_num_cats=1024',
+                           'target_build_variant=eng']
         # Create a temporary work directory
         self._tmpdir = mkdtemp()
         self.log.debug("Created temporary directory \"%s\".", self._tmpdir)
@@ -63,12 +66,8 @@ class SourcePolicy(object):
                                                         self._macro_defs)
         if self._macro_usages is None:
             raise RuntimeError("Error parsing macro usages, aborting...")
-        # These will go in some conf file or cli option
-        extra_defs = ['mls_num_sens=1', 'mls_num_cats=1024',
-                      'target_build_variant=eng']
         # Create the policyconf
-        self._policyconf = self.__create_policyconf__(self._policy_files,
-                                                      extra_defs)
+        self._policyconf = self.__create_policyconf__(self._policy_files)
         if not self._policyconf:
             raise RuntimeError(
                 "Could not create the policy.conf file, aborting...")
@@ -112,14 +111,14 @@ class SourcePolicy(object):
                 self.log.debug("Trying to remove the temporary directory "
                                "\"%s\"... done!", self._tmpdir)
 
-    def __create_policyconf__(self, policy_files, extra_defs):
+    def __create_policyconf__(self, policy_files):
         """Process the separate policy files with m4 and return a single
         policy.conf file"""
         # Prepare the output file
         policyconf = os.path.join(self._tmpdir, "policy.conf")
         # Prepare the m4 command line
         command = ['m4']
-        for definition in extra_defs:
+        for definition in self.extra_defs:
             command.extend(["-D", definition])
         command.extend(['-s'])
         command.extend(policy_files)
@@ -184,7 +183,8 @@ class SourcePolicy(object):
 
         The dictionary maps the macro name to a M4Macro object."""
         macro_files = self.__find_macro_files__(policy_files)
-        parser = macro_plugins.M4MacroParser(self._tmpdir)
+        parser = macro_plugins.M4MacroParser(
+            tmpdir=None, extra_defs=self.extra_defs)
         macros = parser.parse(macro_files)
         return macros
 
@@ -237,7 +237,7 @@ class SourcePolicy(object):
                     if line.startswith("#"):
                         # Ignore comments
                         continue
-                    # Ignore end-of-line comments
+                    # Strip end-of-line comments
                     if "#" in line:
                         line = re.sub(r'\s*#.*', '', line)
                     for word in re.split(r'\W+', line):

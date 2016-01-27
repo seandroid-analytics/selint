@@ -59,68 +59,83 @@ class Mapper(object):
         the rule as "rule_type subject object:class", and the value is a list
         of tuples (full rule representation, origin file, line number in file)
         for each full rule matching the base rule."""
+        # Initialise variables
         mapping = {}
         group = []
         current_file = ""
-        current_line = None
+        current_line = 0
+        previous_line_is_syncline = False
+        new_file_syncline = re.compile(r'#line 1 "([^"]+)"')
+        new_line_syncline = re.compile(r'#line ([0-9]+)')
+        # Read policy.conf file
         with open(self.policy_conf) as policy_conf:
             file_content = policy_conf.read().splitlines()
         # Process each line in the policy.conf file
         for line in file_content:
+            # If the previous line was not a syncline, this may be a
+            # regular non-macro line or a syncline itself
+            if not previous_line_is_syncline:
+                # Check if this line marks the start of a new file
+                if line.startswith(r'#line 1 "'):
+                    # If it does, save the current file/line information
+                    current_file = new_file_syncline.match(line).group(1)
+                    current_line = 1
+                    # Mark that we encountered a syncline
+                    previous_line_is_syncline = True
+                    # Process the next line
+                    continue
+                # Check if this line marks a new line in the current file
+                if line.startswith(r'#line '):
+                    # If it does, save the current line information
+                    current_line = int(new_line_syncline.match(line).group(1))
+                    # Mark that we encountered a syncline
+                    previous_line_is_syncline = True
+                    # Process the next line
+                    continue
+                # If this is just a regular line, increase the line number
+                current_line += 1
+            # Mark that this is not a syncline and continue processing
+            previous_line_is_syncline = False
             # Remove extra whitespace
             line = line.strip()
-            # Skip blank lines
-            if not line:
+            # Skip blank lines and comments
+            if not line or line.startswith("#"):
                 continue
-            # If this line is not a comment
-            if not line.startswith("#"):
-                if not group and not line.startswith(self.supported_rules):
-                    # If we have no previous text saved, this is a new rule
-                    # If this is not one of the rules we are looking for, skip
-                    continue
-                else:
-                    # If we have something in the group or a new valid rule
-                    # Remove possible in-line comments
-                    if "#" in line:
-                        line = re.sub(r'\s*#.*', '', line)
-                    # Append the current line to the group
-                    group.append(line)
-                    # If we have not found the end of the rule yet, read next
-                    # line
-                    if not line.endswith(';'):
-                        continue
-                    # We have found the end of the rule, process it
-                    # Join lines and normalise spaces
-                    # TODO: evaluate whether to use string concatenation
-                    # or list append + join/split
-                    original_rule = " ".join(" ".join(group).split())
-                    # Expand the rule
-                    try:
-                        rules = self.expand_rule(original_rule)
-                    except ValueError as e:
-                        self.log.warning(e)
-                        self.log.warning("Could not expand rule \"%s\""
-                                         " at %s:%s", original_rule,
-                                         current_file, current_line)
-                    else:
-                        for rule in rules.keys():
-                            # Record the file/line mapping for each rule
-                            tpl = (rules[rule], current_file, current_line)
-                            if rule not in mapping:
-                                mapping[rule] = [tpl]
-                            elif tpl not in mapping[rule]:
-                                mapping[rule].append(tpl)
-                    # Empty the group
-                    del group[:]
-            # Check if this line marks the start of a new file
-            elif line.startswith(r'#line 1 "'):
-                # If it does, save the current file/line information
-                current_file = re.match(r'#line 1 "([^"]+)"', line).group(1)
-                current_line = 1
-            # Check if this line marks a new line in the current file
-            elif line.startswith(r'#line '):
-                # If it does, save the current line information
-                current_line = int(re.match(r'#line ([0-9]+)', line).group(1))
+            # If we have no previous text saved in "group", this is a new rule.
+            # If this is not one of the rules we are looking for, skip it
+            if not group and not line.startswith(self.supported_rules):
+                continue
+            # If we have something in the group or a new valid rule, process it
+            # Remove possible in-line comments
+            if "#" in line:
+                line = line.split("#")[0].strip()
+            # Append the current line to the group
+            group.append(line)
+            # If we have not found the end of the rule yet, read next line
+            if not line.endswith(';'):
+                continue
+            # We have found the end of the rule, process it
+            # Join lines and normalise spaces
+            # TODO: evaluate whether to use string concatenation
+            # or list append + join/split
+            original_rule = " ".join(" ".join(group).split())
+            # Expand the rule
+            try:
+                rules = self.expand_rule(original_rule)
+            except ValueError as e:
+                self.log.warning(e)
+                self.log.warning("Could not expand rule \"%s\" at %s:%s",
+                                 original_rule, current_file, current_line)
+            else:
+                for rule in rules.keys():
+                    # Record the file/line mapping for each rule
+                    tpl = (rules[rule], current_file, current_line)
+                    if rule not in mapping:
+                        mapping[rule] = [tpl]
+                    elif tpl not in mapping[rule]:
+                        mapping[rule].append(tpl)
+            # Empty the group
+            del group[:]
         return mapping
 
     def expand_rule(self, rule):

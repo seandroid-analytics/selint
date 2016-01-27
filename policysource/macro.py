@@ -52,7 +52,7 @@ class M4FreezeFileError(Error):
 class M4MacroExpander(object):
     """Class providing a way to expand m4 macros."""
 
-    def __init__(self, macro_files, tmpdir=None):
+    def __init__(self, macro_files, tmpdir, extra_defs):
         """Initialize a macro expander.
 
         Create a freeze file with the supplied macro definition files,
@@ -73,9 +73,6 @@ class M4MacroExpander(object):
             # We manage it (we must destroy it when we're done)
             self._tmpdir_managed = True
         # Setup freeze file
-        # TODO: put in config file or cli options
-        extra_defs = ["mls_num_sens=1",
-                      "mls_num_cats=1024", "target_build_variant=eng"]
         try:
             self.freeze_file = M4FreezeFile(
                 macro_files, self.tmpdir, extra_defs)

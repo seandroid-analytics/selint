@@ -52,7 +52,7 @@ class M4MacroParser(object):
     The class handles a list of specific macro files through a plugin
     architecture defined in the macro_plugin module."""
 
-    def __init__(self, tmpdir=None):
+    def __init__(self, tmpdir=None, extra_defs=None):
         """Initialize plugin architecture.
 
         Find all plugins offered by macro_plugins, check that they implement
@@ -80,15 +80,16 @@ class M4MacroParser(object):
         self._tmpdir_managed = False
         # Setup macro expander variable
         self.macro_expander = None
+        self.extra_defs = extra_defs
 
     @property
     def tmpdir(self):
-        """The parser working directory."""
+        """Get the temporary directory used by the parser."""
         return self._tmpdir
 
     @property
     def tmpdir_managed(self):
-        """The parser working directory."""
+        """Check if the temporary directory is managed by the parser."""
         return self._tmpdir_managed
 
     def __get_parser__(self, single_file):
@@ -124,7 +125,7 @@ class M4MacroParser(object):
         # Setup the M4MacroExpander
         try:
             self.macro_expander = policysource.macro.M4MacroExpander(
-                files, self.tmpdir)
+                files, self.tmpdir, self.extra_defs)
         except policysource.macro.M4MacroExpanderError as e:
             self.log.error("%s", e.message)
             macros = None
