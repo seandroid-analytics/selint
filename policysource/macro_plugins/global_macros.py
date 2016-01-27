@@ -61,7 +61,7 @@ def parse(f_to_parse, macro_expander):
                 except policysource.macro.M4MacroError as e:
                     # Log the failure and skip
                     # Find the macro line and report it to the user
-                    LOG.warning("%s", e.msg)
+                    LOG.warning("%s", e.message)
                     LOG.warning("Macro \"%s\" is at %s:%s",
                                 name, f_to_parse, lineno)
                 else:

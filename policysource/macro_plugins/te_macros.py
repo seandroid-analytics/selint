@@ -208,7 +208,7 @@ def parse(f_to_parse, macro_expander):
                                                    block.comments)
         except policysource.macro.M4MacroError as e:
             # Log the failure and skip
-            LOG.warning("%s", e.msg)
+            LOG.warning("%s", e.message)
         else:
             # Add the macro to the macro dictionary
             macros[block.name] = new_macro

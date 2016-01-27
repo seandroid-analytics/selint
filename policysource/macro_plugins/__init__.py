@@ -108,7 +108,7 @@ class M4MacroParser(object):
             # This really should not happen, since we have already
             # checked that the plugin accepts the file.
             # Log and skip
-            self.log.warning("%s", e.msg)
+            self.log.warning("%s", e)
             self.log.warning("Could not parse \"%s\"", single_file)
         else:
             # File parsed successfully
@@ -126,7 +126,7 @@ class M4MacroParser(object):
             self.macro_expander = policysource.macro.M4MacroExpander(
                 files, self.tmpdir)
         except policysource.macro.M4MacroExpanderError as e:
-            self.log.error("%s", e.msg)
+            self.log.error("%s", e.message)
             macros = None
         else:
             # Parse each file, using the macro expander

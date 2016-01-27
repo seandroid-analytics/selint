@@ -128,7 +128,7 @@ class SourcePolicy(object):
             with open(policyconf, "w") as pcf:
                 subprocess.check_call(command, stdout=pcf)
         except subprocess.CalledProcessError as e:
-            self.log.error(e.msg)
+            self.log.error(e.message)
             self.log.error(
                 "Could not create the policy.conf \"%s\" file", policyconf)
             policyconf = None
@@ -259,7 +259,7 @@ class SourcePolicy(object):
                                                     lineno, word, args)
                             except M4MacroError as e:
                                 # Bad macro, skip
-                                self.log.warning("%s", e.msg)
+                                self.log.warning("%s", e.message)
                             else:
                                 # Add the new macro to the list
                                 macro_usages.append(n_m)

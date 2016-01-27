@@ -20,20 +20,32 @@
 #
 """Classes providing abstractions for m4 macros."""
 
-import re
 import os
 import tempfile
 import subprocess
 import logging
 
 
-class M4MacroError(Exception):
+class Error(Exception):
+    """Custom error base class."""
+
+    def __init__(self, message):
+        super(Error, self).__init__(message)
+
+
+class M4MacroError(Error):
     """Exception raised by the M4Macro constructor if a macro is not valid"""
     pass
 
 
-class M4MacroExpanderError(Exception):
+class M4MacroExpanderError(Error):
     """Exception raised by the M4MacroExpander constructor"""
+    pass
+
+
+class M4FreezeFileError(Error):
+    """Exception raised by the M4FreezeFile constructor if file creation
+    failed"""
     pass
 
 
@@ -69,8 +81,8 @@ class M4MacroExpander(object):
                 macro_files, self.tmpdir, extra_defs)
         except M4FreezeFileError as e:
             # We failed to generate the freeze file, abort
-            self.log.error("%s", e.msg)
-            raise M4MacroExpanderError(e.msg)
+            self.log.error("%s", e.message)
+            raise M4MacroExpanderError(e.message)
         # Create a temporary file that will contain, at each request, the
         # macro to be expanded by m4. This is better than piping input to m4.
         # mkstemp() returns a tuple containing a handle to an open file
@@ -118,7 +130,7 @@ class M4MacroExpander(object):
             expansion = subprocess.check_output(self.expansion_command)
         except subprocess.CalledProcessError as e:
             # Log the error and change the function return value to None
-            self.log.warning("%s", e.msg)
+            self.log.warning("%s", e.output)
             expansion = None
         return expansion
 
@@ -132,7 +144,7 @@ class M4MacroExpander(object):
             definition = subprocess.check_output(self.expansion_command)
         except subprocess.CalledProcessError as e:
             # Log the error and change the function return value to None
-            self.log.warning("%s", e.msg)
+            self.log.warning("%s", e.output)
             definition = None
         return definition
 
@@ -151,12 +163,6 @@ class M4MacroExpander(object):
     def tmp(self):
         """Get the temporary file used by the expander."""
         return self._tmp
-
-
-class M4FreezeFileError(Exception):
-    """Exception raised by the M4FreezeFile constructor if file creation
-    failed"""
-    pass
 
 
 class M4FreezeFile(object):
@@ -186,11 +192,11 @@ class M4FreezeFile(object):
             # Generate the freeze file
             with open(os.devnull, "w") as devnull:
                 subprocess.check_call(self.command, stdout=devnull)
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError:
             # We failed to generate the freeze file, abort
-            self.log.error("%s", e.msg)
-            raise M4MacroParser.M4FreezeFileError(
+            self.log.error(
                 "Failed to generate freeze file \"%s\".", self.freeze_file)
+            raise M4FreezeFileError("Failed to generate freeze file")
         else:
             # We successfully generated the freeze file
             self.log.debug("Successfully generated freeze file \"%s\".",
@@ -220,9 +226,8 @@ class M4Macro(object):
                 name = "noname"
             if args is None:
                 args = ["noargs"]
-            raise M4MacroError(
-                "Bad parameters for macro \"{}({})\"".format(
-                    name, ", ".join(args)))
+            raise M4MacroError("Bad parameters for macro \"{}({})\"".format(
+                name, ", ".join(args)))
         # Initialize the macro
         self._name = name
         self._expander = expander
@@ -288,15 +293,12 @@ class M4Macro(object):
         # And they are defined in the same file
         # And they have the same number of arguments
         # And the same comments
-        if str(self) == str(other)\
-                and self.expand() == other.expand()\
-                and self.file_defined == other.file_defined\
-                and self.nargs == other.nargs\
-                and len(self.comments) == len(other.comments)\
-                and "".join(self.comments) == "".join(other.comments):
-            return True
-        else:
-            return False
+        return str(self) == str(other)\
+            and self.expand() == other.expand()\
+            and self.file_defined == other.file_defined\
+            and self.nargs == other.nargs\
+            and len(self.comments) == len(other.comments)\
+            and "".join(self.comments) == "".join(other.comments)
 
     def __ne__(self, other):
         return not self == other
@@ -344,7 +346,7 @@ class MacroInPolicy(object):
         """Get the macro expansion using the specific usage's arguments."""
         # If we have not generated the macro expansion yet, generate it on the
         # fly and save it for future use
-        if not hasattr(self, _expansion):
+        if not hasattr(self, "_expansion"):
             # TODO: warning: expand() can return None if the number of
             # arguments is wrong. This should not happen, maybe put some more
             # checks to be sure?
@@ -358,7 +360,7 @@ class MacroInPolicy(object):
         arguments."""
         # If we have not generated the macro expansion yet, generate it on the
         # fly and save it for future use
-        if not hasattr(self, _expansion):
+        if not hasattr(self, "_expansion"):
             # TODO: warning: expand() can return None if the number of
             # arguments is wrong. This should not happen, maybe put some more
             # checks to be sure?
@@ -402,14 +404,11 @@ class MacroInPolicy(object):
         # With the same arguments
         # And with the same expansion (sort of redundant check)
         # Used in the same place
-        if self.macro == other.macro\
-                and self.nargs == other.nargs\
-                and self.expansion == other.expansion\
-                and self.file_used == other.file_used\
-                and self.line_used == other.line_used:
-            return True
-        else:
-            return False
+        return self.macro == other.macro\
+            and self.nargs == other.nargs\
+            and self.expansion == other.expansion\
+            and self.file_used == other.file_used\
+            and self.line_used == other.line_used
 
     def __ne__(self, other):
         return not self == other
