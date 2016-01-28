@@ -138,7 +138,8 @@ class M4MacroExpander(object):
             mfile.write("dumpdef(`{}')".format(text))
         # Run the m4 command
         try:
-            definition = subprocess.check_output(self.expansion_command)
+            definition = subprocess.check_output(self.expansion_command,
+                                                 stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             # Log the error and change the function return value to None
             self.log.warning("%s", e.output)
