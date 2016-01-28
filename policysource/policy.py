@@ -209,7 +209,13 @@ class SourcePolicy(object):
         """Get the current macro arguments"""
         # macroargs = r'\(((?:(?:\w+|\{[^,]+\}),\s?)*(?:\w+|\{[^,]+\}))\)\s*'
         # The macro is supposed to have nargs arguments
-        if macro.nargs > 0:
+
+        # Special case: multiline macros (e.g. "eng(` \n ... \n')")
+        if "{}(`".format(macro.name) in line:
+            args = []
+            for i in xrange(macro.nargs):
+                args.append("multiline")
+        elif macro.nargs > 0:
             # Check if it is actually used with all its arguments
             usage_r = self.__build_regex_nargs__(macro.name, macro.nargs)
             tmp = re.match(usage_r, line)
