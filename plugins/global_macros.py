@@ -19,11 +19,15 @@
 import policysource
 import policysource.policy
 
+SUGGESTION_THRESHOLD = 0.75
+SUGGESTION_MAX_NO = 3
+
 
 def main(policy):
     if not isinstance(policy, policysource.policy.SourcePolicy):
         raise ValueError("Invalid policy")
 
+    # Prepare macro definition dictionaries
     macroset_dict = {}
     macroset_labels = {}
     all_elements = set()
@@ -34,39 +38,86 @@ def main(policy):
             macroset_dict[m] = args
             macroset_labels[args] = m
             all_elements.update(args)
+    # Prepare macro usages dictionaries
+    macrousages_dict = {}
+    for m in policy.macro_usages:
+        fileline = "{}:{}".format(m.file_used, m.line_used)
+        if fileline in macrousages_dict:
+            macrousages_dict[fileline].append(m)
+        else:
+            macrousages_dict[fileline] = [m]
 
+    # Initialize a set fitter
+    sf = SetFitter(macroset_dict)
     for r_up_to_class in policy.mapping:
         if r_up_to_class.startswith("allow "):
-            rls = policy.mapping[r_up_to_class]
+            ruleset = policy.mapping[r_up_to_class]
             permset = set()
-            for r in rls:
+            # Merge the various permission sets deriving from different rules
+            # applying to the same domain/type/class
+            for r in ruleset:
+                # Get the permission string from the rule
+                # The rule is the first element of r (rule, file, line)
+                # Cut everything before the class, the space and strip the
+                # final semicolon
                 permstring = r[0][len(r_up_to_class) + 1:].rstrip(";")
+                # Tokenize the permission string and update the permission set
                 permset.update(x for x in permstring.split() if x not in "{}")
-            # TODO: insert set cover algorithm here to cover
-            # X: all_elements
-            # F: macroset_list
-            #
-            # TODO: maybe better bins algorithm?
-            sf = SetFitter(macroset_dict)
+            # Get a list of RichSets sorted by decreasing score
+            # The score indicates how well the permset covers them
             results = sf.fit(permset)
+            # Get the RichSets that are fully covered
             ones = [x for x in results if x.score == 1]
+            # If there is at least one, we have at least one full match
             if len(ones) > 0:
-                print "\n"
-                print policy.mapping[r_up_to_class]
-                s = max([macroset_dict[x.name] for x in ones])
-                if bool(permset - s):
-                    print macroset_labels[s] + " + { " + " ".join(permset - s) + " }"
-                else:
-                    print macroset_labels[s]
+                # Suggest using the biggest set
+                s = max([x.values for x in ones])
+                s_name = macroset_labels[s]
+                suggest_this = True
+                # Check whether this macro was originally in the policy
+                # If it already was, no point in suggesting it
+                for r in ruleset:
+                    r_fileline = "{}:{}".format(r[1], r[2])
+                    # If there is an usage of this macro on one of the lines
+                    # that contribute to this set of permissions
+                    if r_fileline not in macrousages_dict:
+                        continue
+                    macros_at_line = macrousages_dict[r_fileline]
+                    if s_name in [x.name for x in macros_at_line]:
+                        suggest_this = False
+                        break
+                    for m in macros_at_line:
+                        if not m.macro.file_defined.endswith("global_macros"):
+                            # There are other macros at play, do not suggest
+                            suggest_this = False
+                            break
+                    if not suggest_this:
+                        break
+                    for m in macros_at_line:
+                        if macroset_dict[m.name] > s:
+                            suggest_this = False
+                            break
+                    if not suggest_this:
+                        break
+                if suggest_this:
+                    print "Macro \"{}\" could be used at:".format(s_name)
+                    print "\n".join(["{}:{}".format(r[1], r[2]) for r in ruleset])
+                    extras = permset - s
+                    perms = [s_name]
+                    perms.extend(extras)
+                    print "The new rule would be:"
+                    print r_up_to_class + " { " + " ".join(perms) + " };"
+                    print
+            # Suggest close matches based on a threshold
             else:
-                first = True
-                for s in results:
-                    if s.score > 0.7:
-                        if first:
-                            print "\n"
-                            print policy.mapping[r_up_to_class]
-                            first = False
-                        print "{0}: {1}".format(s.name, str(s.score))
+                suggestions = sorted(
+                    [x for x in results if x.score >= SUGGESTION_THRESHOLD],
+                    reverse=True)[:SUGGESTION_MAX_NO]
+                if len(suggestions):
+                    print "The following macros match these lines:"
+                    print "\n".join(["{}:{}".format(r[1], r[2]) for r in ruleset])
+                    print "\n".join(["{}: {}%".format(x.name, x.score * 100) for x in suggestions])
+                    print
 
 
 class SetFitter(object):
@@ -146,5 +197,4 @@ class SetFitter(object):
 
         for each in rich_sets:
             each.compute_score()
-        # return [ (x.name, x.score) for x in sorted(rich_sets, reverse=True)]
         return sorted(rich_sets, reverse=True)
