@@ -102,7 +102,10 @@ class TEBlock(object):
     @property
     def mdl(self):
         """Return the macro definition line."""
-        return self.content[1]
+        if self.is_valid():
+            return self.content[1]
+        else:
+            return None
 
     @property
     def name(self):
@@ -183,30 +186,49 @@ def parse(f_to_parse, macro_expander):
     if not f_to_parse or not expects(f_to_parse):
         raise ValueError("{} can't handle {}.".format(MACRO_FILE, f_to_parse))
     macros = {}
+    macrodef = re.compile(r'^define\(\`([^\']+)\'')
+    macroargs = re.compile(r'\$[0-9]+')
     # Parse the te_macros file
     # Read the te_macros file in as a list of lines
     with open(f_to_parse) as ftp:
         file_lines = ftp.read().splitlines()
     # Split the file in blocks
     blocks = __split__(file_lines)
-    # Parse the macros from the blocks
+    # Initialize the M4Macro objects from the blocks
     for block in blocks:
-        # Check that the block contains a valid macro definition line
-        # We currently do not care about invalid blocks
         if not block.is_valid():
-            # Log the failure and skip this block
-            LOG.warning("Bad macro definition at %s:%s",
-                        f_to_parse, block.start())
-            continue
-        # If the expansion succeeded, construct the new macro object
-        try:
-            new_macro = policysource.macro.M4Macro(block.name, macro_expander,
-                                                   f_to_parse, block.args,
-                                                   block.comments)
-        except policysource.macro.M4MacroError as e:
-            # Log the failure and skip
-            LOG.warning("%s", e.message)
+            # Process an invalid blocks
+            invalid_block_macros = set()
+            for line in block.content:
+                macro_match = macrodef.search(line)
+                if macro_match:
+                    invalid_block_macros.add(macro_match.group(1))
+            for m in invalid_block_macros:
+                dump = macro_expander.dump(m)
+                args = list(set(macroargs.findall(dump)))
+                try:
+                    new_macro = policysource.macro.M4Macro(m,
+                                                           macro_expander,
+                                                           f_to_parse,
+                                                           args,
+                                                           block.comments)
+                except policysource.macro.M4MacroError as e:
+                    # Log the failure and skip
+                    LOG.warning("%s", e.message)
+                else:
+                    # Add the macro to the macro dictionary
+                    macros[m] = new_macro
         else:
-            # Add the macro to the macro dictionary
-            macros[block.name] = new_macro
+            # Process a valid block
+            try:
+                new_macro = policysource.macro.M4Macro(block.name,
+                                                       macro_expander,
+                                                       f_to_parse, block.args,
+                                                       block.comments)
+            except policysource.macro.M4MacroError as e:
+                # Log the failure and skip
+                LOG.warning("%s", e.message)
+            else:
+                # Add the macro to the macro dictionary
+                macros[block.name] = new_macro
     return macros
