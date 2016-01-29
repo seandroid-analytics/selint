@@ -27,9 +27,9 @@ import re
 import logging
 import setools
 import setools.policyrep
-from .macro import MacroInPolicy, M4MacroError
-from .mapping import Mapper
-from . import macro_plugins
+from policysource.macro import MacroInPolicy, M4MacroError
+import policysource.mapping
+import policysource.macro_plugins
 
 
 class SourcePolicy(object):
@@ -78,8 +78,8 @@ class SourcePolicy(object):
         self._types = self.__compute_types()
         self._classes = self.__compute_classes()
         # Build the origin file/line mapping
-        mapper = Mapper(self._policyconf, self.attributes,
-                        self.types, self.classes)
+        mapper = policysource.mapping.Mapper(self._policyconf, self.attributes,
+                                             self.types, self.classes)
         self._mapping = mapper.get_mapping()
         if not self._mapping:
             raise RuntimeError(
@@ -183,7 +183,7 @@ class SourcePolicy(object):
 
         The dictionary maps the macro name to a M4Macro object."""
         macro_files = self.__find_macro_files__(policy_files)
-        parser = macro_plugins.M4MacroParser(
+        parser = policysource.macro_plugins.M4MacroParser(
             tmpdir=None, extra_defs=self.extra_defs)
         macros = parser.parse(macro_files)
         return macros
@@ -344,8 +344,7 @@ class SourcePolicy(object):
     def mapping(self):
         """Get the mapping between policy rules and origin file/line.
 
-        Return a dictionary (base, [(full, file, line)]) where the key is
+        Return a dictionary (base, [MappedRule]) where the key is
         the rule as "rule_type subject object:class", and the value is a list
-        of tuples (full rule representation, origin file, line number in file)
-        for each full rule matching the base rule."""
+        of MappedRule objects for each full rule matching the base rule."""
         return self._mapping

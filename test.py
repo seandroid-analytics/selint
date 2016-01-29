@@ -176,8 +176,8 @@ def main():
     logging.basicConfig()  # level=logging.DEBUG)  # , format='%(message)s')
     # if not test_source_policy():
     #    sys.exit(1)
-    print_usages()
-    # initialise_policy()
+    # print_usages()
+    initialise_policy()
 
 
 if __name__ == "__main__":

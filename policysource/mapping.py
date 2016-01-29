@@ -25,6 +25,81 @@ import logging
 import re
 
 
+class FileLine(object):
+    """Represent a file/line position with the canonical representation."""
+
+    def __init__(self, f, l):
+        self.f = f
+        self.l = int(l)
+        self._representation = f + ":" + str(l)
+
+    def __repr__(self):
+        return self._representation
+
+    def __hash__(self):
+        return hash(str(self))
+
+    def __eq__(self, other):
+        return self.f == other.f and self.l == other.l
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __lt__(self, other):
+        if self.f == other.f:
+            return self.l < other.l
+        else:
+            return self.f < other.f
+
+    def __le__(self, other):
+        if self.f == other.f:
+            return self.l <= other.l
+        else:
+            return self.f <= other.f
+
+    def __gt__(self, other):
+        if self.f == other.f:
+            return self.l > other.l
+        else:
+            return self.f > other.f
+
+    def __ge__(self, other):
+        if self.f == other.f:
+            return self.l >= other.l
+        else:
+            return self.f >= other.f
+
+
+class MappedRule(object):
+    """A rule with associated origin file/line information."""
+
+    def __init__(self, rule, mask, f, l):
+        """Initialize a MappedRule.
+
+        rule   - the full rule as a string
+        mask   - the base rule as "ruletype subject object:class"
+        f      - the origin source file
+        l      - the origin line
+        """
+        self.rule = rule
+        self.mask = mask
+        self._file = f
+        self._line = l
+        self._fileline = None
+
+    def __hash__(self):
+        return hash(str(self.fileline) + self.rule)
+
+    def __repr__(self):
+        return str(self.fileline) + self.rule
+
+    @property
+    def fileline(self):
+        if self._fileline is None:
+            self._fileline = FileLine(self._file, self._line)
+        return self._fileline
+
+
 class Mapper(object):
     """Class implementing the element to origin file/line mapper."""
     # TODO: source from config file
@@ -55,10 +130,9 @@ class Mapper(object):
         """Parse the policy and map every supported rule to its origin
         file/line.
 
-        Return a dictionary (base, [(full, file, line)]) where the key is
+        Return a dictionary (base, [MappedRule]) where the key is
         the rule as "rule_type subject object:class", and the value is a list
-        of tuples (full rule representation, origin file, line number in file)
-        for each full rule matching the base rule."""
+        of MappedRule objects for each full rule matching the base rule."""
         # Initialise variables
         mapping = {}
         group = []
@@ -127,13 +201,14 @@ class Mapper(object):
                 self.log.warning("Could not expand rule \"%s\" at %s:%s",
                                  original_rule, current_file, current_line)
             else:
-                for rule in rules.keys():
+                for rule in rules:
                     # Record the file/line mapping for each rule
-                    tpl = (rules[rule], current_file, current_line)
+                    mpr = MappedRule(rules[rule], rule,
+                                     current_file, current_line)
                     if rule not in mapping:
-                        mapping[rule] = [tpl]
-                    elif tpl not in mapping[rule]:
-                        mapping[rule].append(tpl)
+                        mapping[rule] = [mpr]
+                    elif mpr not in mapping[rule]:
+                        mapping[rule].append(mpr)
             # Empty the group
             del group[:]
         return mapping
