@@ -164,7 +164,7 @@ def main(policy):
                         break
                 if suggest_this:
                     for x in winner:
-                        g = GlobalMacroSuggestion(x.name, s, x.values, rules)
+                        g = GlobalMacroSuggestion(x.name, x.values, rules)
                         if g.filelines not in suggestions:
                             suggestions[g.filelines] = [g]
                         elif g not in suggestions[g.filelines]:
@@ -206,15 +206,16 @@ def main(policy):
             else:
                 part.append(x)
         part.sort(reverse=True)
-        if full:
-            # Print full match suggestion(s)
-            print "Macro(s) \"{}\" could be used at:".format(
-                "\", \"".join([x.name for x in full]))
-            print "\n".join((str(x) for x in filelines))
-        if part:
-            # Print partial match suggestion(s)
+        if full or part:
             print "The following macros match these lines:"
             print "\n".join((str(x) for x in filelines))
+        if full:
+            # Print full match suggestion(s)
+            print "Full match:"
+            print ", ".join((x.name for x in full))
+        if part:
+            # Print partial match suggestion(s)
+            print "Partial match:"
             print "\n".join(["{}: {}%".format(x.name, x.score * 100) for x in part])
         if full or part:
             print
