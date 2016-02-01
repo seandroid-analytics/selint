@@ -32,7 +32,7 @@ RULE_IGNORE_PATHS = ["external/sepolicy"]
 
 # Parameters for partial match macro suggestions
 # Only suggest macros that match above this threshold [0-1]
-SUGGESTION_THRESHOLD = 1
+SUGGESTION_THRESHOLD = 0.8
 # Make up to this number of suggestions
 SUGGESTION_MAX_NO = 3
 
@@ -41,20 +41,35 @@ class GlobalMacroSuggestion(object):
     """ """
 
     def __init__(self, macro_name, perm_set, rules, score=1):
-        self.macro = macro_name
+        self.name = macro_name
         self.macro_perms = perm_set
         self.rules = rules
         self.score = score
         self.filelines = frozenset((r.fileline for r in rules))
 
     def __hash__(self):
-        return hash(self.macro + " ".join(self.rules))
+        return hash(self.name + " ".join(self.filelines))
 
+    def __repr__(self):
+        return self.name + ":\n" + "\n".join(self.filelines)
 
-class FullMatchSuggestion(object):
+    def __eq__(self, other):
+        return self.name == other.name and self.filelines == other.filelines
 
-    def __init__(self, macros, permset):
-        pass
+    def __ne__(self, other):
+        return not self == other
+
+    def __lt__(self, other):
+        return self.score < other.score
+
+    def __le__(self, other):
+        return self.score <= other.score
+
+    def __gt__(self, other):
+        return self.score > other.score
+
+    def __ge__(self, other):
+        return self.score >= other.score
 
 
 def main(policy):
@@ -148,20 +163,21 @@ def main(policy):
                         suggest_this = False
                         break
                 if suggest_this:
-                    #                    g = GlobalMacroSuggestion(s_name, s, rules)
-                    #                    if g.filelines not in suggestions:
-                    #                        suggestions[g.filelines] = [g]
-                    #                    elif g not in suggestions[g.filelines]
-                    #                        suggestions[g.filelines].append(g)
-                    print "Macro(s) \"{}\" could be used at:".format(" ".join([x.name for x in winner]))
-                    print "\n".join([str(r.fileline) for r in rules])
-                    winner_set = set()
                     for x in winner:
-                        winner_set.update(x.values)
-                    extras = [x.name for x in winner]
-                    extras.extend(list(permset - winner_set))
-                    print "The new permission set would be: { " + " ".join(extras) + " }"
-                    print
+                        g = GlobalMacroSuggestion(x.name, s, x.values, rules)
+                        if g.filelines not in suggestions:
+                            suggestions[g.filelines] = [g]
+                        elif g not in suggestions[g.filelines]:
+                            suggestions[g.filelines].append(g)
+                    # print "Macro(s) \"{}\" could be used at:".format(" ".join([x.name for x in winner]))
+                    # print "\n".join([str(r.fileline) for r in rules])
+                    #winner_set = set()
+                    # for x in winner:
+                    #    winner_set.update(x.values)
+                    #extras = [x.name for x in winner]
+                    #extras.extend(list(permset - winner_set))
+                    # print "The new permission set would be: { " + " ".join(extras) + " }"
+                    # print
             # Suggest close matches based on a threshold
             if part:
                 # Select the top SUGGESTION_MAX_NO suggestions above
@@ -170,28 +186,38 @@ def main(policy):
                     [x for x in part if x.score >= SUGGESTION_THRESHOLD],
                     reverse=True)[:SUGGESTION_MAX_NO]
                 for x in sgs:
-                    # g = GlobalMacroSuggestion(x.name, macroset_dict[x.name],
-                    #                          rules, score=x.score)
-                    # if g.filelines not in suggestions:
-                    #    suggestions[g.filelines] = [g]
-                    # elif g not in suggestions[g.filelines]
-                    #    suggestions[g.filelines].append(g)
-                    print "The following macros match these lines:"
-                    print "\n".join([str(r.fileline) for r in rules])
-                    print "\n".join(["{}: {}%".format(x.name, x.score * 100) for x in sgs])
-                    print
-#    for filelines, sgs in suggestions.iteritems():
-#        # TODO: print set of lines to which following applies
-#        full = [x for x in sgs if x.score == 1]:
-#            # Print 100% suggestion(s)
-#        print "Macros \"" + "\", \"".join([x.macro for x in full]) + "could be used to aggregate lines:"
-#        print "\n".join(filelines)
-#        print "The new permission set would be:"
-#        # print "{ " + " ".join(
-#        # TODO: forgot to propagate extra
-#
-#        part = sgs - full
-#        # Print other suggestion(s)
+                    g = GlobalMacroSuggestion(
+                        x.name, x.values, rules, score=x.score)
+                    if g.filelines not in suggestions:
+                        suggestions[g.filelines] = [g]
+                    elif g not in suggestions[g.filelines]:
+                        suggestions[g.filelines].append(g)
+#                    print "The following macros match these lines:"
+#                    print "\n".join([str(r.fileline) for r in rules])
+#                    print "\n".join(["{}: {}%".format(x.name, x.score * 100) for x in sgs])
+#                    print
+
+    for filelines, sgs in suggestions.iteritems():
+        full = []
+        part = []
+        for x in sgs:
+            if x.score == 1:
+                full.append(x)
+            else:
+                part.append(x)
+        part.sort(reverse=True)
+        if full:
+            # Print full match suggestion(s)
+            print "Macro(s) \"{}\" could be used at:".format(
+                "\", \"".join([x.name for x in full]))
+            print "\n".join((str(x) for x in filelines))
+        if part:
+            # Print partial match suggestion(s)
+            print "The following macros match these lines:"
+            print "\n".join((str(x) for x in filelines))
+            print "\n".join(["{}: {}%".format(x.name, x.score * 100) for x in part])
+        if full or part:
+            print
 
 
 class SetFitter(object):
