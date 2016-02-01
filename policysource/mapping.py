@@ -24,6 +24,11 @@ it was defined."""
 import logging
 import re
 
+# TODO: source from config file
+# ONLY_MAP_RULES = ("allow", "auditallow", "dontaudit", "neverallow", "type_transition")
+# Only map allow for speed, since we are only analysing allow rules for now
+ONLY_MAP_RULES = ("allow")
+
 
 class FileLine(object):
     """Represent a file/line position with the canonical representation."""
@@ -88,7 +93,7 @@ class MappedRule(object):
         self._fileline = None
 
     def __hash__(self):
-        return hash(str(self.fileline) + self.rule)
+        return hash(str(self))
 
     def __repr__(self):
         return str(self.fileline) + self.rule
@@ -102,9 +107,7 @@ class MappedRule(object):
 
 class Mapper(object):
     """Class implementing the element to origin file/line mapper."""
-    # TODO: source from config file
-    supported_rules = ("allow", "auditallow", "dontaudit",
-                       "neverallow", "type_transition")
+    supported_rules = ONLY_MAP_RULES
     # TODO: source from config file?
     AVRULES = ("allow", "auditallow", "dontaudit", "neverallow")
     TERULES = ("type_transition", "type_change",
@@ -207,7 +210,10 @@ class Mapper(object):
                                      current_file, current_line)
                     if rule not in mapping:
                         mapping[rule] = [mpr]
-                    elif mpr not in mapping[rule]:
+                    # TODO: verify that rules are unique and this check is
+                    # useless?
+                    # elif mpr not in mapping[rule]:
+                    else:
                         mapping[rule].append(mpr)
             # Empty the group
             del group[:]
