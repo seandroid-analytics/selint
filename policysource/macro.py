@@ -229,6 +229,7 @@ class M4Macro(object):
         # Initialize the macro
         self._name = name
         self._expander = expander
+        self._expansion = None
         self._file_defined = file_defined
         self._args = args
         self._comments = comments
@@ -242,7 +243,11 @@ class M4Macro(object):
         """Get the macro expansion using the provided arguments."""
         if self.nargs == 0:
             # Ignore supplied arguments
-            return self._expander.expand(self.name)
+            # Macro without arguments: the expansion is static. Save it for
+            # faster access
+            if not self._expansion:
+                self._expansion = self._expander.expand(self.name)
+            return self._expansion
         if args is None:
             # Return the expansion as defined in the macro definition
             # Don't expand the macro with the placeholder arguments, as that

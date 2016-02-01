@@ -63,7 +63,7 @@ else:
     selected_plugins = list(plugins.available_plugins)
 
 # Setup logging
-logging.basicConfig()
+logging.basicConfig()  # level=logging.DEBUG)  # , format='%(message)s')
 # Compute list of policy files
 # TODO: add CLI option in addition to config file
 ALL_POLICY_FILES = []

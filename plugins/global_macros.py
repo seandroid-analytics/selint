@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""TODO: file docstring"""
+"""Plugin to analyse usage of global macros and suggest new ones."""
 
 import itertools
+import logging
 import policysource
 import policysource.policy
 import policysource.mapping
@@ -56,14 +57,14 @@ def main(policy):
     # Prepare macro definition dictionaries
     macroset_dict = {}
     macroset_labels = {}
-    all_elements = set()
+    #all_elements = set()
     for m in policy.macro_defs:
         if policy.macro_defs[m].file_defined.endswith("global_macros"):
             exp = policy.macro_defs[m].expand()
             args = frozenset(x for x in exp.split() if x not in "{}")
             macroset_dict[m] = args
             macroset_labels[args] = m
-            all_elements.update(args)
+            # all_elements.update(args)
     # Prepare macro usages dictionaries
     macrousages_dict = {}
     for m in policy.macro_usages:
@@ -184,24 +185,33 @@ class SetFitter(object):
                 self.tally[elem] = 0
             self.nonzero = 0
             self.score = 0
+            self._dirty = False
 
         def contains(self, elem):
             return elem in self.values
 
         def incr(self, elem):
             if elem in self.tally:
+                self._dirty = True
                 if self.tally[elem] == 0:
                     # First match, update score
                     self.nonzero += 1
                     self.score = self.nonzero / float(len(self.tally))
                 self.tally[elem] += 1
-            else:
-                raise ValueError("Invalid element")
 
         def print_full(self):
             print self.name + " ({}/{})".format(self.score, len(self.tally))
             for k, v in self.tally.iteritems():
                 print k + " ({})".format(v)
+
+        def clear(self):
+            """Reset the tally and score of the RichSet."""
+            if self._dirty:
+                for each in self.tally:
+                    self.tally[each] = 0
+                self.nonzero = 0
+                self.score = 0
+                self._dirty = False
 
         def __repr__(self):
             return self.name + ": " + str(self.score)
@@ -225,39 +235,62 @@ class SetFitter(object):
             return self.score >= other.score
 
     def __init__(self, d):
-        self.d = d
+        """Initialise a SetFitter with a dictionary of the available sets.
+
+        d    - A dictionary {name: set} with the available sets accessible by
+               name.
+       """
+        self.rich_sets = [
+            SetFitter.RichSet(key, value) for key, value in d.iteritems()]
+
+    def clear(self):
+        """Reset the rich sets to fit another set."""
+        for each in self.rich_sets:
+            each.clear()
 
     def fit(self, s):
-        """Fit a set."""
-        rich_sets = [SetFitter.RichSet(key, value)
-                     for key, value in self.d.iteritems()]
+        """Fit a set with the pre-supplied available sets."""
+        # Reset the rich sets from a previous iterations
+        self.clear()
+        # Fit the set
         for elem in s:
-            for each in rich_sets:
-                if each.contains(elem):
-                    each.incr(elem)
-        # rich_sets.sort(reverse=True)
-        ones = [x for x in rich_sets if x.score == 1]
-        part = sorted([x for x in rich_sets if x not in ones], reverse=True)
+            for each in self.rich_sets:
+                each.incr(elem)
+        ones = []
+        part = []
+        for x in self.rich_sets:
+            if x.score == 1:
+                ones.append(x)
+            else:
+                part.append(x)
+        part.sort(reverse=True)
         # Compute all combinations of full macros
         combinations = []
-        for i in range(1, len(ones) + 1):
+        for i in xrange(1, len(ones) + 1):
             combinations.extend(itertools.combinations(ones, i))
         # Find the one that leaves the smallest extra set
         extra_dim = {}
         for c in combinations:
-            # Set of combinations e.g. [r_file, w_file]
+            # Set of macro combinations e.g. [r_file, w_file]
+            # The combination is a tuple, make it a set
             c = set(c)
+            # The set of permissions that results from the combination
             c_set = set()
             for x in c:
                 c_set.update(x.values)
+            # Compute the extra permissions in the set that are not covered by
+            # the expansion of the selected combination of macros
             extra = s - c_set
+            # Index the combinations by score (number of extra elements, lower
+            # is better)
             if len(extra) in extra_dim:
                 extra_dim[len(extra)].append(c)
             else:
                 extra_dim[len(extra)] = [c]
-        # Find the smallest combination that leaves the smallest extra set
+        # Find the smallest combination of macros that leaves the smallest
+        # number of extra permissions
         if extra_dim:
-            m = min(extra_dim.keys())
+            m = min(extra_dim)
             winner = min(extra_dim[m], key=len)
         else:
             winner = []
