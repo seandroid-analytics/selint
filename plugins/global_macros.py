@@ -17,13 +17,23 @@
 """Plugin to analyse usage of global macros and suggest new ones."""
 
 import itertools
+import os
+import os.path
 import logging
 import policysource
 import policysource.policy
 import policysource.mapping
 from policysource.mapping import FileLine as FileLine
+import config
 
+# Do not make suggestions on rules coming from files in these paths
+# (e.g. ignore AOSP)
+RULE_IGNORE_PATHS = ["external/sepolicy"]
+
+# Parameters for partial match macro suggestions
+# Only suggest macros that match above this threshold [0-1]
 SUGGESTION_THRESHOLD = 1
+# Make up to this number of suggestions
 SUGGESTION_MAX_NO = 3
 
 
@@ -48,8 +58,16 @@ class FullMatchSuggestion(object):
 
 
 def main(policy):
+    # Check that we have been fed a valid policy
     if not isinstance(policy, policysource.policy.SourcePolicy):
         raise ValueError("Invalid policy")
+    # Setup logging
+    log = logging.getLogger(__name__)
+
+    # Compute the absolute ignore paths
+    FULL_BASE_DIR = os.path.abspath(os.path.expanduser(config.BASE_DIR_GLOBAL))
+    FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
+                              for p in RULE_IGNORE_PATHS)
 
     # Suggestions: {frozenset(filelines): [suggestions]}
     suggestions = {}
@@ -83,12 +101,19 @@ def main(policy):
             # Merge the various permission sets deriving from different rules
             # applying to the same domain/type/class
             for r in rules:
+                # TODO: MARK
+                # Discard rules coming from the AOSP policy
+                if r.fileline.f.startswith(FULL_IGNORE_PATHS):
+                    continue
                 # Get the permission string from the rule
                 # Cut everything before the class, the space and strip the
                 # final semicolon
                 permstring = r.rule[len(r_up_to_class) + 1:].rstrip(";")
                 # Tokenize the permission string and update the permission set
                 permset.update(x for x in permstring.split() if x not in "{}")
+            # If the permset is empty, process the next rules
+            if not permset:
+                continue
             # Get a list of RichSets sorted by decreasing score
             # The score indicates how well the permset covers them
             (winner, part) = sf.fit(permset)
@@ -263,7 +288,7 @@ class SetFitter(object):
                 ones.append(x)
             else:
                 part.append(x)
-        part.sort(reverse=True)
+        # part.sort(reverse=True)
         # Compute all combinations of full macros
         combinations = []
         for i in xrange(1, len(ones) + 1):
