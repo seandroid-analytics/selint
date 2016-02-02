@@ -35,7 +35,8 @@ import policysource.macro_plugins
 class SourcePolicy(object):
     """Class representing a source SELinux policy."""
     # pylint: disable=too-many-instance-attributes
-    regex_macrodef = r'^define\(\`([^\']+)\','
+    regex_macrodef = re.compile(r'^define\(\`([^\']+)\',')
+    regex_usageargstring = r'(\(.*\));?'
 
     def __init__(self, policyfiles):
         """Construct a SourcePolicy object by parsing the supplied files.
@@ -165,7 +166,6 @@ class SourcePolicy(object):
     def __find_macro_files__(self, policy_files):
         """Find files that contain m4 macro definitions."""
         # Regex to match the macro definition string
-        macrodef_r = re.compile(self.regex_macrodef)
         macro_files = []
         for single_file in policy_files:
             with open(single_file, 'r') as macro_file:
@@ -173,7 +173,7 @@ class SourcePolicy(object):
                     # If this file contains at least one macro definition,
                     # append it to the list of macro files and skip to
                     # the next policy file
-                    if macrodef_r.search(line):
+                    if self.regex_macrodef.search(line):
                         macro_files.append(single_file)
                         break
         return macro_files
@@ -195,35 +195,141 @@ class SourcePolicy(object):
         # Match spaces, followed by the name, an opening parenthesis, $nargs
         # comma-separed strings/curly bracket blocks, a closing parenthesis
         # and spaces. E.g.: name = foo, nargs = 3
-        # reg = r'\s*foo\(((?:(?:\w+|\{[^,]+\}),\s?){3}(?:\w+|\{[^,]+\}))\)\s*'
+        # reg = r'\s*foo\(((?:(?:\w+),\s?){3}(?:\w+))\)\s*'
         # will match foo(arg0, {argument 1}, arg2)
         if nargs < 1:
             return None
         reg = r'\s*{}\(('.format(name)
         if nargs > 1:
-            reg += r'(?:(?:\w+|\{[^,]+\}),\s?){' + str(nargs - 1) + '}'
-        reg += r'(?:\w+|\{[^,]+\}))\)\s*'
+            reg += r'(?:(?:[^,]+),\s?){' + str(nargs - 1) + '}'
+        reg += r'(?:[^,]+))\)\s*'
         return reg
+
+    @staticmethod
+    def __split_macro_usage_args__(argstring):
+        """Return a list of macro usage arguments, respecting grouping by
+        curly brackets and m4-style quotes.
+
+        e.g. The following argstring
+        "({ appdomain, -isolated_app }, something, `third argument')"
+        would be split in 3 arguments as such
+        ["{ appdomain, -isolated_app }", "something", "`third argument'"]
+        """
+        group = ""
+        args = []
+        nested_curly = 0
+        nested_quotes = 0
+        nested_parentheses = 0
+        for c in argstring:
+            # Found opening parenthesis
+            if c == "(":
+                # If this is the outermost parenthesis, drop it
+                # Otherwise keep it
+                if nested_quotes or nested_curly or nested_parentheses:
+                    group += c
+                # If we are outside nested quotes or brackets, this is a
+                # special character
+                if not nested_quotes and not nested_curly:
+                    nested_parentheses += 1
+            # Found opening curly bracket
+            elif c == "{":
+                # If we are outside nested quotes, this is a special character
+                if not nested_quotes:
+                    # Increase nest level
+                    nested_curly += 1
+                group += c
+            # Found opening quote
+            elif c == "`":
+                # If we are outside nested curly brackets, this is a special
+                # character
+                if not nested_curly:
+                    # Increase nested level
+                    nested_quotes += 1
+                group += c
+            # Found closing curly bracket
+            elif c == "}":
+                # If we are outside nested quotes, this is a special character
+                if not nested_quotes:
+                    # Decrease nested level
+                    nested_curly -= 1
+                    if nested_curly < 0:
+                        # Mismatched brackets
+                        return None
+                group += c
+            # Found closing quote
+            elif c == "'":
+                # If we are outside nested curly brackets, this is a special
+                # character
+                if not nested_curly:
+                    # Decrease nested level
+                    nested_quotes -= 1
+                    if nested_quotes < 0:
+                        # Mismatched quotes
+                        return None
+                group += c
+            # Found closing parenthesis
+            elif c == ")":
+                # If we are outside nested quotes or brackets, this is a
+                # special character
+                if not nested_quotes and not nested_curly:
+                    nested_parentheses -= 1
+                # If this is the outermost parenthesis, drop it
+                # Otherwise keep it
+                if nested_quotes or nested_curly or nested_parentheses > 0:
+                    group += c
+                elif nested_parentheses == 0:
+                    # Found outermost closing parenthesis, end of arguments
+                    break
+                elif nested_parentheses < 0:
+                    # Mismatched parentheses
+                    return None
+            # Found comma
+            elif c == ",":
+                # If we are outside nested curly brackets and quotes, this is
+                # the separator character
+                if not nested_curly and not nested_quotes:
+                    # Append the group as a new argument
+                    args.append(group)
+                    # Initialize a new empty group
+                    group = ""
+                else:
+                    # Append to the group as a regular character
+                    group += c
+            # Found space
+            elif c == " ":
+                # If we are outside nested curly brackets and quotes, discard
+                # spaces
+                if nested_curly or nested_quotes:
+                    group += c
+            # Found generic character
+            else:
+                group += c
+        # Save the last block
+        args.append(group)
+        return args
 
     def __get_macro_usage_args__(self, macro, line):
         """Get the current macro arguments"""
-        # macroargs = r'\(((?:(?:\w+|\{[^,]+\}),\s?)*(?:\w+|\{[^,]+\}))\)\s*'
         # The macro is supposed to have nargs arguments
-
-        # Special case: multiline macros (e.g. "eng(` \n ... \n')")
-        if "{}(`".format(macro.name) in line:
-            args = []
-            for i in xrange(macro.nargs):
-                args.append("multiline")
-        elif macro.nargs > 0:
+        if macro.nargs > 0:
             # Check if it is actually used with all its arguments
-            usage_r = self.__build_regex_nargs__(macro.name, macro.nargs)
+            # Get the usage argstring (whatever is between the parentheses)
+            usage_r = macro.name + self.regex_usageargstring
             tmp = re.match(usage_r, line)
             if tmp:
-                # Save the arguments
-                args = re.split(r',\s*', tmp.group(1))
+                # Get the arguments
+                args = self.__split_macro_usage_args__(tmp.group(1))
+                # Bad usage
+                if len(args) != macro.nargs:
+                    args = None
             else:
-                args = None
+                # Special case: multiline macros (e.g. "eng(` \n ... \n')")
+                if "{}(`".format(macro.name) in line:
+                    args = []
+                    for i in xrange(macro.nargs):
+                        args.append("multiline")
+                else:
+                    args = None
         else:
             # Macro without arguments
             args = []
@@ -245,19 +351,28 @@ class SourcePolicy(object):
                         continue
                     # Strip end-of-line comments
                     if "#" in line:
-                        line = re.sub(r'\s*#.*', '', line)
+                        line = line.split("#")[0].strip()
+                    # Search for macros
+                    stripped_line = str(line)
                     for word in re.split(r'\W+', line):
+                        # Handle usage of the same macro multiple times on the
+                        # same line: only parse the first occurrence, and
+                        # remove each occurrence from the string after parsing
+                        # Find the index of the word in the string
+                        word_index = stripped_line.index(word)
+                        # Discard everything before that
+                        stripped_line = stripped_line[word_index:]
                         if word in macros:
                             # We have found a macro
                             # Get the arguments
                             args = self.__get_macro_usage_args__(
-                                macros[word], line)
+                                macros[word], stripped_line)
                             if args is None:
                                 # The macro usage is not valid
                                 self.log.warning("\"%s\" is a macro name but "
-                                                 "it is used wrong at %s:%s:",
-                                                 word, current_file, lineno)
-                                self.log.warning("\"%s\"", line.rstrip())
+                                                 "it is used wrong at:", word)
+                                self.log.warning("%s:%s: %s", current_file,
+                                                 lineno, line.rstrip())
                                 continue
                             # Construct the new macro object
                             try:
