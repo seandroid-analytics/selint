@@ -22,6 +22,7 @@ import os.path
 import sys
 import argparse
 import logging
+import shutil
 import policysource
 import policysource.policy
 import plugins
@@ -45,6 +46,9 @@ plugin_group.add_argument(
 plugin_group.add_argument(
     "-b", "--blacklist", metavar="<PLUGIN>", choices=plugins.available_plugins,
     nargs="+", help="specify the plugins not to run [Default: run all]")
+# Write out the policy.conf file
+parser.add_argument("--dumppolicyconf", metavar="<FILE>",
+                    help="write the policy.conf to a user-specified file. If the file already exists, IT WILL BE OVERWRITTEN.")
 
 args = parser.parse_args()
 
@@ -123,6 +127,19 @@ if not ALL_POLICY_FILES:
 
 # Create policy
 policy = policysource.policy.SourcePolicy(ALL_POLICY_FILES)
+# Write the policy.conf to file, if requested
+if args.dumppolicyconf:
+    try:
+        shutil.copyfile(policy._policyconf, args.dumppolicyconf)
+    except shutil.Error as e:
+        logging.error("%s", e)
+        logging.error("Could not dump policy.conf")
+    except IOError as e:
+        logging.error("%s", e)
+        logging.error("Could not dump policy.conf")
+    else:
+        logging.info("Wrote policy.conf to %s", args.dumppolicyconf)
+
 # Run plugins
 for plg in selected_plugins:
     print "Running plugin " + plg + "..."
