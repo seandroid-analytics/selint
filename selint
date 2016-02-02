@@ -48,7 +48,13 @@ plugin_group.add_argument(
     nargs="+", help="specify the plugins not to run [Default: run all]")
 # Write out the policy.conf file
 parser.add_argument("--dumppolicyconf", metavar="<FILE>",
-                    help="write the policy.conf to a user-specified file. If the file already exists, IT WILL BE OVERWRITTEN.")
+                    help="write the policy.conf to a user-specified file. "
+                    "If the file already exists, IT WILL BE OVERWRITTEN.")
+# Set the verbosity level
+parser.add_argument("-v", "--verbosity", metavar="<LVL>",
+                    choices=[0, 1, 2, 3, 4], type=int, default=0,
+                    help="Be verbose. Supported levels are 0-4, "
+                    "with 0 being the default.")
 
 args = parser.parse_args()
 
@@ -67,7 +73,16 @@ else:
     selected_plugins = list(plugins.available_plugins)
 
 # Setup logging
-logging.basicConfig()  # level=logging.DEBUG)  # , format='%(message)s')
+if args.verbosity == 4:
+    logging.basicConfig(level=logging.DEBUG)
+elif args.verbosity == 3:
+    logging.basicConfig(level=logging.INFO)
+elif args.verbosity == 2:
+    logging.basicConfig(level=logging.WARNING)
+elif args.verbosity == 1:
+    logging.basicConfig(level=logging.ERROR)
+elif args.verbosity == 0:
+    logging.basicConfig(level=logging.CRITICAL)
 # Compute list of policy files
 # TODO: add CLI option in addition to config file
 ALL_POLICY_FILES = []
