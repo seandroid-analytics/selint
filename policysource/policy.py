@@ -189,23 +189,6 @@ class SourcePolicy(object):
         return macros
 
     @staticmethod
-    def __build_regex_nargs__(name, nargs):
-        """Build a regex to match a macro usage, given the name and number of
-        arguments."""
-        # Match spaces, followed by the name, an opening parenthesis, $nargs
-        # comma-separed strings/curly bracket blocks, a closing parenthesis
-        # and spaces. E.g.: name = foo, nargs = 3
-        # reg = r'\s*foo\(((?:(?:\w+),\s?){3}(?:\w+))\)\s*'
-        # will match foo(arg0, {argument 1}, arg2)
-        if nargs < 1:
-            return None
-        reg = r'\s*{}\(('.format(name)
-        if nargs > 1:
-            reg += r'(?:(?:[^,]+),\s?){' + str(nargs - 1) + '}'
-        reg += r'(?:[^,]+))\)\s*'
-        return reg
-
-    @staticmethod
     def __split_macro_usage_args__(argstring):
         """Return a list of macro usage arguments, respecting grouping by
         curly brackets and m4-style quotes.
