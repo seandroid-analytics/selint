@@ -184,7 +184,7 @@ class Mapper(object):
             if not group and not line.startswith(self.supported_rules):
                 continue
             # If we have something in the group or a new valid rule, process it
-            # Remove possible in-line comments
+            # Strip end-of-line comments
             if "#" in line:
                 line = line.split("#")[0].strip()
             # Append the current line to the group
