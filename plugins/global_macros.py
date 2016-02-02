@@ -40,7 +40,7 @@ SUGGESTION_MAX_NO = 3
 class GlobalMacroSuggestion(object):
     """ """
 
-    def __init__(self, macro_name, perm_set, rules, score=1):
+    def __init__(self, macro_name, perm_set, rules, score):
         self.name = macro_name
         self.macro_perms = perm_set
         self.rules = rules
@@ -115,27 +115,33 @@ def main(policy):
             permset = set()
             # Merge the various permission sets deriving from different rules
             # applying to the same domain/type/class
+            filtered_rules = []
             for r in rules:
-                # TODO: MARK
                 # Discard rules coming from the AOSP policy
                 if r.fileline.f.startswith(FULL_IGNORE_PATHS):
                     continue
+                filtered_rules.append(r)
                 # Get the permission string from the rule
                 # Cut everything before the class, the space and strip the
                 # final semicolon
                 permstring = r.rule[len(r_up_to_class) + 1:].rstrip(";")
                 # Tokenize the permission string and update the permission set
                 permset.update(x for x in permstring.split() if x not in "{}")
-            # If the permset is empty, process the next rules
-            if not permset:
+            # If there are no rules left or the permset is empty, process
+            # the next set of rules
+            if not filtered_rules or not permset:
                 continue
             # Get a list of RichSets sorted by decreasing score
             # The score indicates how well the permset covers them
             (winner, part) = sf.fit(permset)
+            # TODO: refactor this next part, merge winner/part handling where
+            # possible
             # If we have a winner, we have a full (multi)set match
             if winner:
                 suggest_this = True
-                for r in rules:
+                # Check if the winner meets all requirements for being
+                # suggested
+                for r in filtered_rules:
                     # Check if there are macros used on this fileline at all
                     if r.fileline not in macrousages_dict:
                         # No macro used on this fileline, check the next
@@ -164,39 +170,46 @@ def main(policy):
                         break
                 if suggest_this:
                     for x in winner:
-                        g = GlobalMacroSuggestion(x.name, x.values, rules)
+                        g = GlobalMacroSuggestion(
+                            x.name, x.values, filtered_rules, x.score)
                         if g.filelines not in suggestions:
                             suggestions[g.filelines] = [g]
                         elif g not in suggestions[g.filelines]:
                             suggestions[g.filelines].append(g)
-                    # print "Macro(s) \"{}\" could be used at:".format(" ".join([x.name for x in winner]))
-                    # print "\n".join([str(r.fileline) for r in rules])
-                    #winner_set = set()
-                    # for x in winner:
-                    #    winner_set.update(x.values)
-                    #extras = [x.name for x in winner]
-                    #extras.extend(list(permset - winner_set))
-                    # print "The new permission set would be: { " + " ".join(extras) + " }"
-                    # print
             # Suggest close matches based on a threshold
             if part:
-                # Select the top SUGGESTION_MAX_NO suggestions above
-                # SUGGESTION_THRESHOLD from the results
-                sgs = sorted(
-                    [x for x in part if x.score >= SUGGESTION_THRESHOLD],
-                    reverse=True)[:SUGGESTION_MAX_NO]
-                for x in sgs:
-                    g = GlobalMacroSuggestion(
-                        x.name, x.values, rules, score=x.score)
-                    if g.filelines not in suggestions:
-                        suggestions[g.filelines] = [g]
-                    elif g not in suggestions[g.filelines]:
-                        suggestions[g.filelines].append(g)
-#                    print "The following macros match these lines:"
-#                    print "\n".join([str(r.fileline) for r in rules])
-#                    print "\n".join(["{}: {}%".format(x.name, x.score * 100) for x in sgs])
-#                    print
-
+                suggest_this = True
+                # Check if the partial suggestions meet all requirements
+                # for being suggested
+                for r in filtered_rules:
+                    # Check if there are macros used on this fileline at all
+                    if r.fileline not in macrousages_dict:
+                        # No macro used on this fileline, check the next
+                        continue
+                    macros_at_line = macrousages_dict[r.fileline]
+                    # Check that no other macros are involved
+                    for m in macros_at_line:
+                        if not m.macro.file_defined.endswith("global_macros"):
+                            # There are other macros at play, do not suggest
+                            suggest_this = False
+                            break
+                    if not suggest_this:
+                        # Also break out of the outer loop
+                        break
+                if suggest_this:
+                    # Select the top SUGGESTION_MAX_NO suggestions above
+                    # SUGGESTION_THRESHOLD from the results
+                    sgs = sorted(
+                        [x for x in part if x.score >= SUGGESTION_THRESHOLD],
+                        reverse=True)[:SUGGESTION_MAX_NO]
+                    for x in sgs:
+                        g = GlobalMacroSuggestion(
+                            x.name, x.values, filtered_rules, x.score)
+                        if g.filelines not in suggestions:
+                            suggestions[g.filelines] = [g]
+                        elif g not in suggestions[g.filelines]:
+                            suggestions[g.filelines].append(g)
+    # Print the suggestions
     for filelines, sgs in suggestions.iteritems():
         full = []
         part = []
@@ -237,14 +250,12 @@ class SetFitter(object):
                 self.tally[elem] = 0
             self.nonzero = 0
             self.score = 0
-            self._dirty = False
 
         def contains(self, elem):
             return elem in self.values
 
         def incr(self, elem):
             if elem in self.tally:
-                self._dirty = True
                 if self.tally[elem] == 0:
                     # First match, update score
                     self.nonzero += 1
@@ -255,15 +266,6 @@ class SetFitter(object):
             print self.name + " ({}/{})".format(self.score, len(self.tally))
             for k, v in self.tally.iteritems():
                 print k + " ({})".format(v)
-
-        def clear(self):
-            """Reset the tally and score of the RichSet."""
-            if self._dirty:
-                for each in self.tally:
-                    self.tally[each] = 0
-                self.nonzero = 0
-                self.score = 0
-                self._dirty = False
 
         def __repr__(self):
             return self.name + ": " + str(self.score)
@@ -292,25 +294,20 @@ class SetFitter(object):
         d    - A dictionary {name: set} with the available sets accessible by
                name.
        """
-        self.rich_sets = [
-            SetFitter.RichSet(key, value) for key, value in d.iteritems()]
-
-    def clear(self):
-        """Reset the rich sets to fit another set."""
-        for each in self.rich_sets:
-            each.clear()
+        self.d = d
 
     def fit(self, s):
         """Fit a set with the pre-supplied available sets."""
-        # Reset the rich sets from a previous iterations
-        self.clear()
+        # Initialise a new list of rich sets
+        rich_sets = [
+            SetFitter.RichSet(key, value) for key, value in self.d.iteritems()]
         # Fit the set
         for elem in s:
-            for each in self.rich_sets:
+            for each in rich_sets:
                 each.incr(elem)
         ones = []
         part = []
-        for x in self.rich_sets:
+        for x in rich_sets:
             if x.score == 1:
                 ones.append(x)
             else:
