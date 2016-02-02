@@ -27,8 +27,14 @@ from policysource.mapping import FileLine as FileLine
 import config
 
 # Do not make suggestions on rules coming from files in these paths
-# (e.g. ignore AOSP)
+#
+# e.g. to ignore AOSP:
+# RULE_IGNORE_PATHS = ["external/sepolicy"]
 RULE_IGNORE_PATHS = ["external/sepolicy"]
+
+# Only make suggestions for the following rule types
+# SUPPORTED_RULE_TYPES = ("allow", "auditallow", "dontaudit", "neverallow")
+SUPPORTED_RULE_TYPES = ("allow")
 
 # Parameters for partial match macro suggestions
 # Only suggest macros that match above this threshold [0-1]
@@ -110,14 +116,14 @@ def main(policy):
     # Initialize a set fitter
     sf = SetFitter(macroset_dict)
     for r_up_to_class in policy.mapping:
-        if r_up_to_class.startswith("allow "):
+        if r_up_to_class.startswith(SUPPORTED_RULE_TYPES):
             rules = policy.mapping[r_up_to_class]
             permset = set()
             # Merge the various permission sets deriving from different rules
             # applying to the same domain/type/class
             filtered_rules = []
             for r in rules:
-                # Discard rules coming from the AOSP policy
+                # Discard rules coming from ignored paths
                 if r.fileline.f.startswith(FULL_IGNORE_PATHS):
                     continue
                 filtered_rules.append(r)
@@ -131,8 +137,9 @@ def main(policy):
             # the next set of rules
             if not filtered_rules or not permset:
                 continue
-            # Get a list of RichSets sorted by decreasing score
-            # The score indicates how well the permset covers them
+            # Get up to one full match (combination of one or more macros which
+            # combined fit the permset exactly), and a list of macros that fit
+            # the permset partially
             (winner, part) = sf.fit(permset)
             # TODO: refactor this next part, merge winner/part handling where
             # possible
