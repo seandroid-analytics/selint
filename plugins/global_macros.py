@@ -24,7 +24,6 @@ import policysource
 import policysource.policy
 import policysource.mapping
 from policysource.mapping import FileLine as FileLine
-import config
 
 # Do not make suggestions on rules coming from files in these paths
 #
@@ -78,7 +77,7 @@ class GlobalMacroSuggestion(object):
         return self.score >= other.score
 
 
-def main(policy):
+def main(policy, config):
     # Check that we have been fed a valid policy
     if not isinstance(policy, policysource.policy.SourcePolicy):
         raise ValueError("Invalid policy")

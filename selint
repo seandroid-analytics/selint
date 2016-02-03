@@ -26,7 +26,6 @@ import shutil
 import policysource
 import policysource.policy
 import plugins
-import config
 
 # Parse arguments
 parser = argparse.ArgumentParser(
@@ -55,9 +54,14 @@ parser.add_argument("-v", "--verbosity", metavar="<LVL>",
                     choices=[0, 1, 2, 3, 4], type=int, default=0,
                     help="Be verbose. Supported levels are 0-4, "
                     "with 0 being the default.")
+# Supply a different config file
+parser.add_argument("-c", "--config", metavar="<FILE>", type=str,
+                    default="config.py", help="Source the specified config "
+                    "file [Default: config.py]")
 
 args = parser.parse_args()
 
+# Handle "list" option right away
 if args.list:
     # List available plugins and exit
     print "Available plugins:"
@@ -83,6 +87,15 @@ elif args.verbosity == 1:
     logging.basicConfig(level=logging.ERROR)
 elif args.verbosity == 0:
     logging.basicConfig(level=logging.CRITICAL)
+
+# Import config file as "config"
+try:
+    config = __import__(args.config[:-3])
+except:
+    logging.critical(
+        "Malformed configuration file \"%s\", aborting ...", args.config)
+    raise
+
 # Compute list of policy files
 # TODO: add CLI option in addition to config file
 ALL_POLICY_FILES = []
@@ -158,4 +171,4 @@ if args.dumppolicyconf:
 # Run plugins
 for plg in selected_plugins:
     print "Running plugin " + plg + "..."
-    plugins.get_plugin(plg).main(policy)
+    plugins.get_plugin(plg).main(policy, config)
