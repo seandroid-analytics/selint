@@ -106,7 +106,7 @@ def main(policy, config):
     # Prepare macro usages dictionaries
     macrousages_dict = {}
     for m in policy.macro_usages:
-        fileline = FileLine(m.file_used, m.line_used)
+        fileline = FileLine(m.file_used, m.line_used, "")
         if fileline in macrousages_dict:
             macrousages_dict[fileline].append(m)
         else:
@@ -192,15 +192,9 @@ def main(policy, config):
                     if r.fileline not in macrousages_dict:
                         # No macro used on this fileline, check the next
                         continue
-                    macros_at_line = macrousages_dict[r.fileline]
-                    # Check that no other macros are involved
-                    for m in macros_at_line:
-                        if not m.macro.file_defined.endswith("global_macros"):
-                            # There are other macros at play, do not suggest
-                            suggest_this = False
-                            break
-                    if not suggest_this:
-                        # Also break out of the outer loop
+                    else:
+                        # There are other macros at play, do not suggest
+                        suggest_this = False
                         break
                 if suggest_this:
                     # Select the top SUGGESTION_MAX_NO suggestions above
@@ -227,7 +221,7 @@ def main(policy, config):
         part.sort(reverse=True)
         if full or part:
             print "The following macros match these lines:"
-            print "\n".join((str(x) for x in filelines))
+            print "\n".join((x.full for x in filelines))
         if full:
             # Print full match suggestion(s)
             print "Full match:"

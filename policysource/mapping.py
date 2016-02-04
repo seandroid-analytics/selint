@@ -32,12 +32,14 @@ ONLY_MAP_RULES = ("allow")
 
 
 class FileLine(object):
-    """Represent a file/line position with the canonical representation."""
+    """Represent a line in a file."""
 
-    def __init__(self, f, l):
+    def __init__(self, f, l, text):
         self.f = f
         self.l = int(l)
+        self.text = text
         self._representation = f + ":" + str(l)
+        self.full = self._representation + ": " + self.text
 
     def __repr__(self):
         return self._representation
@@ -79,19 +81,16 @@ class FileLine(object):
 class MappedRule(object):
     """A rule with associated origin file/line information."""
 
-    def __init__(self, rule, mask, f, l):
+    def __init__(self, rule, mask, fileline):
         """Initialize a MappedRule.
 
-        rule   - the full rule as a string
-        mask   - the base rule as "ruletype subject object:class"
-        f      - the origin source file
-        l      - the origin line
+        rule     - the full rule as a string
+        mask     - the base rule as "ruletype subject object:class"
+        fileline - the FileLine object representing the original line
         """
         self.rule = rule
         self.mask = mask
-        self._file = f
-        self._line = l
-        self._fileline = None
+        self._fileline = fileline
 
     def __hash__(self):
         return hash(str(self))
@@ -101,8 +100,6 @@ class MappedRule(object):
 
     @property
     def fileline(self):
-        if self._fileline is None:
-            self._fileline = FileLine(self._file, self._line)
         return self._fileline
 
 
@@ -207,8 +204,8 @@ class Mapper(object):
             else:
                 for rule in rules:
                     # Record the file/line mapping for each rule
-                    mpr = MappedRule(rules[rule], rule,
-                                     current_file, current_line)
+                    tmp = FileLine(current_file, current_line, original_rule)
+                    mpr = MappedRule(rules[rule], rule, tmp)
                     if rule not in mapping:
                         mapping[rule] = [mpr]
                     # TODO: verify that rules are unique and this check is
