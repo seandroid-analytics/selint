@@ -73,14 +73,15 @@ class SourcePolicy(object):
             raise RuntimeError(
                 "Could not create the policy.conf file, aborting...")
         # Create the actual policy instance
-        self._policy = setools.policyrep.SELinuxPolicy(self._policyconf)
+        self._policy = setools.policyrep.SELinuxPolicy(self.policyconf)
         # Initialise some useful variables
         self._attributes = self.__compute_attributes()
         self._types = self.__compute_types()
         self._classes = self.__compute_classes()
         # Build the origin file/line mapping
-        mapper = policysource.mapping.Mapper(self._policyconf, self.attributes,
-                                             self.types, self.classes)
+        mapper = policysource.mapping.Mapper(self.policyconf, self.attributes,
+                                             self.types, self.classes,
+                                             self.policy)
         self._mapping = mapper.get_mapping()
         if not self._mapping:
             raise RuntimeError(
@@ -92,15 +93,15 @@ class SourcePolicy(object):
         del self._macro_usages
         del self._macro_defs
         # Delete the policy.conf file
-        if self._policyconf:
+        if self.policyconf:
             try:
-                os.remove(self._policyconf)
+                os.remove(self.policyconf)
             except OSError:
                 self.log.warning("Trying to remove policy.conf file \"%s\"... "
-                                 "failed!", self._policyconf)
+                                 "failed!", self.policyconf)
             else:
                 self.log.debug("Trying to remove policy.conf file \"%s\"... "
-                               "done!", self._policyconf)
+                               "done!", self.policyconf)
         # Try to remove the temporary directory
         if self._tmpdir:
             try:
@@ -416,6 +417,11 @@ class SourcePolicy(object):
     def policy(self):
         """Get the SELinuxPolicy policy."""
         return self._policy
+
+    @property
+    def policyconf(self):
+        """Get the path to the policy.conf file."""
+        return self._policyconf
 
     @property
     def attributes(self):
