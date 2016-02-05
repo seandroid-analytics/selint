@@ -103,7 +103,7 @@ def test_source_policy():
         print "Some macro usages were not recognized!"
         print "Usages recognized: {}".format(len(pol.macro_usages))
         return False
-    shutil.copyfile(pol._policyconf, "/home/bonazzf1/tmp/policy.conf")
+    shutil.copyfile(pol.policyconf, "/home/bonazzf1/tmp/policy.conf")
     nallow = 0
     nauditallow = 0
     ndontaudit = 0

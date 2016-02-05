@@ -80,8 +80,7 @@ class SourcePolicy(object):
         self._classes = self.__compute_classes()
         # Build the origin file/line mapping
         mapper = policysource.mapping.Mapper(self.policyconf, self.attributes,
-                                             self.types, self.classes,
-                                             self.policy)
+                                             self.types, self.classes)
         self._mapping = mapper.get_mapping()
         if not self._mapping:
             raise RuntimeError(

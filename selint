@@ -158,7 +158,7 @@ policy = policysource.policy.SourcePolicy(ALL_POLICY_FILES)
 # Write the policy.conf to file, if requested
 if args.dumppolicyconf:
     try:
-        shutil.copyfile(policy._policyconf, args.dumppolicyconf)
+        shutil.copyfile(policy.policyconf, args.dumppolicyconf)
     except shutil.Error as e:
         logging.error("%s", e)
         logging.error("Could not dump policy.conf")
