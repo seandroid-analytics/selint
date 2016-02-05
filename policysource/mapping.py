@@ -25,10 +25,8 @@ import logging
 import re
 
 # TODO: source from config file
-# ONLY_MAP_RULES = ("allow", "auditallow", "dontaudit", "neverallow", "type_transition")
-# Only map allow for speed, since we are only analysing allow rules for now
-# TODO: remove this if/when we need to analyse more rules
-ONLY_MAP_RULES = ("allow")
+ONLY_MAP_RULES = ("allow", "auditallow", "dontaudit",
+                  "neverallow", "type_transition")
 
 
 class FileLine(object):
