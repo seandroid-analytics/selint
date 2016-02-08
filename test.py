@@ -86,7 +86,7 @@ def get_policy_files():
 def print_usages():
     pol = p.SourcePolicy(get_policy_files())
     for m in pol.macro_usages:
-        print str(m) + " {}:{}".format(m.file_used, m.line_used)
+        print str(m)
 
 
 def initialise_policy():
@@ -176,8 +176,8 @@ def main():
     logging.basicConfig()  # level=logging.DEBUG)  # , format='%(message)s')
     # if not test_source_policy():
     #    sys.exit(1)
-    # print_usages()
-    initialise_policy()
+    print_usages()
+    # initialise_policy()
 
 
 if __name__ == "__main__":
