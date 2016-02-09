@@ -28,14 +28,14 @@ import policysource.mapping
 #
 # e.g. to ignore AOSP:
 # RULE_IGNORE_PATHS = ["external/sepolicy"]
-RULE_IGNORE_PATHS = ["external/sepolicy"]
+RULE_IGNORE_PATHS = []  # ["external/sepolicy"]
 
 # Do not try to reconstruct these macros
 MACRO_IGNORE = ["recovery_only", "non_system_app_set",
                 "userdebug_or_eng", "eng", "print"]
 
 # Only suggest macros that match above this threshold [0-1]
-SUGGESTION_THRESHOLD = 1
+SUGGESTION_THRESHOLD = 0.8
 
 ##############################################################################
 ####################### Do not touch below this line #########################
@@ -209,12 +209,6 @@ def main(policy, config):
     # how well the suggested expansion fits in the existing set of rules.
     # If the score is sufficiently high, suggest using the macro.
     for possible_usage, expansion in expansions.iteritems():
-        # DEBUG
-        DEBUG_THIS_ROUND = False
-        if possible_usage == "r_dir_file(zygote, proc_net)":
-            DEBUG_THIS_ROUND = True
-            print possible_usage + ":"
-            print "\n".join(expansion)
         # Skip empty expansions
         if not expansion:
             continue
@@ -224,34 +218,45 @@ def main(policy, config):
         name = possible_usage[:i]
         args = set(x.strip()
                    for x in possible_usage[i:].strip("()").split(","))
-        if DEBUG_THIS_ROUND:
-            print name
-            print "\"" + "\", \"".join(args) + "\""
         # Compute the score for the macro suggestion
         score = 0
+        # Save the existing rules that the macro suggestion matches exactly
+        actual_rules = []
+        missing_rules = []
         # For each rule in the macro
         for r in expansion:
-            # If a rule with the same up_to_class as this is used in the policy
-            # AND this rule does not come from one of the existing macros
-            # AND this actual rule is used in the policy
-            # (Filtering by up_to_class first is very selective)
-            if r.up_to_class in policy.mapping and\
-                    r not in full_usages_list and\
-                    r in [x.rule for x in policy.mapping[r.up_to_class]]:
-                # This rule is a valid candidate
-                score += 1
-                if DEBUG_THIS_ROUND:
-                    print "Valid candidate: " + str(r)
+            # If this rule does not come from one of the existing macros
+            if r not in full_usages_list:
+                # If this actual rule is used in the policy
+                if r.up_to_class in policy.mapping and\
+                        r in [x.rule for x in policy.mapping[r.up_to_class]]:
+                    # Get the MappedRule corresponding to this rule
+                    rl = [x for x in policy.mapping[r.up_to_class]
+                          if x.rule == r][0]
+                    # If this rule comes from an explictly ignored path, skip
+                    if not rl.fileline.f.startswith(FULL_IGNORE_PATHS):
+                        # Otherwise, this rule is a valid candidate
+                        score += 1
+                        actual_rules.append(rl)
+                # If not, this rule is potentially missing
+                else:
+                    missing_rules.append(r)
         # Compute the overall score of the macro suggestion
         # ( Number of valid candidates / number of candidates )
         score = score / float(len(expansion))
-        if DEBUG_THIS_ROUND:
-            print "Score: " + score
         # If this is a perfect match
         if score == 1:
             # TODO: add to list of suggestion objects
-            print "You could use {}".format(possible_usage)
+            print "You could use \"{}\" in place of:".format(possible_usage)
+            print "\n".join([str(x) for x in actual_rules])
+            print
         elif score >= SUGGESTION_THRESHOLD:
             # Partial match
             # TODO: add to list of partial suggestions
+            print "{}% of \"{}\" matches these lines:".format(score * 100,
+                                                              possible_usage)
+            print "\n".join([str(x) for x in actual_rules])
+            print "{}% is missing:".format((1 - score) * 100)
+            print "\n".join([str(x) for x in missing_rules])
+            print
             continue
