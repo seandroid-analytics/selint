@@ -49,6 +49,9 @@ plugin_group.add_argument(
 parser.add_argument("--dumppolicyconf", metavar="<FILE>",
                     help="write the policy.conf to a user-specified file. "
                     "If the file already exists, IT WILL BE OVERWRITTEN.")
+# Write out the full list of recognized policy files to be processed
+parser.add_argument("--listpolicyfiles", action="store_true",
+                    help="List all the recognized policy files and exit.")
 # Set the verbosity level
 parser.add_argument("-v", "--verbosity", metavar="<LVL>",
                     choices=[0, 1, 2, 3, 4], type=int, default=0,
@@ -151,7 +154,9 @@ if not ALL_POLICY_FILES:
     sys.exit(1)
 # TODO: add debug options, print this with debug?
 # print "\n".join(ALL_POLICY_FILES)
-
+if args.listpolicyfiles:
+    print "\n".join(ALL_POLICY_FILES)
+    sys.exit(0)
 
 # Create policy
 policy = policysource.policy.SourcePolicy(ALL_POLICY_FILES)
