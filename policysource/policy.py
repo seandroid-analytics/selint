@@ -47,6 +47,8 @@ class SourcePolicy(object):
         self.log = logging.getLogger(self.__class__.__name__)
         # Setup useful infrastructure
         self._policyconf = None
+        # Set up a general-purpose macro expander for internal use
+        self._expander = None
         # These will go in some conf file or cli option
         self.extra_defs = ['mls_num_sens=1', 'mls_num_cats=1024',
                            'target_build_variant=eng']
@@ -186,6 +188,7 @@ class SourcePolicy(object):
         parser = policysource.macro_plugins.M4MacroParser(
             tmpdir=None, extra_defs=self.extra_defs)
         macros = parser.parse(macro_files)
+        self._expander = parser.macro_expander
         return macros
 
     @staticmethod
