@@ -100,7 +100,7 @@ class MappedRule(object):
         return hash(str(self))
 
     def __repr__(self):
-        return str(self.fileline) + str(self.rule)
+        return str(self.fileline) + ": " + str(self.rule)
 
     @property
     def fileline(self):
