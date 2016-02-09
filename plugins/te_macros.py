@@ -17,10 +17,12 @@
 """Plugin to analyse usage of TE macros and suggest new ones."""
 
 import logging
+import sys
 import os
 import os.path
 import policysource
 import policysource.policy
+import policysource.mapping
 
 # Do not make suggestions on rules coming from files in these paths
 #
@@ -44,6 +46,33 @@ TE_MACROS_BY_NARG = None
 # Global variable to hold the log
 LOG = None
 
+# Global variable to hold the mapper
+MAPPER = None
+
+
+def process_expansion(expansionstring):
+    """Process a multiline macro expansion into a list of supported rules.
+
+    The list contains AVRules and TErules objects from policysource.mapping."""
+    # Split in lines
+    m4expansion = expansionstring.splitlines()
+    # Strip whitespace from every line
+    m4expansion = [x.strip() for x in m4expansion]
+    # Remove blank lines and comments
+    m4expansion = [x for x in m4expansion if x and not x.startswith("#")]
+    expansionlist = []
+    for r in m4expansion:
+        # Expand the attributes, sets etc. in each rule
+        try:
+            xpn = MAPPER.expand_rule(r)
+        # TODO: fix logging properly by e.g. splitting in functions
+        except ValueError as e:
+            #LOG.debug("Could not expand rule \"%s\"", r)
+            pass
+        else:
+            expansionlist.extend(xpn.values())
+    return expansionlist
+
 
 def expand_macros(policy, arg1, arg2=None, arg3=None):
     """Expand all te_macros that match the number of supplied arguments.
@@ -51,6 +80,7 @@ def expand_macros(policy, arg1, arg2=None, arg3=None):
     Return a dictionary of macros {text:[rules]} where [rules] is a list of
     rules obtained by expanding all the rules found in the macro expansion
     taking into account attributes, permission sets etc.
+    The list contains AVRule or TERule objects.
 
     e.g.:
     arg1 = "domain"
@@ -75,9 +105,6 @@ def expand_macros(policy, arg1, arg2=None, arg3=None):
                     TE_MACROS_BY_NARG[m.nargs].append(m)
                 else:
                     TE_MACROS_BY_NARG[m.nargs] = [m]
-    # Create a mapper to expand the rules
-    mapper = policysource.mapping.Mapper(
-        policy.policyconf, policy.attributes, policy.types, policy.classes)
     # Save the macro expansions
     expansions = {}
     # Expand all the macros that fit the number of supplied arguments
@@ -98,24 +125,7 @@ def expand_macros(policy, arg1, arg2=None, arg3=None):
             expansions[text] = m.expand([arg1, arg2, arg3])
     # Expand all the macros
     for m_name, m in expansions.iteritems():
-        # Split in lines
-        m4expansion = m.splitlines()
-        # Strip whitespace from every line
-        m4expansion = [x.strip() for x in m4expansion]
-        # Remove blank lines and comments
-        m4expansion = [x for x in m4expansion if x and not x.startswith("#")]
-        expansion = []
-        for r in m4expansion:
-            # Expand the attributes, sets etc. in each rule
-            try:
-                xpn = mapper.expand_rule(r)
-            # TODO: fix logging properly by e.g. splitting in functions
-            except ValueError as e:
-                LOG.warning("Could not expand rule \"%s\"", r)
-                expansion.append(r)
-            else:
-                expansion.extend(xpn.values())
-        retdict[m_name] = expansion
+        retdict[m_name] = process_expansion(m)
     return retdict
 
 
@@ -128,6 +138,11 @@ def main(policy, config):
     global LOG
     LOG = log
 
+    # Create a global mapper to expand the rules
+    global MAPPER
+    MAPPER = policysource.mapping.Mapper(
+        policy.policyconf, policy.attributes, policy.types, policy.classes)
+
     # Compute the absolute ignore paths
     FULL_BASE_DIR = os.path.abspath(os.path.expanduser(config.BASE_DIR_GLOBAL))
     FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
@@ -136,59 +151,107 @@ def main(policy, config):
     # Suggestions: {frozenset(filelines): [suggestions]}
     suggestions = {}
 
+    # Set of rules deriving from the expansion of all the recorded macro
+    # usages
+    full_usages_string = ""
+    expanded_macrousages = set()
+
     # Prepare macro usages dictionary with macros grouped by name
     macrousages_dict = {}
     for m in policy.macro_usages:
-        if m.macro.file_defined.endswith("te_macros"):
+        if m.macro.file_defined.endswith("te_macros") and\
+                m.name not in MACRO_IGNORE:
             if m.name in macrousages_dict:
                 macrousages_dict[m.name].append(m)
             else:
                 macrousages_dict[m.name] = [m]
+            # Prepare the string for expansion
+            full_usages_string += str(m) + "\n"
+    # Expand the string containing all macro usages
+    full_usages_expansion = policy._expander.expand(full_usages_string)
+    full_usages_list = process_expansion(full_usages_expansion)
 
     expansions = {}
     # Group rules by domain
     rules_by_domain = {}
+    for dmn in policy.attributes["domain"]:
+        rules_by_domain[dmn] = []
     for r_up_to_class in policy.mapping:
-        dmn = r_up_to_class.split()[1]
-        if dmn in rules_by_domain:
-            rules_by_domain[dmn].extend(policy.mapping[r_up_to_class])
-        else:
-            rules_by_domain[dmn] = list(policy.mapping[r_up_to_class])
+        if r_up_to_class.startswith(policysource.mapping.AVRULES):
+            dmn = r_up_to_class.split()[1]
+            for d in rules_by_domain:
+                # TODO: check that this is not the other way around
+                # i.e. d.startswith(dmn)
+                if dmn.startswith(d):
+                    rules_by_domain[d].extend(policy.mapping[r_up_to_class])
+    # print "Domains: {}".format(len(rules_by_domain))
+    # print "\n".join(rules_by_domain.keys())
+    # print "\n".join(policy.attributes["domain"])
+    # print len(policy.attributes["domain"])
+    # print "\n".join(policy.attributes["domain"])
+    # print len(policy.types)
+    # sys.exit(1)
+
+    # Expand all macros with all possible arguments into the expansions dict
     for dmn, rules in rules_by_domain.iteritems():
-        types = [x.rule.replace(":", " ").split()[2] for x in rules]
+        #types = [x.rule.replace(":", " ").split()[2] for x in rules]
         # Expand all single-argument macros with the domain as argument
         expansions.update(expand_macros(policy, dmn))
-        # Expand all two-argument macros with domain, type as arguments
-        for x in types:
-            expansions.update(expand_macros(policy, dmn, x))
-        # Expand all three-argument macros with domain, type, type as arguments
-        for x in types:
-            for y in types:
-                expansions.update(expand_macros(policy, dmn, x, y))
+#        # Expand all two-argument macros with domain, type as arguments
+#        for x in types:
+#            expansions.update(expand_macros(policy, dmn, x))
+#        # Expand all three-argument macros with domain, type, type as arguments
+#        for x in types:
+#            for y in types:
+#                expansions.update(expand_macros(policy, dmn, x, y))
 
+    # Analyse each possible usage suggestions and assign it a score indicating
+    # how well the suggested expansion fits in the existing set of rules.
+    # If the score is sufficiently high, suggest using the macro.
     for possible_usage, expansion in expansions.iteritems():
+        # DEBUG
+        DEBUG_THIS_ROUND = False
+        if possible_usage == "r_dir_file(zygote, proc_net)":
+            DEBUG_THIS_ROUND = True
+            print possible_usage + ":"
+            print "\n".join(expansion)
+        # Skip empty expansions
+        if not expansion:
+            continue
+        # Gather the macro name and args from the string representation
+        # TODO: unoptimal, consider ad-hoc structure
         i = possible_usage.index("(")
         name = possible_usage[:i]
         args = set(x.strip()
                    for x in possible_usage[i:].strip("()").split(","))
+        if DEBUG_THIS_ROUND:
+            print name
+            print "\"" + "\", \"".join(args) + "\""
+        # Compute the score for the macro suggestion
         score = 0
+        # For each rule in the macro
         for r in expansion:
-            r_up_to_class = r[:r.index(" ", r.index(":"))]
-            if r_up_to_class in policy.mapping:
+            # If a rule with the same up_to_class as this is used in the policy
+            # AND this rule does not come from one of the existing macros
+            # AND this actual rule is used in the policy
+            # (Filtering by up_to_class first is very selective)
+            if r.up_to_class in policy.mapping and\
+                    r not in full_usages_list and\
+                    r in [x.rule for x in policy.mapping[r.up_to_class]]:
+                # This rule is a valid candidate
                 score += 1
+                if DEBUG_THIS_ROUND:
+                    print "Valid candidate: " + str(r)
+        # Compute the overall score of the macro suggestion
+        # ( Number of valid candidates / number of candidates )
         score = score / float(len(expansion))
+        if DEBUG_THIS_ROUND:
+            print "Score: " + score
+        # If this is a perfect match
         if score == 1:
-            suggest_this = True
-            # Full match
-            if name in macrousages_dict:
-                for x in macrousages_dict[name]:
-                    if set(x.args) == args:
-                        suggest_this = False
-                        break
-            if suggest_this:
-                # TODO: add to list of suggestion objects
-                print "You could use {}".format(possible_usage)
+            # TODO: add to list of suggestion objects
+            print "You could use {}".format(possible_usage)
         elif score >= SUGGESTION_THRESHOLD:
             # Partial match
             # TODO: add to list of partial suggestions
-            pass
+            continue

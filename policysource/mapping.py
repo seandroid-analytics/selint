@@ -29,6 +29,12 @@ ONLY_MAP_RULES = ("allow", "auditallow", "dontaudit",
                   "neverallow", "type_transition")
 
 
+# TODO: source from config file?
+AVRULES = ("allow", "auditallow", "dontaudit", "neverallow")
+TERULES = ("type_transition", "type_change",
+           "type_member", "typebounds")
+
+
 class FileLine(object):
     """Represent a line in a file."""
 
@@ -82,7 +88,7 @@ class MappedRule(object):
     def __init__(self, rule, mask, fileline):
         """Initialize a MappedRule.
 
-        rule     - the full rule as a string
+        rule     - the rule as an AVRule or TERule object
         mask     - the base rule as "ruletype subject object:class"
         fileline - the FileLine object representing the original line
         """
@@ -94,20 +100,214 @@ class MappedRule(object):
         return hash(str(self))
 
     def __repr__(self):
-        return str(self.fileline) + self.rule
+        return str(self.fileline) + str(self.rule)
 
     @property
     def fileline(self):
         return self._fileline
 
 
+class TERule(object):
+    """A TE rule.
+
+    Currently only supports type transitions and name transitions."""
+
+    def __init__(self, blocks):
+        """Initialise the rule from a list of blocks."""
+        if len(blocks) == 6:
+            # The rule is a name transition:
+            self._is_name_trans = True
+            # Block 5 is the rule object name (only name transitions)
+            self._objname = blocks[5].strip("\"\'")
+        elif len(blocks) == 5:
+            # The rule is a simple type transition:
+            self._is_name_trans = False
+            self._objname = None
+        else:
+            # Invalid number of blocks
+            raise ValueError(
+                "Invalid number of blocks ({})".format(len(blocks)))
+        if not all(blocks):
+            # If any of the blocks is empty or none
+            raise ValueError("Invalid block(s)")
+        # Block 0 is the rule type
+        self._rtype = blocks[0]
+        # Block 1 is the rule source
+        self._source = blocks[1]
+        # Block 2 is the rule target
+        self._target = blocks[2]
+        # Block 3 is the rule class
+        self._tclass = blocks[3]
+        # Block 4 is the rule default type
+        self._deftype = blocks[4]
+
+    @property
+    def rtype(self):
+        """Get the rule type.
+
+        Currently only type_transition (type transitions and name transitions)
+        is supported."""
+        return self._rtype
+
+    @property
+    def source(self):
+        """Get the rule source."""
+        return self._source
+
+    @property
+    def target(self):
+        """Get the rule target."""
+        return self._target
+
+    @property
+    def tclass(self):
+        """Get the rule class."""
+        return self._tclass
+
+    @property
+    def deftype(self):
+        """Get the rule default type."""
+        return self._deftype
+
+    @property
+    def is_name_trans(self):
+        """Returns True if the rule is a name transition."""
+        return self._is_name_trans
+
+    @property
+    def objname(self):
+        """If the rule is a name transition, returns the object name."""
+        return self._objname
+
+    @property
+    def up_to_class(self):
+        """Print a representation of the rule up to the class.
+        e.g.:
+        "allow adbd powerctl_prop:property_service"
+        """
+        if not hasattr(self, "_up_to_class"):
+            s = "{0.rtype} {0.source} {0.target}:{0.tclass}"
+            self._up_to_class = s.format(self)
+        return self._up_to_class
+
+    def __repr__(self):
+        if not hasattr(self, "_str"):
+            s = "{0.rtype} {0.source} {0.target}:{0.tclass} {0.deftype}"
+            self._str = s.format(self)
+            if self.is_name_trans:
+                self._str += " \"" + self.objname + "\";"
+            else:
+                self._str += ";"
+        return self._str
+
+    def __eq__(self, other):
+        return self.rtype == other.rtype and self.source == other.source and\
+            self.target == other.target and self.tclass == other.tclass and\
+            self.deftype == other.deftype and self.objname == other.objname
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash(str(self))
+
+
+class AVRule(object):
+    """An AV rule."""
+
+    def __init__(self, blocks):
+        """Initialise the rule from a list of blocks.
+
+        If the last block (the permission block) contains multiple entries,
+        it must be represented as a string containing a space-separated
+        list of permissions, enclosed in curly brackets.
+
+        e.g.: blocks =
+        ["allow", "initrc_t", "exec_t", "file", "{ getattr read execute }"]
+        ["allow", "initrc_t", "exec_t", "file", "append"]
+        """
+        if len(blocks) != 5:
+            # Invalid number of blocks
+            raise ValueError(
+                "Invalid number of blocks ({})".format(len(blocks)))
+        if not all(blocks):
+            # If any of the blocks is empty or none
+            raise ValueError("Invalid block(s)")
+        # Block 0 is the rule type
+        self._rtype = blocks[0]
+        # Block 1 is the rule source
+        self._source = blocks[1]
+        # Block 2 is the rule target
+        self._target = blocks[2]
+        # Block 3 is the rule class
+        self._tclass = blocks[3]
+        # Block 4 is the set of permissions
+        self._perms = frozenset(blocks[4].strip("{}").split())
+
+    @property
+    def rtype(self):
+        """Get the rule type.
+
+        Currently only type_transition (type transitions and name transitions)
+        is supported."""
+        return self._rtype
+
+    @property
+    def source(self):
+        """Get the rule source."""
+        return self._source
+
+    @property
+    def target(self):
+        """Get the rule target."""
+        return self._target
+
+    @property
+    def tclass(self):
+        """Get the rule class."""
+        return self._tclass
+
+    @property
+    def perms(self):
+        """Get the rule set of permissions."""
+        return self._perms
+
+    @property
+    def up_to_class(self):
+        """Print a representation of the rule up to the class.
+        e.g.:
+        "allow adbd powerctl_prop:property_service"
+        """
+        if not hasattr(self, "_up_to_class"):
+            s = "{0.rtype} {0.source} {0.target}:{0.tclass}"
+            self._up_to_class = s.format(self)
+        return self._up_to_class
+
+    def __repr__(self):
+        if not hasattr(self, "_str"):
+            self._str = "{0.rtype} {0.source} {0.target}:{0.tclass} ".format(
+                self)
+            if len(self.perms) > 1:
+                self._str += "{ " + " ".join(sorted(self.perms)) + " };"
+            else:
+                self._str += " ".join(self.perms) + ";"
+        return self._str
+
+    def __eq__(self, other):
+        return self.rtype == other.rtype and self.source == other.source and\
+            self.target == other.target and self.tclass == other.tclass and\
+            self.perms == other.perms
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self, other):
+        return hash(str(self))
+
+
 class Mapper(object):
     """Class implementing the element to origin file/line mapper."""
     supported_rules = ONLY_MAP_RULES
-    # TODO: source from config file?
-    AVRULES = ("allow", "auditallow", "dontaudit", "neverallow")
-    TERULES = ("type_transition", "type_change",
-               "type_member", "typebounds")
     # Valid characters to follow a complement sign ("~"), used when parsing a
     # rule into blocks. Tested the "char in complementable" approach to be
     # 15 times faster than the regex re.match(r'a-zA-Z{', char) approach.
@@ -220,12 +420,13 @@ class Mapper(object):
         sets and complement types.
 
         Return a dictionary of rules (base, full) where "base" is the rule as
-        "ruletype subject object:class" and full is the full rule."""
+        "ruletype subject object:class" and full is the corresponding AVRule
+        or TERule object."""
         blocks = self.get_rule_blocks(rule)
         # The first block contains the rule type, e.g. "allow"
-        if blocks[0] in self.AVRULES:
+        if blocks[0] in AVRULES and blocks[0] in self.supported_rules:
             rules = self.__expand_avrule(blocks)
-        elif blocks[0] in self.TERULES:
+        elif blocks[0] in TERULES and blocks[0] in self.supported_rules:
             rules = self.__expand_terule(blocks)
         else:
             raise ValueError("Unsupported rule")
@@ -234,8 +435,9 @@ class Mapper(object):
     def __expand_avrule(self, blocks):
         """Expand an AV rule given as a list of blocks.
 
-        Return a dictionary of rules (base, full) where "base" is the rule as
-        "ruletype subject object:class" and full is the full rule."""
+        Return a dictionary of rules (base, AVRule) where "base" is the rule
+        as "ruletype subject object:class" and AVRule is the corresponding
+        AVRule object."""
         if len(blocks) != 5:
             raise ValueError("Invalid rule")
         # The rule type is block 0 and is static across expansions
@@ -259,39 +461,44 @@ class Mapper(object):
             for cls in classes:
                 perms = self.__expand_block(blocks[4], "perms", for_class=cls)
                 if len(perms) > 1:
-                    permstr = "{ " + " ".join(perms) + " };"
+                    permstr = "{ " + " ".join(perms) + " }"
                 else:
-                    permstr = perms[0] + ";"
+                    permstr = perms[0]
                 for sub in subjects:
                     base = rtype + " " + sub + " " + sub + ":" + cls
-                    full = base + " " + permstr
-                    rules[base] = full
+                    rules[base] = AVRule([rtype, sub, sub, cls, permstr])
         else:
             # Expand the rule normally
             for cls in classes:
                 perms = self.__expand_block(blocks[4], "perms", for_class=cls)
                 if len(perms) > 1:
-                    permstr = "{ " + " ".join(perms) + " };"
+                    permstr = "{ " + " ".join(perms) + " }"
                 else:
-                    permstr = perms[0] + ";"
+                    permstr = perms[0]
                 for sub in subjects:
                     for obj in objects:
                         base = rtype + " " + sub + " " + obj + ":" + cls
-                        full = base + " " + permstr
-                        rules[base] = full
+                        rules[base] = AVRule([rtype, sub, obj, cls, permstr])
         return rules
 
     def __expand_terule(self, blocks):
         """Expand a TE rule given as a list of blocks.
 
-        Return a dictionary of rules (base, full) where "base" is the rule as
-        "ruletype source target:class" and full is the full rule."""
+        Currently only type_transition (type transition and name transition)
+        rules are supported.
+
+        Return a dictionary of rules (base, TERule) where "base" is the rule
+        as "ruletype source target:class" and TERule is the corresponding
+        TERule object."""
         if len(blocks) == 6:
-            # It's a name transition: add default type and object name
-            add = blocks[4] + blocks[5] + ";"
+            # It's a name transition
+            is_name_trans = True
+            deftype = blocks[4]
+            objname = blocks[5]
         elif len(blocks) == 5:
-            # It's a simple type transition: add only the default type
-            add = blocks[4] + ";"
+            # It's a simple type transition
+            is_name_trans = False
+            deftype = blocks[4]
         else:
             # Invalid number of blocks
             raise ValueError("Invalid rule")
@@ -305,12 +512,21 @@ class Mapper(object):
         classes = self.__expand_block(blocks[3], "class")
         # Multiplex the rule up to the class and append the additional data
         rules = {}
-        for sub in subjects:
-            for obj in objects:
-                for cls in classes:
-                    base = rtype + " " + sub + " " + obj + ":" + cls
-                    full = base + " " + add
-                    rules[base] = full
+        # This is a name transition: supply the object name as well
+        if is_name_trans:
+            for sub in subjects:
+                for obj in objects:
+                    for cls in classes:
+                        base = rtype + " " + sub + " " + obj + ":" + cls
+                        rules[base] = TERule(
+                            [rtype, sub, obj, cls, deftype, objname])
+        # This is a regular type transition
+        else:
+            for sub in subjects:
+                for obj in objects:
+                    for cls in classes:
+                        base = rtype + " " + sub + " " + obj + ":" + cls
+                        rules[base] = TERule([rtype, sub, obj, cls, deftype])
         return rules
 
     def __expand_block(self, block, role, for_class=None):

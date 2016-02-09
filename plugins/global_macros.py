@@ -126,12 +126,8 @@ def main(policy, config):
                 if r.fileline.f.startswith(FULL_IGNORE_PATHS):
                     continue
                 filtered_rules.append(r)
-                # Get the permission string from the rule
-                # Cut everything before the class, the space and strip the
-                # final semicolon
-                permstring = r.rule[len(r_up_to_class) + 1:].rstrip(";")
-                # Tokenize the permission string and update the permission set
-                permset.update(x for x in permstring.split() if x not in "{}")
+                # Get the permissions from the rule
+                permset.update(r.rule.perms)
             # If there are no rules left or the permset is empty, process
             # the next set of rules
             if not filtered_rules or not permset:
