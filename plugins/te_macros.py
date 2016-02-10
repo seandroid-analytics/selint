@@ -194,16 +194,18 @@ def main(policy, config):
 
     # Expand all macros with all possible arguments into the expansions dict
     for dmn, rules in rules_by_domain.iteritems():
-        #types = [x.rule.replace(":", " ").split()[2] for x in rules]
+        types = [x.rule.target for x in rules]
+        # Handle the macros that expect the socket name without the tail
+        types.extend([x[:-7] for x in types if x.endswith("_socket")])
         # Expand all single-argument macros with the domain as argument
         expansions.update(expand_macros(policy, dmn))
-#        # Expand all two-argument macros with domain, type as arguments
-#        for x in types:
-#            expansions.update(expand_macros(policy, dmn, x))
-#        # Expand all three-argument macros with domain, type, type as arguments
-#        for x in types:
-#            for y in types:
-#                expansions.update(expand_macros(policy, dmn, x, y))
+        # Expand all two-argument macros with domain, type as arguments
+        for x in types:
+            expansions.update(expand_macros(policy, dmn, x))
+        # Expand all three-argument macros with domain, type, type as arguments
+        for x in types:
+            for y in types:
+                expansions.update(expand_macros(policy, dmn, x, y))
 
     # Analyse each possible usage suggestions and assign it a score indicating
     # how well the suggested expansion fits in the existing set of rules.
