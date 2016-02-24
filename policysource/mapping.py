@@ -25,8 +25,7 @@ import logging
 import re
 
 # TODO: source from config file
-ONLY_MAP_RULES = ("allow", "auditallow", "dontaudit",
-                  "neverallow", "type_transition")
+ONLY_MAP_RULES = ("allow", "type_transition")
 
 
 # TODO: source from config file?
@@ -39,14 +38,34 @@ class FileLine(object):
     """Represent a line in a file."""
 
     def __init__(self, f, l, text):
-        self.f = f
-        self.l = int(l)
-        self.text = text
-        self._representation = f + ":" + str(l)
-        self.full = self._representation + ": " + self.text
+        # Represent the FileLine as a single string:
+        # "file.te:12: allow sometype someothertype:someclass someperms;"
+        index = 0
+        self._f = (index, index + len(f))
+        index += len(f) + 1
+        self._l = (index, index + len(str(l)))
+        index += len(str(l)) + 2
+        self._t = (index, index + len(text))
+        self._full = f + ":" + str(l) + ": " + text
+
+    @property
+    def f(self):
+        return self.full[self._f[0]:self._f[1]]
+
+    @property
+    def l(self):
+        return int(self.full[self._l[0]:self._l[1]])
+
+    @property
+    def t(self):
+        return self.full[self._t[0]:self._t[1]]
+
+    @property
+    def full(self):
+        return self._full
 
     def __repr__(self):
-        return self._representation
+        return self.full[:self._l[1]]
 
     def __hash__(self):
         return hash(str(self))
@@ -85,26 +104,20 @@ class FileLine(object):
 class MappedRule(object):
     """A rule with associated origin file/line information."""
 
-    def __init__(self, rule, mask, fileline):
+    def __init__(self, rule, fileline):
         """Initialize a MappedRule.
 
         rule     - the rule as an AVRule or TERule object
-        mask     - the base rule as "ruletype subject object:class"
         fileline - the FileLine object representing the original line
         """
         self.rule = rule
-        self.mask = mask
-        self._fileline = fileline
+        self.fileline = fileline
 
     def __hash__(self):
         return hash(str(self))
 
     def __repr__(self):
         return str(self.fileline) + ": " + str(self.rule)
-
-    @property
-    def fileline(self):
-        return self._fileline
 
 
 class TERule(object):
@@ -114,32 +127,42 @@ class TERule(object):
 
     def __init__(self, blocks):
         """Initialise the rule from a list of blocks."""
-        if len(blocks) == 6:
-            # The rule is a name transition:
-            self._is_name_trans = True
-            # Block 5 is the rule object name (only name transitions)
-            self._objname = blocks[5].strip("\"\'")
-        elif len(blocks) == 5:
-            # The rule is a simple type transition:
-            self._is_name_trans = False
-            self._objname = None
-        else:
+        # Type transitions have 5 blocks, name transitions have 6
+        if len(blocks) not in (5, 6):
             # Invalid number of blocks
             raise ValueError(
                 "Invalid number of blocks ({})".format(len(blocks)))
         if not all(blocks):
             # If any of the blocks is empty or none
             raise ValueError("Invalid block(s)")
+        # "rtype source target:tclass deftype"
+        self._str = blocks[0] + " " + blocks[1] + " " + blocks[2] + ":" +\
+            blocks[3] + " " + blocks[4]
+        # Save the start:end indexes for slicing. end is NOT INCLUSIVE
+        index = 0
         # Block 0 is the rule type
-        self._rtype = blocks[0]
+        self._rtype = (index, index + len(blocks[0]))
+        index += len(blocks[0]) + 1
         # Block 1 is the rule source
-        self._source = blocks[1]
+        self._source = (index, index + len(blocks[1]))
+        index += len(blocks[1]) + 1
         # Block 2 is the rule target
-        self._target = blocks[2]
+        self._target = (index, index + len(blocks[2]))
+        index += len(blocks[2]) + 1
         # Block 3 is the rule class
-        self._tclass = blocks[3]
+        self._tclass = (index, index + len(blocks[3]))
+        index += len(blocks[3]) + 1
         # Block 4 is the rule default type
-        self._deftype = blocks[4]
+        self._deftype = (index, index + len(blocks[4]))
+        index += len(blocks[4]) + 1
+        # Block 5 is the rule object name (only name transitions)
+        if len(blocks) == 6:
+            objname = blocks[5].strip("\"\'")
+            self._str += " \"" + objname + "\";"
+            self._objname = (index + 2, index + 2 + len(objname))
+        else:
+            self._str += ";"
+            self._objname = None
 
     @property
     def rtype(self):
@@ -147,37 +170,40 @@ class TERule(object):
 
         Currently only type_transition (type transitions and name transitions)
         is supported."""
-        return self._rtype
+        return self._str[self._rtype[0]:self._rtype[1]]
 
     @property
     def source(self):
         """Get the rule source."""
-        return self._source
+        return self._str[self._source[0]:self._source[1]]
 
     @property
     def target(self):
         """Get the rule target."""
-        return self._target
+        return self._str[self._target[0]:self._target[1]]
 
     @property
     def tclass(self):
         """Get the rule class."""
-        return self._tclass
+        return self._str[self._tclass[0]:self._tclass[1]]
 
     @property
     def deftype(self):
         """Get the rule default type."""
-        return self._deftype
+        return self._str[self._deftype[0]:self._deftype[1]]
 
     @property
     def is_name_trans(self):
         """Returns True if the rule is a name transition."""
-        return self._is_name_trans
+        return self._objname is not None
 
     @property
     def objname(self):
         """If the rule is a name transition, returns the object name."""
-        return self._objname
+        if self._objname:
+            return self._str[self._objname[0]:self._objname[1]]
+        else:
+            return None
 
     @property
     def up_to_class(self):
@@ -185,25 +211,13 @@ class TERule(object):
         e.g.:
         "allow adbd powerctl_prop:property_service"
         """
-        if not hasattr(self, "_up_to_class"):
-            s = "{0.rtype} {0.source} {0.target}:{0.tclass}"
-            self._up_to_class = s.format(self)
-        return self._up_to_class
+        return self._str[self._rtype[0]:self._tclass[1]]
 
     def __repr__(self):
-        if not hasattr(self, "_str"):
-            s = "{0.rtype} {0.source} {0.target}:{0.tclass} {0.deftype}"
-            self._str = s.format(self)
-            if self.is_name_trans:
-                self._str += " \"" + self.objname + "\";"
-            else:
-                self._str += ";"
         return self._str
 
     def __eq__(self, other):
-        return self.rtype == other.rtype and self.source == other.source and\
-            self.target == other.target and self.tclass == other.tclass and\
-            self.deftype == other.deftype and self.objname == other.objname
+        return str(self) == str(other)
 
     def __ne__(self, other):
         return not self == other
@@ -400,10 +414,10 @@ class Mapper(object):
                 self.log.warning("Could not expand rule \"%s\" at %s:%s",
                                  original_rule, current_file, current_line)
             else:
+                tmp = FileLine(current_file, current_line, original_rule)
                 for rule in rules:
                     # Record the file/line mapping for each rule
-                    tmp = FileLine(current_file, current_line, original_rule)
-                    mpr = MappedRule(rules[rule], rule, tmp)
+                    mpr = MappedRule(rules[rule], tmp)
                     if rule not in mapping:
                         mapping[rule] = [mpr]
                     # TODO: verify that rules are unique and this check is
