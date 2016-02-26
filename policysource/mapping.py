@@ -463,6 +463,24 @@ class Mapper(object):
         # Generate the Mapping object
         return Mapping(mapping_rules, mapping_lines)
 
+    def rule_factory(self, string):
+        """Parse the string representation of a rule.
+        Return the given rule as an object (AVRule, TERule, ...).
+
+        Raises ValueError if the rule is invalid or unsupported."""
+        if string.startswith(self.supported_rules):
+            blocks = self.get_rule_blocks(string)
+            # The first block contains the rule type, e.g. "allow"
+            if blocks[0] in AVRULES:
+                rule = AVRule(blocks)
+            elif blocks[0] in TERULES:
+                rule = TERule(blocks)
+            else:
+                raise ValueError("Unsupported rule")
+        else:
+            raise ValueError("Unsupported rule")
+        return rule
+
     def expand_rule(self, rule):
         """Expand the given rule by interpreting attributes, sets, complement
         sets and complement types.
@@ -470,12 +488,16 @@ class Mapper(object):
         Return a dictionary of rules (base, full) where "base" is the rule as
         "ruletype subject object:class" and full is the corresponding AVRule
         or TERule object."""
-        blocks = self.get_rule_blocks(rule)
-        # The first block contains the rule type, e.g. "allow"
-        if blocks[0] in AVRULES and blocks[0] in self.supported_rules:
-            rules = self.__expand_avrule(blocks)
-        elif blocks[0] in TERULES and blocks[0] in self.supported_rules:
-            rules = self.__expand_terule(blocks)
+        # TODO: update docstring (no AVRule/TERule, strings instead)
+        if rule.startswith(self.supported_rules):
+            blocks = self.get_rule_blocks(rule)
+            # The first block contains the rule type, e.g. "allow"
+            if blocks[0] in AVRULES:
+                rules = self.__expand_avrule(blocks)
+            elif blocks[0] in TERULES:
+                rules = self.__expand_terule(blocks)
+            else:
+                raise ValueError("Unsupported rule")
         else:
             raise ValueError("Unsupported rule")
         return rules
@@ -486,6 +508,7 @@ class Mapper(object):
         Return a dictionary of rules (base, AVRule) where "base" is the rule
         as "ruletype subject object:class" and AVRule is the corresponding
         AVRule object."""
+        # TODO: update docstring (no AVRule, string instead)
         if len(blocks) != 5:
             raise ValueError("Invalid rule")
         # The rule type is block 0 and is static across expansions
@@ -514,7 +537,8 @@ class Mapper(object):
                     permstr = perms[0]
                 for sub in subjects:
                     base = rtype + " " + sub + " " + sub + ":" + cls
-                    rules[base] = AVRule([rtype, sub, sub, cls, permstr])
+                    # rules[base] = AVRule([rtype, sub, sub, cls, permstr])
+                    rules[base] = base + " " + permstr + ";"
         else:
             # Expand the rule normally
             for cls in classes:
@@ -526,7 +550,8 @@ class Mapper(object):
                 for sub in subjects:
                     for obj in objects:
                         base = rtype + " " + sub + " " + obj + ":" + cls
-                        rules[base] = AVRule([rtype, sub, obj, cls, permstr])
+                        # rules[base] = AVRule([rtype, sub, obj, cls, permstr])
+                        rules[base] = base + " " + permstr + ";"
         return rules
 
     def __expand_terule(self, blocks):
@@ -538,15 +563,19 @@ class Mapper(object):
         Return a dictionary of rules (base, TERule) where "base" is the rule
         as "ruletype source target:class" and TERule is the corresponding
         TERule object."""
+        # TODO: update docstring (no TERule, string instead)
+        # TODO: remove commented lines
         if len(blocks) == 6:
             # It's a name transition
             is_name_trans = True
-            deftype = blocks[4]
-            objname = blocks[5]
+            # deftype = blocks[4]
+            # objname = blocks[5]
+            add = blocks[4] + " " + blocks[5] + ";"
         elif len(blocks) == 5:
             # It's a simple type transition
             is_name_trans = False
-            deftype = blocks[4]
+            # deftype = blocks[4]
+            add = blocks[4] + ";"
         else:
             # Invalid number of blocks
             raise ValueError("Invalid rule")
@@ -560,21 +589,24 @@ class Mapper(object):
         classes = self.__expand_block(blocks[3], "class")
         # Multiplex the rule up to the class and append the additional data
         rules = {}
+        # TODO: remove commented lines, simplify loop
         # This is a name transition: supply the object name as well
         if is_name_trans:
             for sub in subjects:
                 for obj in objects:
                     for cls in classes:
                         base = rtype + " " + sub + " " + obj + ":" + cls
-                        rules[base] = TERule(
-                            [rtype, sub, obj, cls, deftype, objname])
+                        # rules[base] = TERule(
+                        #    [rtype, sub, obj, cls, deftype, objname])
+                        rules[base] = base + " " + add
         # This is a regular type transition
         else:
             for sub in subjects:
                 for obj in objects:
                     for cls in classes:
                         base = rtype + " " + sub + " " + obj + ":" + cls
-                        rules[base] = TERule([rtype, sub, obj, cls, deftype])
+                        # rules[base] = TERule([rtype, sub, obj, cls, deftype])
+                        rules[base] = base + " " + add
         return rules
 
     def __expand_block(self, block, role, for_class=None):
@@ -642,7 +674,8 @@ class Mapper(object):
             ##############################################
         return options
 
-    def get_rule_blocks(self, rule):
+    @staticmethod
+    def get_rule_blocks(rule):
         """Split the supplied rule in the component blocks.
 
         Returns a list of blocks, e.g.:
@@ -669,7 +702,7 @@ class Mapper(object):
         for char in rule_early_split.rstrip(';').replace(":", " "):
             # If the previous character was the complement character,
             # but the current one is not the start of a complementable block
-            if complement_next_block and char not in self.complementable:
+            if complement_next_block and char not in Mapper.complementable:
                 raise ValueError("Bad complement sign in \"{}\"".format(rule))
             # Found a complement sign
             if char == "~":
