@@ -126,7 +126,9 @@ def main(policy, config):
                     continue
                 filtered_rules.append(r)
                 # Get the permissions from the rule
-                permset.update(r.rule.perms)
+                # TODO: ugly, consider substituting with rule factory
+                perms = r.rule[len(r_up_to_class) + 1:].strip("{};").split()
+                permset.update(perms)
             # If there are no rules left or the permset is empty, process
             # the next set of rules
             if not filtered_rules or not permset:
@@ -140,8 +142,7 @@ def main(policy, config):
             # If we have a winner, we have a full (multi)set match
             if winner:
                 suggest_this = True
-                # Check if the winner meets all requirements for being
-                # suggested
+                # Check if the winner meets all requirements
                 for r in filtered_rules:
                     # Check if there are macros used on this fileline at all
                     if r.fileline not in macrousages_dict:

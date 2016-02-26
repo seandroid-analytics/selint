@@ -181,8 +181,7 @@ def main(policy, config):
         if r_up_to_class.startswith(policysource.mapping.AVRULES):
             dmn = r_up_to_class.split()[1]
             for d in rules_by_domain:
-                # TODO: check that this is not the other way around
-                # i.e. d.startswith(dmn)
+                # TODO: very crude, check that this does not introduce mistakes
                 if dmn.startswith(d):
                     rules_by_domain[d].extend(
                         policy.mapping.rules[r_up_to_class])
@@ -196,18 +195,19 @@ def main(policy, config):
 
     # Expand all macros with all possible arguments into the expansions dict
     for dmn, rules in rules_by_domain.iteritems():
-        types = [x.rule.target for x in rules]
+        # TODO: change bruteforce into regex + query
+        #types = [x.rule.target for x in rules]
         # Handle the macros that expect the socket name without the tail
-        types.extend([x[:-7] for x in types if x.endswith("_socket")])
+        #types.extend([x[:-7] for x in types if x.endswith("_socket")])
         # Expand all single-argument macros with the domain as argument
         expansions.update(expand_macros(policy, dmn))
         # Expand all two-argument macros with domain, type as arguments
-        for x in types:
-            expansions.update(expand_macros(policy, dmn, x))
+        # for x in types:
+        #    expansions.update(expand_macros(policy, dmn, x))
         # Expand all three-argument macros with domain, type, type as arguments
-        for x in types:
-            for y in types:
-                expansions.update(expand_macros(policy, dmn, x, y))
+        # for x in types:
+        #    for y in types:
+        #        expansions.update(expand_macros(policy, dmn, x, y))
 
     # Analyse each possible usage suggestions and assign it a score indicating
     # how well the suggested expansion fits in the existing set of rules.
@@ -231,11 +231,15 @@ def main(policy, config):
         for r in expansion:
             # If this rule does not come from one of the existing macros
             if r not in full_usages_list:
+                # Compute the rule up to the class
+                i = r.index(":")
+                j = r.index(" ", i)
+                rutc = r[:j]
                 # If this actual rule is used in the policy
-                if r.up_to_class in policy.mapping.rules and\
-                        r in [x.rule for x in policy.mapping.rules[r.up_to_class]]:
+                if rutc in policy.mapping.rules and\
+                        r in [x.rule for x in policy.mapping.rules[rutc]]:
                     # Get the MappedRule corresponding to this rule
-                    rl = [x for x in policy.mapping.rules[r.up_to_class]
+                    rl = [x for x in policy.mapping.rules[rutc]
                           if x.rule == r][0]
                     # If this rule comes from an explictly ignored path, skip
                     if not rl.fileline.startswith(FULL_IGNORE_PATHS):
