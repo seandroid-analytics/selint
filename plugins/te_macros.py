@@ -53,7 +53,8 @@ MAPPER = None
 def process_expansion(expansionstring):
     """Process a multiline macro expansion into a list of supported rules.
 
-    The list contains AVRules and TErules objects from policysource.mapping."""
+    The list contains AVRules and TErules objects from policysource.mapping .
+    """
     # Split in lines
     m4expansion = expansionstring.splitlines()
     # Strip whitespace from every line
@@ -176,14 +177,15 @@ def main(policy, config):
     rules_by_domain = {}
     for dmn in policy.attributes["domain"]:
         rules_by_domain[dmn] = []
-    for r_up_to_class in policy.mapping:
+    for r_up_to_class in policy.mapping.rules:
         if r_up_to_class.startswith(policysource.mapping.AVRULES):
             dmn = r_up_to_class.split()[1]
             for d in rules_by_domain:
                 # TODO: check that this is not the other way around
                 # i.e. d.startswith(dmn)
                 if dmn.startswith(d):
-                    rules_by_domain[d].extend(policy.mapping[r_up_to_class])
+                    rules_by_domain[d].extend(
+                        policy.mapping.rules[r_up_to_class])
     # print "Domains: {}".format(len(rules_by_domain))
     # print "\n".join(rules_by_domain.keys())
     # print "\n".join(policy.attributes["domain"])
@@ -230,13 +232,13 @@ def main(policy, config):
             # If this rule does not come from one of the existing macros
             if r not in full_usages_list:
                 # If this actual rule is used in the policy
-                if r.up_to_class in policy.mapping and\
-                        r in [x.rule for x in policy.mapping[r.up_to_class]]:
+                if r.up_to_class in policy.mapping.rules and\
+                        r in [x.rule for x in policy.mapping.rules[r.up_to_class]]:
                     # Get the MappedRule corresponding to this rule
-                    rl = [x for x in policy.mapping[r.up_to_class]
+                    rl = [x for x in policy.mapping.rules[r.up_to_class]
                           if x.rule == r][0]
                     # If this rule comes from an explictly ignored path, skip
-                    if not rl.fileline.f.startswith(FULL_IGNORE_PATHS):
+                    if not rl.fileline.startswith(FULL_IGNORE_PATHS):
                         # Otherwise, this rule is a valid candidate
                         score += 1
                         actual_rules.append(rl)

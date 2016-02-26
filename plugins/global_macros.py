@@ -23,7 +23,6 @@ import logging
 import policysource
 import policysource.policy
 import policysource.mapping
-from policysource.mapping import FileLine as FileLine
 
 # Do not make suggestions on rules coming from files in these paths
 #
@@ -106,7 +105,7 @@ def main(policy, config):
     # Prepare macro usages dictionaries
     macrousages_dict = {}
     for m in policy.macro_usages:
-        fileline = FileLine(m.file_used, m.line_used, "")
+        fileline = m.file_used + ":" + str(m.line_used)
         if fileline in macrousages_dict:
             macrousages_dict[fileline].append(m)
         else:
@@ -114,16 +113,16 @@ def main(policy, config):
 
     # Initialize a set fitter
     sf = SetFitter(macroset_dict)
-    for r_up_to_class in policy.mapping:
+    for r_up_to_class in policy.mapping.rules:
         if r_up_to_class.startswith(SUPPORTED_RULE_TYPES):
-            rules = policy.mapping[r_up_to_class]
+            rules = policy.mapping.rules[r_up_to_class]
             permset = set()
             # Merge the various permission sets deriving from different rules
             # applying to the same domain/type/class
             filtered_rules = []
             for r in rules:
                 # Discard rules coming from ignored paths
-                if r.fileline.f.startswith(FULL_IGNORE_PATHS):
+                if r.fileline.startswith(FULL_IGNORE_PATHS):
                     continue
                 filtered_rules.append(r)
                 # Get the permissions from the rule
@@ -217,7 +216,8 @@ def main(policy, config):
         part.sort(reverse=True)
         if full or part:
             print "The following macros match these lines:"
-            print "\n".join((x.full for x in filelines))
+            for x in filelines:
+                print x + ": " + policy.mapping.lines[x]
         if full:
             # Print full match suggestion(s)
             print "Full match:"

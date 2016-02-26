@@ -18,20 +18,46 @@
 #    License along with this program.  If not, see
 #    <http://www.gnu.org/licenses/>.
 #
-"""Class that maps every rule in a SEAndroid policy to the file and line where
+"""Module that maps every rule in a SEAndroid policy to the file and line where
 it was defined."""
 
 import logging
 import re
 
 # TODO: source from config file
-ONLY_MAP_RULES = ("allow", "type_transition")
+ONLY_MAP_RULES = ("allow", "auditallow", "dontaudit",
+                  "neverallow", "type_transition")
 
 
 # TODO: source from config file?
 AVRULES = ("allow", "auditallow", "dontaudit", "neverallow")
 TERULES = ("type_transition", "type_change",
            "type_member", "typebounds")
+
+
+class Mapping(object):
+    """Contains dictionaries that map rules to their fileline origin and
+    filelines to their original line as written in the source file."""
+
+    @staticmethod
+    def split_fileline(fileline):
+        """Split a fileline represented as a string into a (file, line) list.
+
+        e.g. "/some:path/file:42" -> ["/some:path/file", "42"]
+        """
+        return fileline.rsplit(":", 1)
+
+    @staticmethod
+    def get_fileline_file(fileline):
+        return fileline.rsplit(":", 1)[0]
+
+    @staticmethod
+    def get_fileline_line(fileline):
+        return int(fileline.rsplit(":", 1)[1])
+
+    def __init__(self, rules, lines):
+        self.rules = rules
+        self.lines = lines
 
 
 class FileLine(object):
@@ -108,7 +134,8 @@ class MappedRule(object):
         """Initialize a MappedRule.
 
         rule     - the rule as an AVRule or TERule object
-        fileline - the FileLine object representing the original line
+        fileline - the origin file/line of the rule represented as a string
+        e.g. "/the/path/to/the/file.te:42"
         """
         self.rule = rule
         self.fileline = fileline
@@ -347,7 +374,8 @@ class Mapper(object):
         the rule as "rule_type subject object:class", and the value is a list
         of MappedRule objects for each full rule matching the base rule."""
         # Initialise variables
-        mapping = {}
+        mapping_rules = {}
+        mapping_lines = {}
         group = []
         current_file = ""
         current_line = 0
@@ -414,20 +442,26 @@ class Mapper(object):
                 self.log.warning("Could not expand rule \"%s\" at %s:%s",
                                  original_rule, current_file, current_line)
             else:
-                tmp = FileLine(current_file, current_line, original_rule)
+                # tmp = FileLine(current_file, current_line, original_rule)
+                tmp = current_file + ":" + str(current_line)
+                # Save the original rule found at file:line
+                mapping_lines[tmp] = original_rule
                 for rule in rules:
                     # Record the file/line mapping for each rule
                     mpr = MappedRule(rules[rule], tmp)
-                    if rule not in mapping:
-                        mapping[rule] = [mpr]
+                    # TODO: decide whether to do tuples or classes
+                    # mpr = (rules[rule], tmp)
+                    if rule not in mapping_rules:
+                        mapping_rules[rule] = [mpr]
                     # TODO: verify that rules are unique and this check is
                     # useless?
                     # elif mpr not in mapping[rule]:
                     else:
-                        mapping[rule].append(mpr)
+                        mapping_rules[rule].append(mpr)
             # Empty the group
             del group[:]
-        return mapping
+        # Generate the Mapping object
+        return Mapping(mapping_rules, mapping_lines)
 
     def expand_rule(self, rule):
         """Expand the given rule by interpreting attributes, sets, complement

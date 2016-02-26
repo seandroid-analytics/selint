@@ -450,7 +450,5 @@ class SourcePolicy(object):
     def mapping(self):
         """Get the mapping between policy rules and origin file/line.
 
-        Return a dictionary (base, [MappedRule]) where the key is
-        the rule as "rule_type subject object:class", and the value is a list
-        of MappedRule objects for each full rule matching the base rule."""
+        Return a Mapping object."""
         return self._mapping
