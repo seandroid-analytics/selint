@@ -21,6 +21,7 @@
 """Classes providing abstractions for m4 macros."""
 
 import os
+import re
 import tempfile
 import subprocess
 import logging
@@ -215,6 +216,7 @@ class M4FreezeFile(object):
 class M4Macro(object):
 
     """Class providing an abstraction for a m4 macro."""
+    operators = ("ifelse(", "incr(", "decr(", "errprint(")
 
     def __init__(self, name, expander, file_defined, args=[], comments=[]):
         # Check if we have enough data
@@ -230,6 +232,8 @@ class M4Macro(object):
         self._name = name
         self._expander = expander
         self._expansion = None
+        self._expansion_static = None
+        self._dump = None
         self._file_defined = file_defined
         self._args = args
         self._comments = comments
@@ -241,6 +245,14 @@ class M4Macro(object):
 
     def expand(self, args=None):
         """Get the macro expansion using the provided arguments."""
+        # Check whether the M4 expansion is static (simple variable
+        # substitution) or dynamic (ifelses, ...)
+        if self._expansion_static is None:
+            # If the macro definition contains any m4 operator
+            if any(s in self.dump for s in M4Macro.operators):
+                self._expansion_static = False
+            else:
+                self._expansion_static = True
         if self.nargs == 0:
             # Ignore supplied arguments
             # Macro without arguments: the expansion is static. Save it for
@@ -253,16 +265,48 @@ class M4Macro(object):
             # Don't expand the macro with the placeholder arguments, as that
             # breaks on macros that expect numeric arguments
             # e.g. "gen_sens(N)" will not terminate if N is not a number
-            # TODO: maybe remove the first line? ("name:", not actually in exp)
-            # "\n".join(expansion.splitlines()[1:])
-            return self._expander.dump(self.name)
-        # Prepare the macro for expansion
-        text = self.name + "(" + ", ".join(args) + ")"
-        if len(args) == len(self.args):
-            # Expand using the given arguments
+            return self.dump
+        # Sanity check
+        if len(args) != len(self.args):
+            return None
+        # Expand the macro
+        if not self.expansion_static:
+            # If the expansion is dynamic, we have to call m4 every time
+            text = self.name + "(" + ", ".join(args) + ")"
             return self._expander.expand(text)
         else:
-            return None
+            # If the expansion is static, we can call m4 only once, and then
+            # perform Python string formatting all the other times.
+            if not self._expansion:
+                # Get the expansion with placeholders, if we don't have it
+                placeholders = []
+                for i in xrange(self.nargs):
+                    placeholders.append("@@ARG{}@@".format(i))
+                tmp = self.name + "(" + ", ".join(placeholders) + ")"
+                expansion = self._expander.expand(tmp)
+                # Double all curly brackets to make them literal
+                expansion = re.sub(r"([{}])", r"\1\1", expansion)
+                # Substitute @@ARGN@@ with {N} to format the argument for
+                # Python string formatting
+                self._expansion = re.sub(
+                    r"@@ARG([0-9]+)@@", r"{\1}", expansion)
+            # Expand using the given arguments
+            return self._expansion.format(*args)
+
+    @property
+    def expansion_static(self):
+        """Check whether the macro expansion is static (simple string
+        substitution) or dynamic (variable length depending on arguments)."""
+        return self._expansion_static
+
+    @property
+    def dump(self):
+        """Get the macro definition."""
+        if not self._dump:
+            dump = self._expander.dump(self.name)
+            # Remove the first line ("name:")
+            self._dump = "\n".join(dump.splitlines()[1:])
+        return self._dump
 
     @property
     def file_defined(self):
