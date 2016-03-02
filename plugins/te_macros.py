@@ -31,8 +31,8 @@ import policysource.mapping
 RULE_IGNORE_PATHS = []  # ["external/sepolicy"]
 
 # Do not try to reconstruct these macros
-MACRO_IGNORE = ["recovery_only", "non_system_app_set",
-                "userdebug_or_eng", "eng", "print"]
+MACRO_IGNORE = ["recovery_only", "non_system_app_set", "userdebug_or_eng",
+                "eng", "print", "permissive_or_unconfined"]
 
 # Only suggest macros that match above this threshold [0-1]
 SUGGESTION_THRESHOLD = 0.8
@@ -185,20 +185,13 @@ def main(policy, config):
                 if dmn.startswith(d):
                     rules_by_domain[d].extend(
                         policy.mapping.rules[r_up_to_class])
-    # print "Domains: {}".format(len(rules_by_domain))
-    # print "\n".join(rules_by_domain.keys())
-    # print "\n".join(policy.attributes["domain"])
-    # print len(policy.attributes["domain"])
-    # print "\n".join(policy.attributes["domain"])
-    # print len(policy.types)
-    # sys.exit(1)
 
     # Expand all macros with all possible arguments into the expansions dict
     for dmn, rules in rules_by_domain.iteritems():
         # TODO: change bruteforce into regex + query
         types = [x.rule.split()[2] for x in rules]
         # Handle the macros that expect the socket name without the tail
-        #types.extend([x[:-7] for x in types if x.endswith("_socket")])
+        types.extend([x[:-7] for x in types if x.endswith("_socket")])
         # Expand all single-argument macros with the domain as argument
         expansions.update(expand_macros(policy, dmn))
         # Expand all two-argument macros with domain, type as arguments
