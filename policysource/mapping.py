@@ -283,7 +283,8 @@ class AVRule(object):
         # Block 3 is the rule class
         self._tclass = blocks[3]
         # Block 4 is the set of permissions
-        self._perms = frozenset(blocks[4].strip("{}").split())
+        self._perms = blocks[4]
+        self._permset = frozenset(blocks[4].strip("{}").split())
 
     @property
     def rtype(self):
@@ -310,8 +311,13 @@ class AVRule(object):
 
     @property
     def perms(self):
-        """Get the rule set of permissions."""
+        """Get the rule permission string."""
         return self._perms
+
+    @property
+    def permset(self):
+        """Get the rule permissions as a set."""
+        return self._permset
 
     @property
     def up_to_class(self):
@@ -328,16 +334,16 @@ class AVRule(object):
         if not hasattr(self, "_str"):
             self._str = "{0.rtype} {0.source} {0.target}:{0.tclass} ".format(
                 self)
-            if len(self.perms) > 1:
-                self._str += "{ " + " ".join(sorted(self.perms)) + " };"
+            if len(self.permset) > 1:
+                self._str += "{ " + " ".join(sorted(self.permset)) + " };"
             else:
-                self._str += " ".join(self.perms) + ";"
+                self._str += " ".join(self.permset) + ";"
         return self._str
 
     def __eq__(self, other):
         return self.rtype == other.rtype and self.source == other.source and\
             self.target == other.target and self.tclass == other.tclass and\
-            self.perms == other.perms
+            self.permset == other.permset
 
     def __ne__(self, other):
         return not self == other
