@@ -133,7 +133,7 @@ class MappedRule(object):
     def __init__(self, rule, fileline):
         """Initialize a MappedRule.
 
-        rule     - the rule as an AVRule or TERule object
+        rule     - the rule as a string
         fileline - the origin file/line of the rule represented as a string
         e.g. "/the/path/to/the/file.te:42"
         """
@@ -514,11 +514,11 @@ class Mapper(object):
         # The rule type is block 0 and is static across expansions
         rtype = blocks[0]
         # Get the options for the subject (block 1)
-        subjects = self.__expand_block(blocks[1], "type")
+        subjects = self.expand_block(blocks[1], "type")
         # Get the options for the object (block 2)
-        objects = self.__expand_block(blocks[2], "type")
+        objects = self.expand_block(blocks[2], "type")
         # Get the options for the class (block 3)
-        classes = self.__expand_block(blocks[3], "class")
+        classes = self.expand_block(blocks[3], "class")
         # Multiplex the rule up to the class and append the permission set.
         # The permission set is dynamically generated for each class: thus
         # multiplex the class first to generate the permission set
@@ -530,7 +530,7 @@ class Mapper(object):
         if "self" in objects:
             # If subject is "self", substitute the object with the subject
             for cls in classes:
-                perms = self.__expand_block(blocks[4], "perms", for_class=cls)
+                perms = self.expand_block(blocks[4], "perms", for_class=cls)
                 if len(perms) > 1:
                     permstr = "{ " + " ".join(perms) + " }"
                 else:
@@ -542,7 +542,7 @@ class Mapper(object):
         else:
             # Expand the rule normally
             for cls in classes:
-                perms = self.__expand_block(blocks[4], "perms", for_class=cls)
+                perms = self.expand_block(blocks[4], "perms", for_class=cls)
                 if len(perms) > 1:
                     permstr = "{ " + " ".join(perms) + " }"
                 else:
@@ -582,11 +582,11 @@ class Mapper(object):
         # The rule type is block 0 and is static across expansions
         rtype = blocks[0]
         # Get the options for the subject (block 1)
-        subjects = self.__expand_block(blocks[1], "type")
+        subjects = self.expand_block(blocks[1], "type")
         # Get the options for the object (block 2)
-        objects = self.__expand_block(blocks[2], "type")
+        objects = self.expand_block(blocks[2], "type")
         # Get the options for the class (block 3)
-        classes = self.__expand_block(blocks[3], "class")
+        classes = self.expand_block(blocks[3], "class")
         # Multiplex the rule up to the class and append the additional data
         rules = {}
         # TODO: remove commented lines, simplify loop
@@ -609,7 +609,7 @@ class Mapper(object):
                         rules[base] = base + " " + add
         return rules
 
-    def __expand_block(self, block, role, for_class=None):
+    def expand_block(self, block, role, for_class=None):
         """Expand a rule block given its semantic role.
 
         Expands attributes, sets ({...}), type/attribute subtraction (-)
