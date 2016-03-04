@@ -195,31 +195,36 @@ def main(policy, config):
             continue
         args = []
         for i in xrange(m.nargs):
-            # args.append("@@ARG{}@@".format(i))
-            args.append(VALID_ARG_R)
+            args.append("@@ARG{}@@".format(i))
         # Expand the macro using the placeholder arguments
         exp_regex = m.expand(args)
-        rules = []
+        rules = {}
         # Get the Rule objects contained in the macro expansion
         for l in exp_regex.splitlines():
+            l = l.strip()
             # If this is a supported rule (not a comment, not a type def...)
             if l.startswith(policysource.mapping.ONLY_MAP_RULES):
                 try:
-                    tmp = MAPPER.rule_factory(l.strip())
+                    # Substitute the positional placeholder arguments with a
+                    # regex matching valid argument characters
+                    l_r = re.sub(r"@@ARG[0-9]+@@", VALID_ARG_R, l)
+                    # Generate the rule object corresponding to the rule with
+                    # regex arguments
+                    tmp = MAPPER.rule_factory(l_r)
                 except ValueError as e:
                     LOG.debug(e)
                     LOG.debug("Could not expand rule \"%s\"", l)
                 else:
-                    rules.append(tmp)
-        # Mark where the arguments go in the expansion
-        # for r in rules:
-        #    for a in args:
-        #        if a in r.source:
+                    rules[l] = tmp
+        # Initialise a MacroSuggestion object for this macro with the
+        # previously saved list of supported rules with positional placeholders
+        ms = MacroSuggestion(m, rules_to_suggest)
+        macro_suggestions = [ms]
 
         # Query the policy with regexes
         query_results_per_rule = {}
         total_masks += len(rules)
-        for r in rules:
+        for l, r in rules.iteritems():
             # Reset self
             self_target = False
 
@@ -285,12 +290,32 @@ def main(policy, config):
                 results = [x for x in query.results() if x.source == x.target]
             else:
                 results = list(query.results())
+            # Try to fill macros
+            for res in results:
+                newsugs = None
+                for sug in macro_suggestions:
+                    try:
+                        sug.add_rule(res)
+                    except ValueError as e:
+                        # TODO: log?
+                        newsug = sug.fork_and_fit(res)
+                        if newsugs:
+                            newsugs.append(newsug)
+                        else:
+                            newsugs = [newsug]
+                    except RuntimeError as e:
+                        # We should not get here: if we did, this rule did
+                        # not match any rule in the macro
+                        break
+                if newsugs:
+                    macro_suggestions.extend(newsug)
+            # TODO: MARK
+
             # TODO: this doesn't go here, it may take away some valid rules
             # at this stage
             # results = [x for x in results if str(x) not in full_usages_list]
             # for rule in results:
             #    print rule
-            # TODO: MARK
             print "Number of rules matching:"
             print len(results)
             total_rules += len(results)
@@ -363,15 +388,133 @@ def main(policy, config):
             continue
 
 
-class MacroRecognizer(object):
-    """Represents a generic argument macro expansion. Extracts the arguments
-    from the regex-matching rules that are submitted to it."""
+class MacroSuggestion(object):
+    """A macro suggestion with an associated score.
 
-    def __init__(self, rules):
-        self.rules = rules
-        self.regexes = []
-        for x in self.rules:
-            pass
+    Represents a macro expansion as a list of rules.
+    The score expresses the number of rules actually found in the policy."""
+
+    def __init__(self, macro, placeholder_rules):
+        self._macro = macro
+        self._placeholder_rules = placeholder_rules
+        self._extractors = {}
+        for r in self._placeholder_rules:
+            self._extractors[r] = ArgExtractor(r)
+        self._rules = {}
+        self._args = {}
+
+    def add_rule(self, rule):
+        """Mark a rule in the macro expansion as found in the policy."""
+        already_taken = False
+        for r, e in self._extractors.iteritems():
+            # If the supplied rule matches one of the rules in the macro,
+            # and that rule "slot" is not already taken by another rule
+            # TODO: fix, see paper
+            if re.match(e.regex, rule):
+                if r in self.rules:
+                    already_taken = True
+                    continue
+                # Get the arguments
+                args = e.extract(rule)
+                # If there are any conflicting arguments, don't add this rule
+                # i.e. arguments in the same position but with different values
+                for a in args:
+                    if a in self.args and args[a] != self.args[a]:
+                        raise ValueError("Mismatching arguments: expected "
+                                         "\"{}\", found \"{}\".".format(
+                                             self.args[a], args[a]))
+                # Add the new rule, associated with the corresponding
+                # placeholder rule
+                self.rules[r] = rule
+                # Update the args dictionary
+                self.args.update(args)
+                # Update the score
+                # The score is given by:
+                # Ratio of successfully matched rules
+                # *
+                # Ratio of determined arguments
+                # This way, a macro suggestion without the whole set of args
+                # is slightly penalised
+                score = len(self.rules) / float(len(self._placeholder_rules))
+                score *= len(self.args) / float(self.macro.nargs())
+                self._score = score
+                return
+        # If we found a rule that matched, but was already taken, and then
+        # found no suitable rule
+        if already_taken:
+            raise ValueError("Slot already taken. Fork and add the new rule.")
+        else:
+            # If we got here, we found no matching rule
+            raise RuntimeError("Invalid rule.")
+
+    def fork_and_fit(self, rule):
+        """Fork the current state of the macro suggestion, and modify it to fit
+        a new rule which would not normally fit because of mismatching args.
+        Remove the rule(s) that prevent it from fitting.
+
+        Returns a new MacroSuggestion object, or None if the macro does not
+        contain the rule."""
+        # Create a new macro suggestion object for the same macro
+        new = MacroSuggestion(self.macro, self.placeholder_rules)
+        # Add the mismatching rule first
+        try:
+            new.add_rule(rule)
+        except RuntimeError as e:
+            # The macro does not contain this rule: no point in adding it
+            return None
+        # Try to add the old rules
+        # The old rules are compatible between themselves by definition, since
+        # they came from an accepted state of a macro suggestion. Therefore,
+        # the order does not matter when adding them back: if adding a rule
+        # fails, it does not impact the overall set of rules.
+        for r in self.rules.values():
+            try:
+                new.add_rule(r)
+            except ValueError as e:
+                # TODO: log?
+                pass
+        return new
+
+    @property
+    def macro(self):
+        return self._macro
+
+    @property
+    def placeholder_rules(self):
+        return self._placeholder_rules
+
+    @property
+    def args(self):
+        return self._args
+
+    @property
+    def rules(self):
+        return self._rules
+
+    @property
+    def score(self):
+        return self._score
+
+    def __eq__(self, other):
+        """Check whether this suggestion is a duplicate of another."""
+        return self.rules == other.rules
+
+    def __ne__(self, other):
+        return self.rules != other.rules
+
+    # TODO: implement rich comparison operators to be able to detect macros
+    # which are a sub/superset of another
+
+    @property
+    def usage(self):
+        usage = self.macro.name + "("
+        for i in xrange(self.macro.nargs()):
+            argn = "arg" + str(i)
+            if argn in self.args:
+                usage += self.args[argn] + ", "
+            else:
+                usage += "<MISSING_ARG>, "
+        return usage.rstrip(", ") + ")"
 
 
 class ArgExtractor(object):
