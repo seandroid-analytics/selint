@@ -20,9 +20,11 @@ import logging
 import sys
 import os
 import os.path
+import re
 import policysource
 import policysource.policy
 import policysource.mapping
+import setools
 
 # Do not make suggestions on rules coming from files in these paths
 #
@@ -48,6 +50,9 @@ LOG = None
 
 # Global variable to hold the mapper
 MAPPER = None
+
+# Regex for a valid argument in m4
+VALID_ARG_R = r"[a-zA-Z0-9_-]+"
 
 
 def process_expansion(expansionstring):
@@ -173,35 +178,130 @@ def main(policy, config):
     full_usages_list = process_expansion(full_usages_expansion)
 
     expansions = {}
-    # Group rules by domain
-    rules_by_domain = {}
+    # Compute expansions of single-argument macros
+    # This is much faster than the second method
     for dmn in policy.attributes["domain"]:
-        rules_by_domain[dmn] = []
-    for r_up_to_class in policy.mapping.rules:
-        if r_up_to_class.startswith(policysource.mapping.AVRULES):
-            dmn = r_up_to_class.split()[1]
-            for d in rules_by_domain:
-                # TODO: very crude, check that this does not introduce mistakes
-                if dmn.startswith(d):
-                    rules_by_domain[d].extend(
-                        policy.mapping.rules[r_up_to_class])
-
-    # Expand all macros with all possible arguments into the expansions dict
-    for dmn, rules in rules_by_domain.iteritems():
-        # TODO: change bruteforce into regex + query
-        types = [x.rule.split()[2] for x in rules]
-        # Handle the macros that expect the socket name without the tail
-        types.extend([x[:-7] for x in types if x.endswith("_socket")])
-        # Expand all single-argument macros with the domain as argument
         expansions.update(expand_macros(policy, dmn))
-        # Expand all two-argument macros with domain, type as arguments
-        for x in types:
-            expansions.update(expand_macros(policy, dmn, x))
-        # Expand all three-argument macros with domain, type, type as arguments
-        # for x in types:
-        #    for y in types:
-        #        expansions.update(expand_macros(policy, dmn, x, y))
+    # Bruteforcing multiple-argument macros would be too expensive.
+    # Try a different approach
+    total_rules = 0
+    total_masks = 0
+    for m in policy.macro_defs.values():
+        # Skip single-argument macros, we have already covered them
+        if m.nargs < 2:
+            continue
+        # Only consider te_macros not purposefully ignored
+        if not m.file_defined.endswith("te_macros") or m.name in MACRO_IGNORE:
+            continue
+        args = []
+        for i in xrange(m.nargs):
+            # args.append("@@ARG{}@@".format(i))
+            args.append(VALID_ARG_R)
+        # Expand the macro using the placeholder arguments
+        exp_regex = m.expand(args)
+        rules = []
+        # Get the Rule objects contained in the macro expansion
+        for l in exp_regex.splitlines():
+            # If this is a supported rule (not a comment, not a type def...)
+            if l.startswith(policysource.mapping.ONLY_MAP_RULES):
+                try:
+                    tmp = MAPPER.rule_factory(l.strip())
+                except ValueError as e:
+                    LOG.debug(e)
+                    LOG.debug("Could not expand rule \"%s\"", l)
+                else:
+                    rules.append(tmp)
+        # Mark where the arguments go in the expansion
+        # for r in rules:
+        #    for a in args:
+        #        if a in r.source:
 
+        # Query the policy with regexes
+        query_results_per_rule = {}
+        total_masks += len(rules)
+        for r in rules:
+            # Reset self
+            self_target = False
+
+            print
+            print r
+
+            sr = r"[a-zA-Z0-9_-]+" in r.source
+            tr = r"[a-zA-Z0-9_-]+" in r.target
+            cr = r"[a-zA-Z0-9_-]+" in r.tclass
+            # Handle class sets
+            xtclass = MAPPER.expand_block(r.tclass, "class")
+            # Handle self
+            if r.target == "self":
+                self_target = True
+                xtarget = r"[a-zA-Z0-9_-]+"
+                tr = True
+            else:
+                xtarget = r.target
+
+            # Query for an AV rule
+            if r.rtype in policysource.mapping.AVRULES:
+                # Handle perms
+                # This is a special permission block, expand it given the class
+                # it applies to.
+                if any(x in r.perms for x in "*~{}"):
+                    if len(xtclass) > 1:
+                        # If multiple classes are specified, this is a
+                        # mistake and we can't do anything.
+                        LOG.warning("Cannot compute permissions for rule: "
+                                    "\"%s\"", r)
+                        # Match a superset of an empty set - i.e. any perms
+                        xperms = set()
+                    else:
+                        xperms = set(MAPPER.expand_block(
+                            r.perms, "perms", for_class=xtclass[0]))
+                else:
+                    xperms = r.permset
+                query = setools.terulequery.TERuleQuery(policy=policy.policy,
+                                                        ruletype=[r.rtype],
+                                                        source=r.source,
+                                                        source_regex=sr,
+                                                        target=xtarget,
+                                                        target_regex=tr,
+                                                        tclass=xtclass,
+                                                        tclass_regex=cr,
+                                                        perms=xperms,
+                                                        perms_subset=True)
+            # Query for a TE rule
+            if r.rtype in policysource.mapping.TERULES:
+                dr = r"[a-zA-Z0-9_-]+" in r.deftype
+                query = setools.terulequery.TERuleQuery(policy=policy.policy,
+                                                        ruletype=[r.rtype],
+                                                        source=r.source,
+                                                        source_regex=sr,
+                                                        target=xtarget,
+                                                        target_regex=tr,
+                                                        tclass=xtclass,
+                                                        tclass_regex=cr,
+                                                        default=r.deftype,
+                                                        default_regex=dr)
+            # Filter all rules
+            if self_target:
+                results = [x for x in query.results() if x.source == x.target]
+            else:
+                results = list(query.results())
+            # TODO: this doesn't go here, it may take away some valid rules
+            # at this stage
+            # results = [x for x in results if str(x) not in full_usages_list]
+            # for rule in results:
+            #    print rule
+            # TODO: MARK
+            print "Number of rules matching:"
+            print len(results)
+            total_rules += len(results)
+            print "Number of distinct domains:"
+            print len(set((x.source for x in results)))
+            print "Number of distinct types:"
+            print len(set((x.target for x in results)))
+
+    print total_masks
+    print total_rules
+    sys.exit(0)
     # Analyse each possible usage suggestions and assign it a score indicating
     # how well the suggested expansion fits in the existing set of rules.
     # If the score is sufficiently high, suggest using the macro.
@@ -261,3 +361,58 @@ def main(policy, config):
             print "\n".join([str(x) for x in missing_rules])
             print
             continue
+
+
+class MacroRecognizer(object):
+    """Represents a generic argument macro expansion. Extracts the arguments
+    from the regex-matching rules that are submitted to it."""
+
+    def __init__(self, rules):
+        self.rules = rules
+        self.regexes = []
+        for x in self.rules:
+            pass
+
+
+class ArgExtractor(object):
+    """Extract macro arguments from an expanded rule according to a regex."""
+    placeholder_r = r"@@ARG[0-9]+@@"
+
+    def __init__(self, rule):
+        """Initialise the ArgExtractor with the rule expanded with the named
+        placeholders.
+
+        e.g.: "allow @@ARG0@@ @@ARG3@@:notdevfile_class_set create_file_perms;"
+        """
+        self.rule = rule
+        # Convert the rule to a regex that matches it and extracts the groups
+        self.regex = re.sub(self.placeholder_r,
+                            "(" + VALID_ARG_R + ")", self.rule)
+        # Save the argument names as "argN"
+        self.args = [x.strip("@").lower()
+                     for x in re.findall(self.placeholder_r, self.rule)]
+
+    def extract(self, rule):
+        """Extract the named arguments from a matching rule."""
+        match = re.match(self.regex, rule)
+        retdict = {}
+        if match:
+            # The rule matches the regex: extract the matches
+            groups = match.groups()
+            for i in xrange(len(groups)):
+                # Handle multiple occurrences of the same argument in a rule
+                # If the occurrences don't all have the same value, this rule
+                # does not actually match the placeholder rule
+                if self.args[i] in retdict:
+                    # If we have found this argument already
+                    if retdict[self.args[i]] != groups[i]:
+                        # If the value we just found is different
+                        return None
+                else:
+                    retdict[self.args[i]] = groups[i]
+            return retdict
+        else:
+            # The rule does not match the regex: why has it been passed in in
+            # the first place?
+            raise ValueError("Rule does not match ArgExtractor expression: "
+                             "\"{}\"".format(self.regex))
