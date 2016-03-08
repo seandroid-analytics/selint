@@ -21,10 +21,12 @@ import sys
 import os
 import os.path
 import re
+import time
 import policysource
 import policysource.policy
 import policysource.mapping
 import setools
+from setools.terulequery import TERuleQuery as TERuleQuery
 
 # Do not make suggestions on rules coming from files in these paths
 #
@@ -186,6 +188,7 @@ def main(policy, config):
     # Try a different approach
     total_rules = 0
     total_masks = 0
+    start = time.time()
     for m in policy.macro_defs.values():
         # Skip single-argument macros, we have already covered them
         if m.nargs < 2:
@@ -199,12 +202,16 @@ def main(policy, config):
         # Expand the macro using the placeholder arguments
         exp_regex = m.expand(args)
         rules = {}
+        rules_to_suggest = []
         # Get the Rule objects contained in the macro expansion
         for l in exp_regex.splitlines():
             l = l.strip()
             # If this is a supported rule (not a comment, not a type def...)
             if l.startswith(policysource.mapping.ONLY_MAP_RULES):
                 try:
+                    # Save the supported rule for later MacroSuggestion
+                    # initialization
+                    rules_to_suggest.append(l)
                     # Substitute the positional placeholder arguments with a
                     # regex matching valid argument characters
                     l_r = re.sub(r"@@ARG[0-9]+@@", VALID_ARG_R, l)
@@ -227,10 +234,7 @@ def main(policy, config):
         for l, r in rules.iteritems():
             # Reset self
             self_target = False
-
-            print
-            print r
-
+            # Set boolean "is regex" parameters for query
             sr = r"[a-zA-Z0-9_-]+" in r.source
             tr = r"[a-zA-Z0-9_-]+" in r.target
             cr = r"[a-zA-Z0-9_-]+" in r.tclass
@@ -247,9 +251,9 @@ def main(policy, config):
             # Query for an AV rule
             if r.rtype in policysource.mapping.AVRULES:
                 # Handle perms
-                # This is a special permission block, expand it given the class
-                # it applies to.
                 if any(x in r.perms for x in "*~{}"):
+                    # This is a special permission block, expand it given
+                    # the class it applies to.
                     if len(xtclass) > 1:
                         # If multiple classes are specified, this is a
                         # mistake and we can't do anything.
@@ -262,70 +266,61 @@ def main(policy, config):
                             r.perms, "perms", for_class=xtclass[0]))
                 else:
                     xperms = r.permset
-                query = setools.terulequery.TERuleQuery(policy=policy.policy,
-                                                        ruletype=[r.rtype],
-                                                        source=r.source,
-                                                        source_regex=sr,
-                                                        target=xtarget,
-                                                        target_regex=tr,
-                                                        tclass=xtclass,
-                                                        tclass_regex=cr,
-                                                        perms=xperms,
-                                                        perms_subset=True)
+                query = TERuleQuery(policy=policy.policy, ruletype=[r.rtype],
+                                    source=r.source, source_regex=sr,
+                                    target=xtarget, target_regex=tr,
+                                    tclass=xtclass, tclass_regex=cr,
+                                    perms=xperms, perms_subset=True)
             # Query for a TE rule
-            if r.rtype in policysource.mapping.TERULES:
+            elif r.rtype in policysource.mapping.TERULES:
                 dr = r"[a-zA-Z0-9_-]+" in r.deftype
-                query = setools.terulequery.TERuleQuery(policy=policy.policy,
-                                                        ruletype=[r.rtype],
-                                                        source=r.source,
-                                                        source_regex=sr,
-                                                        target=xtarget,
-                                                        target_regex=tr,
-                                                        tclass=xtclass,
-                                                        tclass_regex=cr,
-                                                        default=r.deftype,
-                                                        default_regex=dr)
+                query = TERuleQuery(policy=policy.policy, ruletype=[r.rtype],
+                                    source=r.source, source_regex=sr,
+                                    target=xtarget, target_regex=tr,
+                                    tclass=xtclass, tclass_regex=cr,
+                                    default=r.deftype, default_regex=dr)
+            else:
+                # We should have no other rules, as they are already filtered
+                # when creating the list with the rule_factory method
+                LOG.warning("Unsupported rule: \"%s\"", r)
+                continue
             # Filter all rules
             if self_target:
+                # Discard rules whose mask contained "self" as a target,
+                # but whose result's source and target are different
                 results = [x for x in query.results() if x.source == x.target]
             else:
                 results = list(query.results())
-            # Try to fill macros
+            # Try to fill macro suggestions
             for res in results:
-                newsugs = None
+                newsugs = []
                 for sug in macro_suggestions:
                     try:
-                        sug.add_rule(res)
+                        sug.add_rule(str(res))
                     except ValueError as e:
-                        # TODO: log?
-                        newsug = sug.fork_and_fit(res)
-                        if newsugs:
+                        LOG.debug(e)
+                        LOG.debug("Mismatching rule: \"%s\"", res)
+                        newsug = sug.fork_and_fit(str(res))
+                        if newsug:
                             newsugs.append(newsug)
-                        else:
-                            newsugs = [newsug]
                     except RuntimeError as e:
                         # We should not get here: if we did, this rule did
                         # not match any rule in the macro
                         break
                 if newsugs:
-                    macro_suggestions.extend(newsug)
-            # TODO: MARK
+                    macro_suggestions.extend(newsugs)
+            # Discard suggestions whose score is too low
+            macro_suggestions = [
+                x for x in macro_suggestions if x.score >= SUGGESTION_THRESHOLD]
+            print "Time spent on \"{}\": {}s".format(m, time.time() - start)
+            print "Number of suggestions: {}".format(len(macro_suggestions))
+    end = time.time()
+    elapsed = end - start
+    print "Time spent expanding >1 -arg macros: {}s".format(elapsed)
+    print "Avg time/macro: {}s".format(elapsed / float(len(policy.macro_defs)))
+    print "Total queries: {}".format(total_masks)
+    print "Total rules in results: {}".format(total_rules)
 
-            # TODO: this doesn't go here, it may take away some valid rules
-            # at this stage
-            # results = [x for x in results if str(x) not in full_usages_list]
-            # for rule in results:
-            #    print rule
-            print "Number of rules matching:"
-            print len(results)
-            total_rules += len(results)
-            print "Number of distinct domains:"
-            print len(set((x.source for x in results)))
-            print "Number of distinct types:"
-            print len(set((x.target for x in results)))
-
-    print total_masks
-    print total_rules
     sys.exit(0)
     # Analyse each possible usage suggestions and assign it a score indicating
     # how well the suggested expansion fits in the existing set of rules.
@@ -402,6 +397,7 @@ class MacroSuggestion(object):
             self._extractors[r] = ArgExtractor(r)
         self._rules = {}
         self._args = {}
+        self._score = 0
 
     def add_rule(self, rule):
         """Mark a rule in the macro expansion as found in the policy."""
@@ -436,7 +432,7 @@ class MacroSuggestion(object):
                 # This way, a macro suggestion without the whole set of args
                 # is slightly penalised
                 score = len(self.rules) / float(len(self._placeholder_rules))
-                score *= len(self.args) / float(self.macro.nargs())
+                score *= len(self.args) / float(self.macro.nargs)
                 self._score = score
                 return
         # If we found a rule that matched, but was already taken, and then
@@ -502,8 +498,17 @@ class MacroSuggestion(object):
     def __ne__(self, other):
         return self.rules != other.rules
 
-    # TODO: implement rich comparison operators to be able to detect macros
-    # which are a sub/superset of another
+    def __lt__(self, other):
+        return set(self.rules) < set(other.rules)
+
+    def __le__(self, other):
+        return set(self.rules) <= set(other.rules)
+
+    def __gt__(self, other):
+        return set(self.rules) > set(other.rules)
+
+    def __ge__(self, other):
+        return set(self.rules) >= set(other.rules)
 
     @property
     def usage(self):
