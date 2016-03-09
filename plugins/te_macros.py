@@ -25,6 +25,7 @@ import time
 import policysource
 import policysource.policy
 import policysource.mapping
+import policysource.macro
 import setools
 from setools.terulequery import TERuleQuery as TERuleQuery
 
@@ -36,13 +37,14 @@ RULE_IGNORE_PATHS = []  # ["external/sepolicy"]
 
 # Do not try to reconstruct these macros
 MACRO_IGNORE = ["recovery_only", "non_system_app_set", "userdebug_or_eng",
-                "eng", "print", "permissive_or_unconfined"]
+                "print", "permissive_or_unconfined", "userfastboot_only",
+                "notuserfastboot", "eng"]
 
 # Only suggest macros that match above this threshold [0-1]
 SUGGESTION_THRESHOLD = 0.8
 
 ##############################################################################
-####################### Do not touch below this line #########################
+################# Do not edit configuration below this line ##################
 ##############################################################################
 # Global variable to hold the te_macros M4Macro objects
 TE_MACROS_BY_NARG = None
@@ -75,8 +77,8 @@ def process_expansion(expansionstring):
             xpn = MAPPER.expand_rule(r)
         # TODO: fix logging properly by e.g. splitting in functions
         except ValueError as e:
-            #LOG.debug("Could not expand rule \"%s\"", r)
-            pass
+            LOG.debug(e)
+            LOG.debug("Could not expand rule \"%s\"", r)
         else:
             expansionlist.extend(xpn.values())
     return expansionlist
@@ -88,7 +90,6 @@ def expand_macros(policy, arg1, arg2=None, arg3=None):
     Return a dictionary of macros {text:[rules]} where [rules] is a list of
     rules obtained by expanding all the rules found in the macro expansion
     taking into account attributes, permission sets etc.
-    The list contains AVRule or TERule objects.
 
     e.g.:
     arg1 = "domain"
@@ -96,23 +97,15 @@ def expand_macros(policy, arg1, arg2=None, arg3=None):
     arg3 = "file_type"
     text = "file_type_trans(domain, dir_type, file_type)"
     [rules] = [
-    "allow domain dir_type:dir { search read ioctl write getattr open add_name };",
-    "allow domain file_type:dir { rename search setattr read create reparent ioctl write getattr rmdir remove_name open add_name };",
+    "allow domain dir_type:dir { search read ioctl write getattr open
+                                 add_name };",
+    "allow domain file_type:dir { rename search setattr read create reparent
+                                  ioctl write getattr rmdir remove_name open
+                                  add_name };",
     "allow ...    ...      : ..."]
     """
     # The return dictionary
     retdict = {}
-    # Generate a dictionary of te_macros grouped by number of arguments
-    global TE_MACROS_BY_NARG
-    if TE_MACROS_BY_NARG is None:
-        TE_MACROS_BY_NARG = {}
-        for m in policy.macro_defs.values():
-            if m.file_defined.endswith("te_macros") and m.name not in MACRO_IGNORE:
-                # m is a te_macro, add
-                if m.nargs in TE_MACROS_BY_NARG:
-                    TE_MACROS_BY_NARG[m.nargs].append(m)
-                else:
-                    TE_MACROS_BY_NARG[m.nargs] = [m]
     # Save the macro expansions
     expansions = {}
     # Expand all the macros that fit the number of supplied arguments
@@ -138,6 +131,7 @@ def expand_macros(policy, arg1, arg2=None, arg3=None):
 
 
 def main(policy, config):
+    """Suggest usages of te_macrosi where appropriate."""
     # Check that we have been fed a valid policy
     if not isinstance(policy, policysource.policy.SourcePolicy):
         raise ValueError("Invalid policy")
@@ -156,46 +150,31 @@ def main(policy, config):
     FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
                               for p in RULE_IGNORE_PATHS)
 
+    # Generate a dictionary of te_macros grouped by number of arguments
+    global TE_MACROS_BY_NARG
+    TE_MACROS_BY_NARG = {}
+    for m in policy.macro_defs.values():
+        if m.file_defined.endswith("te_macros") and m.name not in MACRO_IGNORE:
+            # m is a te_macro, add
+            if m.nargs in TE_MACROS_BY_NARG:
+                TE_MACROS_BY_NARG[m.nargs].append(m)
+            else:
+                TE_MACROS_BY_NARG[m.nargs] = [m]
+
     # Suggestions: {frozenset(filelines): [suggestions]}
     suggestions = {}
 
-    # Set of rules deriving from the expansion of all the recorded macro
-    # usages
-    full_usages_string = ""
-    expanded_macrousages = set()
-
-    # Prepare macro usages dictionary with macros grouped by name
-    macrousages_dict = {}
-    for m in policy.macro_usages:
-        if m.macro.file_defined.endswith("te_macros") and\
-                m.name not in MACRO_IGNORE:
-            if m.name in macrousages_dict:
-                macrousages_dict[m.name].append(m)
-            else:
-                macrousages_dict[m.name] = [m]
-            # Prepare the string for expansion
-            full_usages_string += str(m) + "\n"
-    # Expand the string containing all macro usages
-    full_usages_expansion = policy._expander.expand(full_usages_string)
-    full_usages_list = process_expansion(full_usages_expansion)
-
     expansions = {}
-    # Compute expansions of single-argument macros
-    # This is much faster than the second method
-    for dmn in policy.attributes["domain"]:
-        expansions.update(expand_macros(policy, dmn))
-    # Bruteforcing multiple-argument macros would be too expensive.
-    # Try a different approach
     total_rules = 0
     total_masks = 0
     start = time.time()
-    for m in policy.macro_defs.values():
-        # Skip single-argument macros, we have already covered them
-        if m.nargs < 2:
-            continue
-        # Only consider te_macros not purposefully ignored
-        if not m.file_defined.endswith("te_macros") or m.name in MACRO_IGNORE:
-            continue
+    # Only consider te_macros not purposefully ignored
+    selected_macros = [x for x in policy.macro_defs.values() if
+                       x.file_defined.endswith("te_macros") and not
+                       x.name in MACRO_IGNORE]
+    for k, m in enumerate(selected_macros, start=1):
+        print "Processing \"{}\" ({}/{})...".format(m, k, len(selected_macros))
+        # Generate numbered placeholder arguments
         args = []
         for i in xrange(m.nargs):
             args.append("@@ARG{}@@".format(i))
@@ -209,9 +188,6 @@ def main(policy, config):
             # If this is a supported rule (not a comment, not a type def...)
             if l.startswith(policysource.mapping.ONLY_MAP_RULES):
                 try:
-                    # Save the supported rule for later MacroSuggestion
-                    # initialization
-                    rules_to_suggest.append(l)
                     # Substitute the positional placeholder arguments with a
                     # regex matching valid argument characters
                     l_r = re.sub(r"@@ARG[0-9]+@@", VALID_ARG_R, l)
@@ -222,24 +198,76 @@ def main(policy, config):
                     LOG.debug(e)
                     LOG.debug("Could not expand rule \"%s\"", l)
                 else:
-                    rules[l] = tmp
+                    if tmp.rtype in policysource.mapping.AVRULES:
+                        # Handle class and permission sets
+                        # For each class in the class set (len >= 1)
+                        for c in MAPPER.expand_block(tmp.tclass, "class"):
+                            # Compute the permission set for the class
+                            permset = set(MAPPER.expand_block(tmp.perms,
+                                                              "perms",
+                                                              for_class=c))
+                            # Compute the permission string from the set
+                            if len(permset) > 1:
+                                perms = "{ " + ", ".join(sorted(permset)) +\
+                                    " }"
+                            else:
+                                perms = list(permset)[0]
+                            # Calculate the new placeholder string
+                            i = l.index(":") + 1
+                            nl = l[:i] + c + " " + perms + ";"
+                            # Save the new placeholder string to initialize
+                            # MacroSuggestions
+                            rules_to_suggest.append(nl)
+                            # Add the rule to the dict of rules resulting from
+                            # the macro expansion. This is inexact, because we
+                            # are changing the effective number of rules by
+                            # multiplexing the class sets; however, doing so
+                            # allows us to escape countless problems and obtain
+                            # more meaningful results.
+                            rules[nl] = policysource.mapping.AVRule(
+                                [tmp.rtype, tmp.source, tmp.target, c, perms])
+                    elif tmp.rtype in policysource.mapping.TERULES:
+                        # Handle class sets
+                        # For each class in the class set (len >= 1)
+                        blocks = MAPPER.get_rule_blocks(l)
+                        for c in MAPPER.expand_block(tmp.tclass, "class"):
+                            # Calculate the new placeholder string
+                            i = l.index(":") + 1
+                            nl = l[:i] + c + " " + blocks[4]
+                            if len(blocks) == 6:
+                                nl += " " + blocks[5]
+                            nl += ";"
+                            # Save the new placeholder string to initialize
+                            # MacroSuggestions
+                            rules_to_suggest.append(nl)
+                            # Add the rule to the dict of rules resulting from
+                            # the macro expansion. This is inexact, because we
+                            # are changing the effective number of rules by
+                            # multiplexing the class sets; however, doing so
+                            # allows us to escape countless problems and obtain
+                            # more meaningful results.
+                            if tmp.is_name_trans:
+                                rules[nl] = policysource.mapping.TERule(
+                                    [tmp.rtype, tmp.source, tmp.target, c,
+                                        tmp.deftype, tmp.objname])
+                            else:
+                                rules[nl] = policysource.mapping.TERule(
+                                    [tmp.rtype, tmp.source, tmp.target, c,
+                                        tmp.deftype])
         # Initialise a MacroSuggestion object for this macro with the
         # previously saved list of supported rules with positional placeholders
         ms = MacroSuggestion(m, rules_to_suggest)
-        macro_suggestions = [ms]
+        macro_suggestions = set([ms])
 
         # Query the policy with regexes
-        query_results_per_rule = {}
         total_masks += len(rules)
         for l, r in rules.iteritems():
             # Reset self
             self_target = False
-            # Set boolean "is regex" parameters for query
+            # Set whether a query parameter is a regex or a string
             sr = r"[a-zA-Z0-9_-]+" in r.source
             tr = r"[a-zA-Z0-9_-]+" in r.target
             cr = r"[a-zA-Z0-9_-]+" in r.tclass
-            # Handle class sets
-            xtclass = MAPPER.expand_block(r.tclass, "class")
             # Handle self
             if r.target == "self":
                 self_target = True
@@ -247,37 +275,20 @@ def main(policy, config):
                 tr = True
             else:
                 xtarget = r.target
-
             # Query for an AV rule
             if r.rtype in policysource.mapping.AVRULES:
-                # Handle perms
-                if any(x in r.perms for x in "*~{}"):
-                    # This is a special permission block, expand it given
-                    # the class it applies to.
-                    if len(xtclass) > 1:
-                        # If multiple classes are specified, this is a
-                        # mistake and we can't do anything.
-                        LOG.warning("Cannot compute permissions for rule: "
-                                    "\"%s\"", r)
-                        # Match a superset of an empty set - i.e. any perms
-                        xperms = set()
-                    else:
-                        xperms = set(MAPPER.expand_block(
-                            r.perms, "perms", for_class=xtclass[0]))
-                else:
-                    xperms = r.permset
                 query = TERuleQuery(policy=policy.policy, ruletype=[r.rtype],
                                     source=r.source, source_regex=sr,
                                     target=xtarget, target_regex=tr,
-                                    tclass=xtclass, tclass_regex=cr,
-                                    perms=xperms, perms_subset=True)
+                                    tclass=[r.tclass], tclass_regex=cr,
+                                    perms=r.permset, perms_subset=True)
             # Query for a TE rule
             elif r.rtype in policysource.mapping.TERULES:
                 dr = r"[a-zA-Z0-9_-]+" in r.deftype
                 query = TERuleQuery(policy=policy.policy, ruletype=[r.rtype],
                                     source=r.source, source_regex=sr,
                                     target=xtarget, target_regex=tr,
-                                    tclass=xtclass, tclass_regex=cr,
+                                    tclass=[r.tclass], tclass_regex=cr,
                                     default=r.deftype, default_regex=dr)
             else:
                 # We should have no other rules, as they are already filtered
@@ -291,6 +302,9 @@ def main(policy, config):
                 results = [x for x in query.results() if x.source == x.target]
             else:
                 results = list(query.results())
+            # print "Results:"
+            # print "\n".join([str(x) for x in results])
+            # print
             # Try to fill macro suggestions
             for res in results:
                 newsugs = []
@@ -308,18 +322,20 @@ def main(policy, config):
                         # not match any rule in the macro
                         break
                 if newsugs:
-                    macro_suggestions.extend(newsugs)
-            # Discard suggestions whose score is too low
-            macro_suggestions = [
-                x for x in macro_suggestions if x.score >= SUGGESTION_THRESHOLD]
-            print "Time spent on \"{}\": {}s".format(m, time.time() - start)
-            print "Number of suggestions: {}".format(len(macro_suggestions))
+                    macro_suggestions.update(newsugs)
+        # Discard suggestions whose score is too low
+        macro_suggestions = [
+            x for x in macro_suggestions if x.score >= SUGGESTION_THRESHOLD]
+        part = time.time() - start
+        print "Time spent on \"{}\": {}s".format(m, part)
+        print "Number of suggestions: {}".format(len(macro_suggestions))
+        print "\n".join([str(x) for x in macro_suggestions])
+        print
     end = time.time()
     elapsed = end - start
-    print "Time spent expanding >1 -arg macros: {}s".format(elapsed)
-    print "Avg time/macro: {}s".format(elapsed / float(len(policy.macro_defs)))
+    print "Time spent expanding macros: {}s".format(elapsed)
+    print "Avg time/macro: {}s".format(elapsed / float(len(selected_macros)))
     print "Total queries: {}".format(total_masks)
-    print "Total rules in results: {}".format(total_rules)
 
     sys.exit(0)
     # Analyse each possible usage suggestions and assign it a score indicating
@@ -330,11 +346,9 @@ def main(policy, config):
         if not expansion:
             continue
         # Gather the macro name and args from the string representation
-        # TODO: unoptimal, consider ad-hoc structure
-        i = possible_usage.index("(")
-        name = possible_usage[:i]
-        args = set(x.strip()
-                   for x in possible_usage[i:].strip("()").split(","))
+        # i = policysource.macro.MacroInPolicy.parse_usage(possible_usage)
+        # name = i[0]
+        # args = set(i[1])
         # Compute the score for the macro suggestion
         score = 0
         # Save the existing rules that the macro suggestion matches exactly
@@ -401,17 +415,19 @@ class MacroSuggestion(object):
 
     def add_rule(self, rule):
         """Mark a rule in the macro expansion as found in the policy."""
-        already_taken = False
+        already_taken = ""
         for r, e in self._extractors.iteritems():
             # If the supplied rule matches one of the rules in the macro,
             # and that rule "slot" is not already taken by another rule
-            # TODO: fix, see paper
-            if re.match(e.regex, rule):
-                if r in self.rules:
-                    already_taken = True
-                    continue
+            if r in self.rules:
+                already_taken = self.rules[r]
+                continue
+            try:
                 # Get the arguments
                 args = e.extract(rule)
+            except ValueError as e:
+                continue
+            else:
                 # If there are any conflicting arguments, don't add this rule
                 # i.e. arguments in the same position but with different values
                 for a in args:
@@ -424,13 +440,12 @@ class MacroSuggestion(object):
                 self.rules[r] = rule
                 # Update the args dictionary
                 self.args.update(args)
-                # Update the score
-                # The score is given by:
+                # Update the score. The score is given by:
                 # Ratio of successfully matched rules
                 # *
                 # Ratio of determined arguments
-                # This way, a macro suggestion without the whole set of args
-                # is slightly penalised
+                # This way, a macro suggestion which does not provide the whole
+                # set of args is penalised
                 score = len(self.rules) / float(len(self._placeholder_rules))
                 score *= len(self.args) / float(self.macro.nargs)
                 self._score = score
@@ -438,7 +453,8 @@ class MacroSuggestion(object):
         # If we found a rule that matched, but was already taken, and then
         # found no suitable rule
         if already_taken:
-            raise ValueError("Slot already taken. Fork and add the new rule.")
+            raise ValueError(
+                "Slot already taken by \"{}\"!".format(already_taken))
         else:
             # If we got here, we found no matching rule
             raise RuntimeError("Invalid rule.")
@@ -455,7 +471,7 @@ class MacroSuggestion(object):
         # Add the mismatching rule first
         try:
             new.add_rule(rule)
-        except RuntimeError as e:
+        except RuntimeError:
             # The macro does not contain this rule: no point in adding it
             return None
         # Try to add the old rules
@@ -473,22 +489,38 @@ class MacroSuggestion(object):
 
     @property
     def macro(self):
+        """Get the M4Macro object relative to the macro being suggested."""
         return self._macro
 
     @property
     def placeholder_rules(self):
+        """Get the list of valid rules contained in the macro expansion with
+        numbered placeholder arguments."""
         return self._placeholder_rules
 
     @property
     def args(self):
+        """Get the suggestion arguments.
+
+        Returns a dictionary {positional name: value}, e.g.:
+        args =  {"arg1": "mydomain", "arg2": "mytype"}
+        """
         return self._args
 
     @property
     def rules(self):
+        """Get the list of valid rules contained in the macro expansion with
+        the suggestion arguments."""
         return self._rules
 
     @property
     def score(self):
+        """Get the suggestion score [0,1].
+
+        The score is given by:
+        Ratio of successfully matched rules * Ratio of determined arguments
+        This way, a macro suggestion which does not provide the whole set of
+        args is penalised."""
         return self._score
 
     def __eq__(self, other):
@@ -510,10 +542,17 @@ class MacroSuggestion(object):
     def __ge__(self, other):
         return set(self.rules) >= set(other.rules)
 
+    def __repr__(self):
+        return self.usage + ": " + str(self.score)
+
+    def __hash__(self):
+        return hash(str(self))
+
     @property
     def usage(self):
+        """Get the suggested usage as a string."""
         usage = self.macro.name + "("
-        for i in xrange(self.macro.nargs()):
+        for i in xrange(self.macro.nargs):
             argn = "arg" + str(i)
             if argn in self.args:
                 usage += self.args[argn] + ", "
@@ -530,37 +569,178 @@ class ArgExtractor(object):
         """Initialise the ArgExtractor with the rule expanded with the named
         placeholders.
 
-        e.g.: "allow @@ARG0@@ @@ARG3@@:notdevfile_class_set create_file_perms;"
+        e.g.: "allow @@ARG0@@ @@ARG0@@_tmpfs:file execute;"
         """
         self.rule = rule
         # Convert the rule to a regex that matches it and extracts the groups
         self.regex = re.sub(self.placeholder_r,
                             "(" + VALID_ARG_R + ")", self.rule)
+        self.regex_blocks = policysource.mapping.Mapper.rule_parser(self.regex)
         # Save the argument names as "argN"
         self.args = [x.strip("@").lower()
                      for x in re.findall(self.placeholder_r, self.rule)]
 
     def extract(self, rule):
         """Extract the named arguments from a matching rule."""
-        match = re.match(self.regex, rule)
+        matches = self.match_rule(rule)
         retdict = {}
-        if match:
+        if matches:
             # The rule matches the regex: extract the matches
-            groups = match.groups()
-            for i in xrange(len(groups)):
+            for i in xrange(len(matches)):
                 # Handle multiple occurrences of the same argument in a rule
                 # If the occurrences don't all have the same value, this rule
                 # does not actually match the placeholder rule
                 if self.args[i] in retdict:
                     # If we have found this argument already
-                    if retdict[self.args[i]] != groups[i]:
+                    if retdict[self.args[i]] != matches[i]:
                         # If the value we just found is different
-                        return None
+                        # The rule does not actually match the regex
+                        raise ValueError("Rule does not match ArgExtractor"
+                                         "expression: \"{}\"".format(
+                                             self.regex))
                 else:
-                    retdict[self.args[i]] = groups[i]
+                    retdict[self.args[i]] = matches[i]
             return retdict
         else:
-            # The rule does not match the regex: why has it been passed in in
-            # the first place?
+            # The rule does not match the regex
             raise ValueError("Rule does not match ArgExtractor expression: "
                              "\"{}\"".format(self.regex))
+
+    def match_rule(self, rule):
+        """Perform a rich comparison between the provided rule and the rule
+        expected by the extractor.
+
+        Return True if the rule satisfies (at least) all constraints imposed
+        by the extractor."""
+        matches = []
+        try:
+            # Parse the rule into blocks
+            rule_blocks = policysource.mapping.Mapper.rule_parser(rule)
+        except ValueError as e:
+            # Malformed rule
+            # TODO: log?
+            return None
+        else:
+            # Shorter name -> shorter lines
+            regex_blocks = self.regex_blocks
+            # Match the rule block by block
+            # Pre-check on the number of blocks
+            if len(rule_blocks) != len(regex_blocks):
+                return None
+            ##################### Match block 0 (rtype) ######################
+            # No macro arguments here, no regex match
+            if rule_blocks[0] != regex_blocks[0]:
+                return None
+            ##################################################################
+            ##################### Match block 1 (source) #####################
+            if VALID_ARG_R in regex_blocks[1]:
+                # The domain contains an argument, match the regex
+                m = re.match(regex_blocks[1], rule_blocks[1])
+                if m:
+                    matches.append(m.group(1))
+                else:
+                    return None
+            else:
+                # The domain contains no argument, match the string
+                if rule_blocks[1] != regex_blocks[1]:
+                    return None
+            ##################################################################
+            ##################### Match block 2 (target) #####################
+            if VALID_ARG_R in regex_blocks[2]:
+                # The type contains an argument, match the regex
+                m = re.match(regex_blocks[2], rule_blocks[2])
+                if m:
+                    matches.append(m.group(1))
+                else:
+                    return None
+            else:
+                # The type contains no argument, match the string
+                if regex_blocks[2] == "self":
+                    # Handle "self"
+                    if rule_blocks[2] != rule_blocks[1]:
+                        return None
+                elif rule_blocks[2] != regex_blocks[2]:
+                    return None
+            ##################################################################
+            ##################### Match block 3 (tclass) #####################
+            if VALID_ARG_R in regex_blocks[3]:
+                # The class contains an argument, match the regex
+                # This should never happen, however
+                m = re.match(regex_blocks[3], rule_blocks[3])
+                if m:
+                    matches.append(m.group(1))
+                else:
+                    return None
+            else:
+                # The class contains no argument
+                if any(x in rule_blocks[3] for x in "{}"):
+                    # This rule contains a class set
+                    # Match a (super)set of what is required by the regex
+                    rule_classes = set(rule_blocks[3].strip("{}").split())
+                    if any(x in regex_blocks[3] for x in "{}"):
+                        regex_classes = set(
+                            regex_blocks[3].strip("{}").split())
+                    else:
+                        regex_classes = set([regex_blocks[3]])
+                    if rule_classes < regex_classes:
+                        # If the classes in the rule are not at least those in
+                        # the regex
+                        return None
+                elif rule_blocks[3] != regex_blocks[3]:
+                    # Simple class, match the string
+                    return None
+            ##################################################################
+            ##################### Match block 4 (variable) ###################
+            if rule_blocks[0] in policysource.mapping.AVRULES:
+                ################ Match an AV rule ################
+                # Block 4 is the permission set
+                if any(x in rule_blocks[4] for x in "{}"):
+                    # This rule contains a permission set
+                    # Match a (super)set of what is required by the regex
+                    rule_perms = set(rule_blocks[4].strip("{}").split())
+                    if any(x in regex_blocks[4] for x in "{}"):
+                        regex_perms = set(regex_blocks[4].strip("{}").split())
+                    else:
+                        regex_perms = set([regex_blocks[4]])
+                    if rule_perms < regex_perms:
+                        # If the perms in the rule are not at least those in
+                        # the regex
+                        return None
+                elif rule_blocks[4] != regex_blocks[4]:
+                    # Simple permission, match the string
+                    return None
+                ##################################################
+            elif rule_blocks[0] == "type_transition":
+                ################ Match a type_transition rule #################
+                # Block 4 is the default type
+                if VALID_ARG_R in regex_blocks[4]:
+                    # The default type contains an argument, match the regex
+                    m = re.match(regex_blocks[4], rule_blocks[4])
+                    if m:
+                        matches.append(m.group(1))
+                    else:
+                        return None
+                else:
+                    # The default type contains no argument, match the string
+                    if rule_blocks[4] != regex_blocks[4]:
+                        return None
+                ##################################################
+            ##################################################################
+            ##################### Match block 5 (name trans) #################
+            if rule_blocks[0] == "type_transition" and len(rule_blocks) == 6:
+                # If this type transition has 6 fields, it is a name transition
+                # Block 5 is the object name
+                if VALID_ARG_R in regex_blocks[5]:
+                    # The object name contains an argument, match the regex
+                    m = re.match(regex_blocks[5], rule_blocks[5])
+                    if m:
+                        matches.append(m.group(1))
+                    else:
+                        return None
+                else:
+                    # The object name contains no argument, match the string
+                    if rule_blocks[5] != regex_blocks[5]:
+                        return None
+            ##################################################################
+            ######################## All blocks match ########################
+            return matches
