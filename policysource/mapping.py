@@ -525,7 +525,6 @@ class Mapper(object):
         Return a dictionary of rules {base: full} where "base" is the rule
         as "ruletype subject object:class" and "full" is the full string
         representation."""
-        # TODO: update docstring (no AVRule, string instead)
         if len(blocks) != 5:
             raise ValueError("Invalid rule")
         # The rule type is block 0 and is static across expansions
@@ -580,17 +579,11 @@ class Mapper(object):
         Return a dictionary of rules {base: full} where "base" is the rule
         as "ruletype source target:class" and "full" is the full string
         representation."""
-        # TODO: remove commented lines
         if len(blocks) == 6:
             # It's a name transition
-            is_name_trans = True
-            # deftype = blocks[4]
-            # objname = blocks[5]
             add = blocks[4] + " " + blocks[5] + ";"
         elif len(blocks) == 5:
             # It's a simple type transition
-            is_name_trans = False
-            # deftype = blocks[4]
             add = blocks[4] + ";"
         else:
             # Invalid number of blocks
@@ -605,24 +598,11 @@ class Mapper(object):
         classes = self.expand_block(blocks[3], "class")
         # Multiplex the rule up to the class and append the additional data
         rules = {}
-        # TODO: remove commented lines, simplify loop
-        # This is a name transition: supply the object name as well
-        if is_name_trans:
-            for sub in subjects:
-                for obj in objects:
-                    for cls in classes:
-                        base = rtype + " " + sub + " " + obj + ":" + cls
-                        # rules[base] = TERule(
-                        #    [rtype, sub, obj, cls, deftype, objname])
-                        rules[base] = base + " " + add
-        # This is a regular type transition
-        else:
-            for sub in subjects:
-                for obj in objects:
-                    for cls in classes:
-                        base = rtype + " " + sub + " " + obj + ":" + cls
-                        # rules[base] = TERule([rtype, sub, obj, cls, deftype])
-                        rules[base] = base + " " + add
+        for sub in subjects:
+            for obj in objects:
+                for cls in classes:
+                    base = rtype + " " + sub + " " + obj + ":" + cls
+                    rules[base] = base + " " + add
         return rules
 
     def expand_block(self, block, role, for_class=None):
