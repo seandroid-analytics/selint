@@ -491,9 +491,9 @@ class Mapper(object):
         """Expand the given rule by interpreting attributes, sets, complement
         sets and complement types.
 
-        Return a dictionary of rules (base, full) where "base" is the rule as
-        "ruletype subject object:class" and full is the corresponding AVRule
-        or TERule object."""
+        Return a dictionary of rules {base: full} where "base" is the rule as
+        "ruletype subject object:class" and "full" is the full string
+        representation."""
         # TODO: update docstring (no AVRule/TERule, strings instead)
         if rule.startswith(self.supported_rules):
             blocks = self.get_rule_blocks(rule)
@@ -511,9 +511,9 @@ class Mapper(object):
     def __expand_avrule(self, blocks):
         """Expand an AV rule given as a list of blocks.
 
-        Return a dictionary of rules (base, AVRule) where "base" is the rule
-        as "ruletype subject object:class" and AVRule is the corresponding
-        AVRule object."""
+        Return a dictionary of rules {base: full} where "base" is the rule
+        as "ruletype subject object:class" and "full" is the full string
+        representation."""
         # TODO: update docstring (no AVRule, string instead)
         if len(blocks) != 5:
             raise ValueError("Invalid rule")
@@ -566,10 +566,9 @@ class Mapper(object):
         Currently only type_transition (type transition and name transition)
         rules are supported.
 
-        Return a dictionary of rules (base, TERule) where "base" is the rule
-        as "ruletype source target:class" and TERule is the corresponding
-        TERule object."""
-        # TODO: update docstring (no TERule, string instead)
+        Return a dictionary of rules {base: full} where "base" is the rule
+        as "ruletype source target:class" and "full" is the full string
+        representation."""
         # TODO: remove commented lines
         if len(blocks) == 6:
             # It's a name transition
