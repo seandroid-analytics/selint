@@ -469,13 +469,14 @@ class Mapper(object):
         # Generate the Mapping object
         return Mapping(mapping_rules, mapping_lines)
 
-    def rule_factory(self, string):
+    @staticmethod
+    def rule_factory(string):
         """Parse the string representation of a rule.
         Return the given rule as an object (AVRule, TERule, ...).
 
         Raises ValueError if the rule is invalid or unsupported."""
-        if string.startswith(self.supported_rules):
-            blocks = self.get_rule_blocks(string)
+        if string.startswith(Mapper.supported_rules):
+            blocks = Mapper.get_rule_blocks(string)
             # The first block contains the rule type, e.g. "allow"
             if blocks[0] in AVRULES:
                 rule = AVRule(blocks)
@@ -487,13 +488,14 @@ class Mapper(object):
             raise ValueError("Unsupported rule")
         return rule
 
-    def rule_parser(self, string):
+    @staticmethod
+    def rule_parser(string):
         """Parse the string representation of a rule.
         Return the given rule as a tuple of blocks.
 
         Raises ValueError if the rule is invalid or unsupported."""
-        if string.startswith(self.supported_rules):
-            return self.get_rule_blocks(string)
+        if string.startswith(Mapper.supported_rules):
+            return Mapper.get_rule_blocks(string)
         else:
             raise ValueError("Unsupported rule")
 
