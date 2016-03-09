@@ -355,6 +355,16 @@ class MacroInPolicy(object):
 
     """Class providing an abstraction for an usage of a m4 macro."""
 
+    @staticmethod
+    def parse_usage(string):
+        """Parse a macro usage to extract the name and arguments.
+
+        Return a tuple (name, [args])."""
+        i = string.index("(")
+        name = string[:i]
+        args = [x.strip() for x in string[i:].strip("()").split(",")]
+        return (name, args)
+
     def __init__(self, existing_macros, file_used, line_used, name, args=[]):
         # Check that we have enough data
         if (not existing_macros or not file_used or line_used is None or
