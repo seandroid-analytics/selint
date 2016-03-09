@@ -21,7 +21,7 @@ import sys
 import os
 import os.path
 import re
-import time
+from timeit import default_timer
 import policysource
 import policysource.policy
 import policysource.mapping
@@ -46,8 +46,6 @@ SUGGESTION_THRESHOLD = 0.8
 ##############################################################################
 ################# Do not edit configuration below this line ##################
 ##############################################################################
-# Global variable to hold the te_macros M4Macro objects
-TE_MACROS_BY_NARG = None
 
 # Global variable to hold the log
 LOG = None
@@ -59,79 +57,8 @@ MAPPER = None
 VALID_ARG_R = r"[a-zA-Z0-9_-]+"
 
 
-def process_expansion(expansionstring):
-    """Process a multiline macro expansion into a list of supported rules.
-
-    The list contains AVRules and TErules objects from policysource.mapping .
-    """
-    # Split in lines
-    m4expansion = expansionstring.splitlines()
-    # Strip whitespace from every line
-    m4expansion = [x.strip() for x in m4expansion]
-    # Remove blank lines and comments
-    m4expansion = [x for x in m4expansion if x and not x.startswith("#")]
-    expansionlist = []
-    for r in m4expansion:
-        # Expand the attributes, sets etc. in each rule
-        try:
-            xpn = MAPPER.expand_rule(r)
-        # TODO: fix logging properly by e.g. splitting in functions
-        except ValueError as e:
-            LOG.debug(e)
-            LOG.debug("Could not expand rule \"%s\"", r)
-        else:
-            expansionlist.extend(xpn.values())
-    return expansionlist
-
-
-def expand_macros(policy, arg1, arg2=None, arg3=None):
-    """Expand all te_macros that match the number of supplied arguments.
-
-    Return a dictionary of macros {text:[rules]} where [rules] is a list of
-    rules obtained by expanding all the rules found in the macro expansion
-    taking into account attributes, permission sets etc.
-
-    e.g.:
-    arg1 = "domain"
-    arg2 = "dir_type"
-    arg3 = "file_type"
-    text = "file_type_trans(domain, dir_type, file_type)"
-    [rules] = [
-    "allow domain dir_type:dir { search read ioctl write getattr open
-                                 add_name };",
-    "allow domain file_type:dir { rename search setattr read create reparent
-                                  ioctl write getattr rmdir remove_name open
-                                  add_name };",
-    "allow ...    ...      : ..."]
-    """
-    # The return dictionary
-    retdict = {}
-    # Save the macro expansions
-    expansions = {}
-    # Expand all the macros that fit the number of supplied arguments
-    # One argument
-    if arg2 is None and arg3 is None:
-        for m in TE_MACROS_BY_NARG[1]:
-            text = m.name + "(" + arg1 + ")"
-            expansions[text] = m.expand([arg1])
-    # Two arguments
-    if arg2 is not None and arg3 is None:
-        for m in TE_MACROS_BY_NARG[2]:
-            text = m.name + "(" + arg1 + ", " + arg2 + ")"
-            expansions[text] = m.expand([arg1, arg2])
-    # Three arguments
-    if arg2 is not None and arg3 is not None:
-        for m in TE_MACROS_BY_NARG[3]:
-            text = m.name + "(" + arg1 + ", " + arg2 + ", " + arg3 + ")"
-            expansions[text] = m.expand([arg1, arg2, arg3])
-    # Expand all the macros
-    for m_name, m in expansions.iteritems():
-        retdict[m_name] = process_expansion(m)
-    return retdict
-
-
 def main(policy, config):
-    """Suggest usages of te_macrosi where appropriate."""
+    """Suggest usages of te_macros where appropriate."""
     # Check that we have been fed a valid policy
     if not isinstance(policy, policysource.policy.SourcePolicy):
         raise ValueError("Invalid policy")
@@ -150,24 +77,18 @@ def main(policy, config):
     FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
                               for p in RULE_IGNORE_PATHS)
 
-    # Generate a dictionary of te_macros grouped by number of arguments
-    global TE_MACROS_BY_NARG
-    TE_MACROS_BY_NARG = {}
-    for m in policy.macro_defs.values():
-        if m.file_defined.endswith("te_macros") and m.name not in MACRO_IGNORE:
-            # m is a te_macro, add
-            if m.nargs in TE_MACROS_BY_NARG:
-                TE_MACROS_BY_NARG[m.nargs].append(m)
-            else:
-                TE_MACROS_BY_NARG[m.nargs] = [m]
+    # Create a dictionary of macro usages
+    macrousages_dict = {}
+    for m in policy.macro_usages:
+        macrousages_dict[str(m)] = m
 
     # Suggestions: {frozenset(filelines): [suggestions]}
     suggestions = {}
 
     expansions = {}
-    total_rules = 0
     total_masks = 0
-    start = time.time()
+    begin = default_timer()
+    part = begin
     # Only consider te_macros not purposefully ignored
     selected_macros = [x for x in policy.macro_defs.values() if
                        x.file_defined.endswith("te_macros") and not
@@ -249,11 +170,11 @@ def main(policy, config):
                             if tmp.is_name_trans:
                                 rules[nl] = policysource.mapping.TERule(
                                     [tmp.rtype, tmp.source, tmp.target, c,
-                                        tmp.deftype, tmp.objname])
+                                     tmp.deftype, tmp.objname])
                             else:
                                 rules[nl] = policysource.mapping.TERule(
                                     [tmp.rtype, tmp.source, tmp.target, c,
-                                        tmp.deftype])
+                                     tmp.deftype])
         # Initialise a MacroSuggestion object for this macro with the
         # previously saved list of supported rules with positional placeholders
         ms = MacroSuggestion(m, rules_to_suggest)
@@ -302,9 +223,29 @@ def main(policy, config):
                 results = [x for x in query.results() if x.source == x.target]
             else:
                 results = list(query.results())
-            # print "Results:"
-            # print "\n".join([str(x) for x in results])
-            # print
+            # Discard rules coming from explictly ignored paths
+#            filtered_results = []
+#            for x in results:
+#                rule = MAPPER.rule_factory(str(x))
+#                rutc = rule.up_to_class
+#                # Get the MappedRule(s) corresponding to this rutc
+#                rls = [x for x in policy.mapping.rules[rutc]]
+#                # If this rule comes from an explictly ignored path, skip
+#                if len(rls) == 1:
+#                    if not rls[0].fileline.startswith(FULL_IGNORE_PATHS):
+#                        filtered_results.append(x)
+#                else:
+#                    # If this rule comes from multiple places
+#                    discard = False
+#                    for rl in rls:
+#                        if rl.fileline.startswith(FULL_IGNORE_PATHS):
+#                            # If at least one path is explicitly ignored
+#                            discard = True
+#                            break
+#                    if not discard:
+#                        # If no path was ignored, append
+#                        filtered_results.append(x)
+#            results = filtered_results
             # Try to fill macro suggestions
             for res in results:
                 newsugs = []
@@ -326,75 +267,22 @@ def main(policy, config):
         # Discard suggestions whose score is too low
         macro_suggestions = [
             x for x in macro_suggestions if x.score >= SUGGESTION_THRESHOLD]
-        part = time.time() - start
-        print "Time spent on \"{}\": {}s".format(m, part)
+        # Discard suggestions whose usage is already in the policy
+        macro_suggestions = [
+            x for x in macro_suggestions if x.usage not in macrousages_dict]
+        oldpart = part
+        part = default_timer()
+        LOG.info("Time spent on \"%s\": %ss", m, part - oldpart)
         print "Number of suggestions: {}".format(len(macro_suggestions))
-        print "\n".join([str(x) for x in macro_suggestions])
+        for mcs in macro_suggestions:
+            print str(mcs)
+            print "\t" + "\n\t".join(mcs.rules)
         print
-    end = time.time()
-    elapsed = end - start
-    print "Time spent expanding macros: {}s".format(elapsed)
-    print "Avg time/macro: {}s".format(elapsed / float(len(selected_macros)))
-    print "Total queries: {}".format(total_masks)
-
-    sys.exit(0)
-    # Analyse each possible usage suggestions and assign it a score indicating
-    # how well the suggested expansion fits in the existing set of rules.
-    # If the score is sufficiently high, suggest using the macro.
-    for possible_usage, expansion in expansions.iteritems():
-        # Skip empty expansions
-        if not expansion:
-            continue
-        # Gather the macro name and args from the string representation
-        # i = policysource.macro.MacroInPolicy.parse_usage(possible_usage)
-        # name = i[0]
-        # args = set(i[1])
-        # Compute the score for the macro suggestion
-        score = 0
-        # Save the existing rules that the macro suggestion matches exactly
-        actual_rules = []
-        missing_rules = []
-        # For each rule in the macro
-        for r in expansion:
-            # If this rule does not come from one of the existing macros
-            if r not in full_usages_list:
-                # Compute the rule up to the class
-                i = r.index(":")
-                j = r.index(" ", i)
-                rutc = r[:j]
-                # If this actual rule is used in the policy
-                if rutc in policy.mapping.rules and\
-                        r in [x.rule for x in policy.mapping.rules[rutc]]:
-                    # Get the MappedRule corresponding to this rule
-                    rl = [x for x in policy.mapping.rules[rutc]
-                          if x.rule == r][0]
-                    # If this rule comes from an explictly ignored path, skip
-                    if not rl.fileline.startswith(FULL_IGNORE_PATHS):
-                        # Otherwise, this rule is a valid candidate
-                        score += 1
-                        actual_rules.append(rl)
-                # If not, this rule is potentially missing
-                else:
-                    missing_rules.append(r)
-        # Compute the overall score of the macro suggestion
-        # ( Number of valid candidates / number of candidates )
-        score = score / float(len(expansion))
-        # If this is a perfect match
-        if score == 1:
-            # TODO: add to list of suggestion objects
-            print "You could use \"{}\" in place of:".format(possible_usage)
-            print "\n".join([str(x) for x in actual_rules])
-            print
-        elif score >= SUGGESTION_THRESHOLD:
-            # Partial match
-            # TODO: add to list of partial suggestions
-            print "{}% of \"{}\" matches these lines:".format(score * 100,
-                                                              possible_usage)
-            print "\n".join([str(x) for x in actual_rules])
-            print "{}% is missing:".format((1 - score) * 100)
-            print "\n".join([str(x) for x in missing_rules])
-            print
-            continue
+    end = default_timer()
+    elapsed = end - begin
+    LOG.info("Time spent expanding macros: %ss", elapsed)
+    LOG.info("Avg time/macro: %ss", elapsed / float(len(selected_macros)))
+    LOG.info("Total queries: %s", total_masks)
 
 
 class MacroSuggestion(object):
@@ -425,7 +313,7 @@ class MacroSuggestion(object):
             try:
                 # Get the arguments
                 args = e.extract(rule)
-            except ValueError as e:
+            except ValueError:
                 continue
             else:
                 # If there are any conflicting arguments, don't add this rule
@@ -437,7 +325,7 @@ class MacroSuggestion(object):
                                              self.args[a], args[a]))
                 # Add the new rule, associated with the corresponding
                 # placeholder rule
-                self.rules[r] = rule
+                self._rules[r] = rule
                 # Update the args dictionary
                 self.args.update(args)
                 # Update the score. The score is given by:
@@ -479,7 +367,7 @@ class MacroSuggestion(object):
         # they came from an accepted state of a macro suggestion. Therefore,
         # the order does not matter when adding them back: if adding a rule
         # fails, it does not impact the overall set of rules.
-        for r in self.rules.values():
+        for r in self.rules:
             try:
                 new.add_rule(r)
             except ValueError as e:
@@ -511,7 +399,7 @@ class MacroSuggestion(object):
     def rules(self):
         """Get the list of valid rules contained in the macro expansion with
         the suggestion arguments."""
-        return self._rules
+        return self._rules.values()
 
     @property
     def score(self):
@@ -525,10 +413,12 @@ class MacroSuggestion(object):
 
     def __eq__(self, other):
         """Check whether this suggestion is a duplicate of another."""
-        return self.rules == other.rules
+        return self.macro.name == other.macro.name and\
+            set(self.rules) == set(other.rules)
 
     def __ne__(self, other):
-        return self.rules != other.rules
+        return self.macro.name != other.macro.name or\
+            set(self.rules) != set(other.rules)
 
     def __lt__(self, other):
         return set(self.rules) < set(other.rules)
@@ -543,10 +433,10 @@ class MacroSuggestion(object):
         return set(self.rules) >= set(other.rules)
 
     def __repr__(self):
-        return self.usage + ": " + str(self.score)
+        return self.usage + ": " + str(self.score * 100) + "%"
 
     def __hash__(self):
-        return hash(str(self))
+        return hash(self.usage)
 
     @property
     def usage(self):
@@ -616,7 +506,7 @@ class ArgExtractor(object):
         try:
             # Parse the rule into blocks
             rule_blocks = policysource.mapping.Mapper.rule_parser(rule)
-        except ValueError as e:
+        except ValueError:
             # Malformed rule
             # TODO: log?
             return None
