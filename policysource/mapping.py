@@ -504,11 +504,10 @@ class Mapper(object):
         sets and complement types.
 
         Return a dictionary of rules {base: full} where "base" is the rule as
-        "ruletype subject object:class" and "full" is the full string
+        "rtype subject object:class" and "full" is the full string
         representation."""
-        # TODO: update docstring (no AVRule/TERule, strings instead)
-        if rule.startswith(self.supported_rules):
-            blocks = self.get_rule_blocks(rule)
+        if rule.startswith(Mapper.supported_rules):
+            blocks = Mapper.get_rule_blocks(rule)
             # The first block contains the rule type, e.g. "allow"
             if blocks[0] in AVRULES:
                 rules = self.__expand_avrule(blocks)
