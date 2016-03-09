@@ -696,7 +696,9 @@ class Mapper(object):
         """Split the supplied rule in the component blocks.
 
         Returns a list of blocks, e.g.:
-        ["rule type", "subject", "object", "class", "perms"] """
+        ["rule type", "subject", "object", "class", "perms"]
+
+        Raises ValueError if the rule is somehow malformed."""
         if rule.count("{") != rule.count("}"):
             raise ValueError("Mismatched separators in \"{}\"".format(rule))
         # The level of curly bracket nesting
