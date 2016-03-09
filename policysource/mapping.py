@@ -487,6 +487,16 @@ class Mapper(object):
             raise ValueError("Unsupported rule")
         return rule
 
+    def rule_parser(self, string):
+        """Parse the string representation of a rule.
+        Return the given rule as a tuple of blocks.
+
+        Raises ValueError if the rule is invalid or unsupported."""
+        if string.startswith(self.supported_rules):
+            return self.get_rule_blocks(string)
+        else:
+            raise ValueError("Unsupported rule")
+
     def expand_rule(self, rule):
         """Expand the given rule by interpreting attributes, sets, complement
         sets and complement types.
