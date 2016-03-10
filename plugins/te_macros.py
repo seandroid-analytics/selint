@@ -57,6 +57,119 @@ MAPPER = None
 VALID_ARG_R = r"[a-zA-Z0-9_-]+"
 
 
+def process_macro(m, mapper):
+    """Create a list of rules and an initial MacroSuggestion object from a
+    M4Macro object.
+    The list contains valid, supported rules with the macro arguments
+    substituted by regular expressions; these will be used to query the policy
+    for rules matching a rule coming from a possible macro usage.
+
+    Returns a list of rules and a list of MacroSuggestions.
+    Arguments:
+    m      - the M4Macro object representing the macro to be processed
+    mapper - a Mapper object initialised with appropriate arguments from the
+             SourcePolicy policy.
+    """
+    # Generate numbered placeholder arguments
+    args = []
+    for i in xrange(m.nargs):
+        args.append("@@ARG{}@@".format(i))
+    # Expand the macro using the placeholder arguments
+    exp_regex = m.expand(args)
+    rules = {}
+    rules_to_suggest = []
+    # Get the Rule objects contained in the macro expansion
+    for l in exp_regex.splitlines():
+        l = l.strip()
+        # If this is a supported rule (not a comment, not a type def...)
+        if l.startswith(policysource.mapping.ONLY_MAP_RULES):
+            try:
+                # TODO: maybe don't use "l" below, but use the blocks from the
+                # parsed version? this would take care of multiple curly
+                # brackets.
+                # Substitute the positional placeholder arguments with a
+                # regex matching valid argument characters
+                l_r = re.sub(r"@@ARG[0-9]+@@", VALID_ARG_R, l)
+                # Generate the rule object corresponding to the rule with
+                # regex arguments
+                tmp = mapper.rule_factory(l_r)
+            except ValueError as e:
+                LOG.debug(e)
+                LOG.debug("Could not expand rule \"%s\"", l)
+            else:
+                if tmp.rtype in policysource.mapping.AVRULES:
+                    # Handle class and permission sets
+                    # For each class in the class set (len >= 1)
+                    for c in mapper.expand_block(tmp.tclass, "class"):
+                        # Compute the permission set for the class
+                        permset = set(mapper.expand_block(tmp.perms, "perms",
+                                                          for_class=c))
+                        # Compute the permission text block from the set
+                        if len(permset) > 1:
+                            permblk = "{ " + ", ".join(sorted(permset)) + " }"
+                        else:
+                            permblk = list(permset)[0]
+                        # Calculate the new placeholder string
+                        i = l.index(":") + 1
+                        nl = l[:i] + c + " " + permblk + ";"
+                        # Save the new placeholder string to later initialize
+                        # MacroSuggestions
+                        rules_to_suggest.append(nl)
+                        # Add the rule to the dict of rules resulting from the
+                        # macro expansion. This is inexact, because we are
+                        # changing the effective number of rules in a macro by
+                        # multiplexing the class sets; however, doing so allows
+                        # us to escape countless problems and obtain more
+                        # meaningful results.
+                        # This is also inefficient because it raises the number
+                        # of queries that we are going to perform for each rule
+                        # in the macro, from 1 to N where N is the cardinality
+                        # of the class set.
+                        # TODO: Could we fix this?
+                        rules[nl] = policysource.mapping.AVRule(
+                            [tmp.rtype, tmp.source, tmp.target, c, permblk])
+                elif tmp.rtype in policysource.mapping.TERULES:
+                    # Handle class sets
+                    blocks = mapper.get_rule_blocks(l)
+                    # For each class in the class set (len >= 1)
+                    for c in mapper.expand_block(tmp.tclass, "class"):
+                        # Calculate the new placeholder string
+                        i = l.index(":") + 1
+                        nl = l[:i] + c + " " + blocks[4]
+                        # If this is a name transition, block 5 contains the
+                        # object name: add it to the new placeholder string.
+                        if len(blocks) == 6:
+                            nl += " " + blocks[5]
+                        nl += ";"
+                        # Save the new placeholder string to later initialize
+                        # MacroSuggestions
+                        rules_to_suggest.append(nl)
+                        # Add the rule to the dict of rules resulting from
+                        # the macro expansion. This is inexact, because we
+                        # are changing the effective number of rules by
+                        # multiplexing the class sets; however, doing so
+                        # allows us to escape countless problems and obtain
+                        # more meaningful results.
+                        # This is also inefficient because it raises the number
+                        # of queries that we are going to perform for each rule
+                        # in the macro, from 1 to N where N is the cardinality
+                        # of the class set.
+                        # TODO: Could we fix this?
+                        if tmp.is_name_trans:
+                            rules[nl] = policysource.mapping.TERule(
+                                [tmp.rtype, tmp.source, tmp.target, c,
+                                 tmp.deftype, tmp.objname])
+                        else:
+                            rules[nl] = policysource.mapping.TERule(
+                                [tmp.rtype, tmp.source, tmp.target, c,
+                                 tmp.deftype])
+    # Initialise a MacroSuggestion object for this macro with the
+    # previously saved list of supported rules with positional placeholders
+    ms = MacroSuggestion(m, rules_to_suggest)
+    macro_suggestions = set([ms])
+    return (rules, macro_suggestions)
+
+
 def main(policy, config):
     """Suggest usages of te_macros where appropriate."""
     # Check that we have been fed a valid policy
@@ -93,93 +206,13 @@ def main(policy, config):
     selected_macros = [x for x in policy.macro_defs.values() if
                        x.file_defined.endswith("te_macros") and not
                        x.name in MACRO_IGNORE]
+    macros_found = 0
+    macros_used = 0
     for k, m in enumerate(selected_macros, start=1):
         print "Processing \"{}\" ({}/{})...".format(m, k, len(selected_macros))
-        # Generate numbered placeholder arguments
-        args = []
-        for i in xrange(m.nargs):
-            args.append("@@ARG{}@@".format(i))
-        # Expand the macro using the placeholder arguments
-        exp_regex = m.expand(args)
-        rules = {}
-        rules_to_suggest = []
-        # Get the Rule objects contained in the macro expansion
-        for l in exp_regex.splitlines():
-            l = l.strip()
-            # If this is a supported rule (not a comment, not a type def...)
-            if l.startswith(policysource.mapping.ONLY_MAP_RULES):
-                try:
-                    # Substitute the positional placeholder arguments with a
-                    # regex matching valid argument characters
-                    l_r = re.sub(r"@@ARG[0-9]+@@", VALID_ARG_R, l)
-                    # Generate the rule object corresponding to the rule with
-                    # regex arguments
-                    tmp = MAPPER.rule_factory(l_r)
-                except ValueError as e:
-                    LOG.debug(e)
-                    LOG.debug("Could not expand rule \"%s\"", l)
-                else:
-                    if tmp.rtype in policysource.mapping.AVRULES:
-                        # Handle class and permission sets
-                        # For each class in the class set (len >= 1)
-                        for c in MAPPER.expand_block(tmp.tclass, "class"):
-                            # Compute the permission set for the class
-                            permset = set(MAPPER.expand_block(tmp.perms,
-                                                              "perms",
-                                                              for_class=c))
-                            # Compute the permission string from the set
-                            if len(permset) > 1:
-                                perms = "{ " + ", ".join(sorted(permset)) +\
-                                    " }"
-                            else:
-                                perms = list(permset)[0]
-                            # Calculate the new placeholder string
-                            i = l.index(":") + 1
-                            nl = l[:i] + c + " " + perms + ";"
-                            # Save the new placeholder string to initialize
-                            # MacroSuggestions
-                            rules_to_suggest.append(nl)
-                            # Add the rule to the dict of rules resulting from
-                            # the macro expansion. This is inexact, because we
-                            # are changing the effective number of rules by
-                            # multiplexing the class sets; however, doing so
-                            # allows us to escape countless problems and obtain
-                            # more meaningful results.
-                            rules[nl] = policysource.mapping.AVRule(
-                                [tmp.rtype, tmp.source, tmp.target, c, perms])
-                    elif tmp.rtype in policysource.mapping.TERULES:
-                        # Handle class sets
-                        # For each class in the class set (len >= 1)
-                        blocks = MAPPER.get_rule_blocks(l)
-                        for c in MAPPER.expand_block(tmp.tclass, "class"):
-                            # Calculate the new placeholder string
-                            i = l.index(":") + 1
-                            nl = l[:i] + c + " " + blocks[4]
-                            if len(blocks) == 6:
-                                nl += " " + blocks[5]
-                            nl += ";"
-                            # Save the new placeholder string to initialize
-                            # MacroSuggestions
-                            rules_to_suggest.append(nl)
-                            # Add the rule to the dict of rules resulting from
-                            # the macro expansion. This is inexact, because we
-                            # are changing the effective number of rules by
-                            # multiplexing the class sets; however, doing so
-                            # allows us to escape countless problems and obtain
-                            # more meaningful results.
-                            if tmp.is_name_trans:
-                                rules[nl] = policysource.mapping.TERule(
-                                    [tmp.rtype, tmp.source, tmp.target, c,
-                                     tmp.deftype, tmp.objname])
-                            else:
-                                rules[nl] = policysource.mapping.TERule(
-                                    [tmp.rtype, tmp.source, tmp.target, c,
-                                     tmp.deftype])
-        # Initialise a MacroSuggestion object for this macro with the
-        # previously saved list of supported rules with positional placeholders
-        ms = MacroSuggestion(m, rules_to_suggest)
-        macro_suggestions = set([ms])
-
+        # Get the Rule objects contained in the macro expansion and the initial
+        # list of macro suggestions
+        rules, macro_suggestions = process_macro(m, MAPPER)
         # Query the policy with regexes
         total_masks += len(rules)
         for l, r in rules.iteritems():
@@ -264,10 +297,49 @@ def main(policy, config):
                         break
                 if newsugs:
                     macro_suggestions.update(newsugs)
+        # Check how many usages have been fully recognized
+        found_usages = [x.usage for x in macro_suggestions if x.score == 1]
+        part_usages = [x.usage for x in macro_suggestions if x.score < 1]
+        for x, n in macrousages_dict.iteritems():
+            if n.macro != m:
+                continue
+            macros_used += 1
+            if x not in found_usages:
+                if x not in part_usages:
+                    print "Usage not found: \"{}\"".format(x)
+                else:
+                    print "Usage not fully found: \"{}\"".format(x)
+                    y = [z for z in macro_suggestions if z.usage == x][0]
+                    for z in y.placeholder_rules:
+                        if z in y._rules:
+                            print y._rules[z]
+                        else:
+                            print z
+            else:
+                macros_found += 1
+        continue
         # Discard suggestions whose score is too low
         macro_suggestions = [
             x for x in macro_suggestions if x.score >= SUGGESTION_THRESHOLD]
+        # Discard suggestions which are a subset of another with the same score
+        removal_candidates = []
+        # For each suggestion
+        for x in macro_suggestions:
+            # If suggestion x is found to be a strict subset of any other,
+            # meaning that its rules are wholly contained in a bigger
+            # suggestion with an equal or greater score, don't suggest it.
+            # Macro_suggestions is originally a set when being filled up, and
+            # suggestions are identified by the macro name and rules they
+            # contain, so there will not be more than one macro suggestion with
+            # the same macro name containing exactly the same rules: therefore
+            # we are only interested in strict subsets (x < y), without "<=".
+            if any(x < y for y in macro_suggestions if x.score <= y.score):
+                removal_candidates.append(x)
+        for x in removal_candidates:
+            macro_suggestions.remove(x)
         # Discard suggestions whose usage is already in the policy
+        # This must be done after removing suggestions which are subsets of
+        # others
         macro_suggestions = [
             x for x in macro_suggestions if x.usage not in macrousages_dict]
         oldpart = part
@@ -278,6 +350,9 @@ def main(policy, config):
             print str(mcs)
             print "\t" + "\n\t".join(mcs.rules)
         print
+    # TODO: delete
+    print "Usages found: {}/{}".format(macros_found, macros_used)
+    ####
     end = default_timer()
     elapsed = end - begin
     LOG.info("Time spent expanding macros: %ss", elapsed)
