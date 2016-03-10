@@ -64,7 +64,7 @@ def process_macro(m, mapper):
     substituted by regular expressions; these will be used to query the policy
     for rules matching a rule coming from a possible macro usage.
 
-    Returns a list of rules and a list of MacroSuggestions.
+    Returns a list of rules and a set of MacroSuggestions.
     Arguments:
     m      - the M4Macro object representing the macro to be processed
     mapper - a Mapper object initialised with appropriate arguments from the
@@ -106,7 +106,7 @@ def process_macro(m, mapper):
                                                           for_class=c))
                         # Compute the permission text block from the set
                         if len(permset) > 1:
-                            permblk = "{ " + ", ".join(sorted(permset)) + " }"
+                            permblk = "{ " + " ".join(sorted(permset)) + " }"
                         else:
                             permblk = list(permset)[0]
                         # Calculate the new placeholder string
@@ -195,11 +195,7 @@ def main(policy, config):
     for m in policy.macro_usages:
         macrousages_dict[str(m)] = m
 
-    # Suggestions: {frozenset(filelines): [suggestions]}
-    suggestions = {}
-
-    expansions = {}
-    total_masks = 0
+    total_queries = 0
     begin = default_timer()
     part = begin
     # Only consider te_macros not purposefully ignored
@@ -214,7 +210,7 @@ def main(policy, config):
         # list of macro suggestions
         rules, macro_suggestions = process_macro(m, MAPPER)
         # Query the policy with regexes
-        total_masks += len(rules)
+        total_queries += len(rules)
         for l, r in rules.iteritems():
             # Reset self
             self_target = False
@@ -357,7 +353,7 @@ def main(policy, config):
     elapsed = end - begin
     LOG.info("Time spent expanding macros: %ss", elapsed)
     LOG.info("Avg time/macro: %ss", elapsed / float(len(selected_macros)))
-    LOG.info("Total queries: %s", total_masks)
+    LOG.info("Total queries: %s", total_queries)
 
 
 class MacroSuggestion(object):
@@ -380,17 +376,17 @@ class MacroSuggestion(object):
         """Mark a rule in the macro expansion as found in the policy."""
         already_taken = ""
         for r, e in self._extractors.iteritems():
-            # If the supplied rule matches one of the rules in the macro,
-            # and that rule "slot" is not already taken by another rule
-            if r in self.rules:
-                already_taken = self.rules[r]
-                continue
             try:
                 # Get the arguments
                 args = e.extract(rule)
             except ValueError:
                 continue
             else:
+                # If the supplied rule matches one of the rules in the macro,
+                # and that rule "slot" is not already taken by another rule
+                if r in self._rules:
+                    already_taken = self._rules[r]
+                    continue
                 # If there are any conflicting arguments, don't add this rule
                 # i.e. arguments in the same position but with different values
                 for a in args:
@@ -574,6 +570,7 @@ class ArgExtractor(object):
     def match_rule(self, rule):
         """Perform a rich comparison between the provided rule and the rule
         expected by the extractor.
+        The rule must be passed in as a string.
 
         Return True if the rule satisfies (at least) all constraints imposed
         by the extractor."""
@@ -620,8 +617,9 @@ class ArgExtractor(object):
                     return None
             else:
                 # The type contains no argument, match the string
-                if regex_blocks[2] == "self":
-                    # Handle "self"
+                if regex_blocks[2] == "self" and rule_blocks[2] != "self":
+                    # Handle "self" expansion case
+                    # TODO: check if this actually happens
                     if rule_blocks[2] != rule_blocks[1]:
                         return None
                 elif rule_blocks[2] != regex_blocks[2]:
@@ -667,9 +665,12 @@ class ArgExtractor(object):
                         regex_perms = set(regex_blocks[4].strip("{}").split())
                     else:
                         regex_perms = set([regex_blocks[4]])
-                    if rule_perms < regex_perms:
+                    if not regex_perms <= rule_perms:
                         # If the perms in the rule are not at least those in
                         # the regex
+                        # TODO: remove
+                        # print "Missing perms: {}".format(
+                        #    " ".join(regex_perms - rule_perms))
                         return None
                 elif rule_blocks[4] != regex_blocks[4]:
                     # Simple permission, match the string
