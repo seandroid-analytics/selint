@@ -239,9 +239,12 @@ def main(policy, config):
         # Get the Rule objects contained in the macro expansion and the initial
         # list of macro suggestions
         rules, macro_suggestions = process_macro(m, MAPPER)
+        if not rules:
+            print "Macro \"{}\" does not expand to any supported".format(m) +\
+                " rule. Consider adding it to the ignored macros."
         # Query the policy with regexes
         total_queries += len(rules)
-        overall_rules = set()
+        overall_rules = []
         for l, r in rules.iteritems():
             # Reset self
             self_target = False
@@ -287,7 +290,7 @@ def main(policy, config):
                 results = [x for x in query.results() if x.source == x.target]
             else:
                 results = list(query.results())
-            overall_rules.update(results)
+            overall_rules.extend(results)
         # Try to fill macro suggestions
         selected_suggestions = set()
         tried_usages = set()
@@ -416,12 +419,8 @@ class MacroSuggestion(object):
                 # If the supplied rule matches one of the rules in the macro,
                 # and that rule "slot" is not already taken by another rule
                 if r in self._rules:
-                    if self._rules_strings[r] == rulestr:
-                        # If the same rule is already here, just return
-                        return
-                    else:
-                        already_taken = self._rules[r]
-                        continue
+                    already_taken = self._rules[r]
+                    continue
                 # If there are any conflicting arguments, don't add this rule
                 # i.e. arguments in the same position but with different values
                 for a in args:
