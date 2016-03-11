@@ -38,7 +38,8 @@ RULE_IGNORE_PATHS = []  # ["external/sepolicy"]
 # Do not try to reconstruct these macros
 MACRO_IGNORE = ["recovery_only", "non_system_app_set", "userdebug_or_eng",
                 "print", "permissive_or_unconfined", "userfastboot_only",
-                "notuserfastboot", "eng", "binder_service",
+                "notuserfastboot", "eng", "binder_service", "net_domain",
+                "unconfined_domain", "bluetooth_domain",
                 "domain_trans", "domain_auto_trans",
                 "file_type_trans", "file_type_auto_trans", "r_dir_file",
                 "init_daemon_domain"]
