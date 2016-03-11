@@ -666,7 +666,7 @@ class ArgExtractor(object):
                 # TODO: check if this actually happens
                 if str(rule.target) != str(rule.source):
                     return None
-            elif str(rule.source) != regex_blocks[2]:
+            elif str(rule.target) != regex_blocks[2]:
                 return None
         ##################################################################
         ##################### Match block 3 (tclass) #####################
@@ -731,7 +731,7 @@ class ArgExtractor(object):
                     return None
             else:
                 # The object name contains no argument, match the string
-                if objname != regex_blocks[5]:
+                if objname.strip("\"") != regex_blocks[5].strip("\""):
                     return None
         ##################################################################
         ######################## All blocks match ########################
