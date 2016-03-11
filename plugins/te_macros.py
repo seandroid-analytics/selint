@@ -38,7 +38,9 @@ RULE_IGNORE_PATHS = []  # ["external/sepolicy"]
 # Do not try to reconstruct these macros
 MACRO_IGNORE = ["recovery_only", "non_system_app_set", "userdebug_or_eng",
                 "print", "permissive_or_unconfined", "userfastboot_only",
-                "notuserfastboot", "eng"]
+                "notuserfastboot", "eng", "domain_trans", "domain_auto_trans",
+                "file_type_trans", "file_type_auto_trans", "r_dir_file",
+                "init_daemon_domain"]
 
 # Only suggest macros that match above this threshold [0-1]
 SUGGESTION_THRESHOLD = 0.8
@@ -55,6 +57,30 @@ MAPPER = None
 
 # Regex for a valid argument in m4
 VALID_ARG_R = r"[a-zA-Z0-9_-]+"
+
+# Discard rules coming from explictly ignored paths
+#            filtered_results = []
+#            for x in results:
+#                rule = MAPPER.rule_factory(str(x))
+#                rutc = rule.up_to_class
+#                # Get the MappedRule(s) corresponding to this rutc
+#                rls = [x for x in policy.mapping.rules[rutc]]
+#                # If this rule comes from an explictly ignored path, skip
+#                if len(rls) == 1:
+#                    if not rls[0].fileline.startswith(FULL_IGNORE_PATHS):
+#                        filtered_results.append(x)
+#                else:
+#                    # If this rule comes from multiple places
+#                    discard = False
+#                    for rl in rls:
+#                        if rl.fileline.startswith(FULL_IGNORE_PATHS):
+#                            # If at least one path is explicitly ignored
+#                            discard = True
+#                            break
+#                    if not discard:
+#                        # If no path was ignored, append
+#                        filtered_results.append(x)
+#            results = filtered_results
 
 
 def process_macro(m, mapper):
@@ -194,6 +220,8 @@ def main(policy, config):
     macrousages_dict = {}
     for m in policy.macro_usages:
         macrousages_dict[str(m)] = m
+    # Save the suggestions
+    global_suggestions = set()
 
     total_queries = 0
     begin = default_timer()
@@ -211,6 +239,7 @@ def main(policy, config):
         rules, macro_suggestions = process_macro(m, MAPPER)
         # Query the policy with regexes
         total_queries += len(rules)
+        overall_rules = set()
         for l, r in rules.iteritems():
             # Reset self
             self_target = False
@@ -229,7 +258,9 @@ def main(policy, config):
             if r.rtype in policysource.mapping.AVRULES:
                 query = TERuleQuery(policy=policy.policy, ruletype=[r.rtype],
                                     source=r.source, source_regex=sr,
+                                    source_indirect=False,
                                     target=xtarget, target_regex=tr,
+                                    target_indirect=False,
                                     tclass=[r.tclass], tclass_regex=cr,
                                     perms=r.permset, perms_subset=True)
             # Query for a TE rule
@@ -237,7 +268,9 @@ def main(policy, config):
                 dr = r"[a-zA-Z0-9_-]+" in r.deftype
                 query = TERuleQuery(policy=policy.policy, ruletype=[r.rtype],
                                     source=r.source, source_regex=sr,
+                                    source_indirect=False,
                                     target=xtarget, target_regex=tr,
+                                    target_indirect=False,
                                     tclass=[r.tclass], tclass_regex=cr,
                                     default=r.deftype, default_regex=dr)
             else:
@@ -252,103 +285,107 @@ def main(policy, config):
                 results = [x for x in query.results() if x.source == x.target]
             else:
                 results = list(query.results())
-            # Discard rules coming from explictly ignored paths
-#            filtered_results = []
-#            for x in results:
-#                rule = MAPPER.rule_factory(str(x))
-#                rutc = rule.up_to_class
-#                # Get the MappedRule(s) corresponding to this rutc
-#                rls = [x for x in policy.mapping.rules[rutc]]
-#                # If this rule comes from an explictly ignored path, skip
-#                if len(rls) == 1:
-#                    if not rls[0].fileline.startswith(FULL_IGNORE_PATHS):
-#                        filtered_results.append(x)
-#                else:
-#                    # If this rule comes from multiple places
-#                    discard = False
-#                    for rl in rls:
-#                        if rl.fileline.startswith(FULL_IGNORE_PATHS):
-#                            # If at least one path is explicitly ignored
-#                            discard = True
-#                            break
-#                    if not discard:
-#                        # If no path was ignored, append
-#                        filtered_results.append(x)
-#            results = filtered_results
-            # Try to fill macro suggestions
-            for res in results:
-                newsugs = []
-                for sug in macro_suggestions:
-                    try:
-                        sug.add_rule(str(res))
-                    except ValueError as e:
-                        LOG.debug(e)
-                        LOG.debug("Mismatching rule: \"%s\"", res)
-                        newsug = sug.fork_and_fit(str(res))
-                        if newsug:
-                            newsugs.append(newsug)
-                    except RuntimeError as e:
-                        # We should not get here: if we did, this rule did
-                        # not match any rule in the macro
-                        break
-                if newsugs:
-                    macro_suggestions.update(newsugs)
-        # Check how many usages have been fully recognized
-        found_usages = [x.usage for x in macro_suggestions if x.score == 1]
-        part_usages = [x.usage for x in macro_suggestions if x.score < 1]
-        for x, n in macrousages_dict.iteritems():
-            if n.macro != m:
-                continue
-            macros_used += 1
-            if x not in found_usages:
-                if x not in part_usages:
-                    print "Usage not found: \"{}\"".format(x)
+            overall_rules.update(results)
+        # Try to fill macro suggestions
+        selected_suggestions = set()
+        tried_usages = set()
+        # While there are new suggestions
+        while macro_suggestions:
+            # Select and remove a suggestion from the set
+            sug = macro_suggestions.pop()
+            newsugs = set()
+            removal_candidates = set()
+            # Try to match all rules from the query to this suggestion
+            for rule in overall_rules:
+                try:
+                    sug.add_rule(str(rule))
+                except ValueError as e:
+                    # LOG.debug(e)
+                    #LOG.debug("Mismatching rule: \"%s\"", rule)
+                    newsug = sug.fork_and_fit(str(rule))
+                    # If we have a new valid suggestion which has not been
+                    # suggested before
+                    if newsug and newsug.usage not in tried_usages \
+                            and newsug not in selected_suggestions \
+                            and newsug not in macro_suggestions:
+                        newsugs.add(newsug)
+                        tried_usages.add(newsug.usage)
+                except RuntimeError as e:
+                    # This rule does not match any rule in the macro
+                    # This should not happen
+                    # TODO: check whether this happens. If it does, remove the
+                    # log and silently remove the rule
+                    # If not, just remove the log
+                    LOG.warning("Rule does not match any in the \"%s\" macro: "
+                                "\"%s\"", m, rule)
+                    removal_candidates.add(rule)
                 else:
-                    print "Usage not fully found: \"{}\"".format(x)
-                    y = [z for z in macro_suggestions if z.usage == x][0]
-                    for z in y.placeholder_rules:
-                        if z in y._rules:
-                            print y._rules[z]
-                        else:
-                            print z
-            else:
-                macros_found += 1
-        continue
-        # Discard suggestions whose score is too low
-        macro_suggestions = [
-            x for x in macro_suggestions if x.score >= SUGGESTION_THRESHOLD]
-        # Discard suggestions which are a subset of another with the same score
-        removal_candidates = []
-        # For each suggestion
-        for x in macro_suggestions:
-            # If suggestion x is found to be a strict subset of any other,
-            # meaning that its rules are wholly contained in a bigger
-            # suggestion with an equal or greater score, don't suggest it.
-            # Macro_suggestions is originally a set when being filled up, and
-            # suggestions are identified by the macro name and rules they
-            # contain, so there will not be more than one macro suggestion with
-            # the same macro name containing exactly the same rules: therefore
-            # we are only interested in strict subsets (x < y), without "<=".
-            if any(x < y for y in macro_suggestions if x.score <= y.score):
-                removal_candidates.append(x)
-        for x in removal_candidates:
-            macro_suggestions.remove(x)
-        # Discard suggestions whose usage is already in the policy
-        # This must be done after removing suggestions which are subsets of
-        # others
-        macro_suggestions = [
-            x for x in macro_suggestions if x.usage not in macrousages_dict]
+                    tried_usages.add(sug.usage)
+            # This suggestion is now exhausted: if acceptable, move to
+            # selected_suggestions, otherwise do nothing with it
+            if sug.score >= SUGGESTION_THRESHOLD:
+                selected_suggestions.add(sug)
+            # Filter the newsugs and add to macro_suggestions those that still
+            # need to be processed. Completed ones go to selected_suggestions
+            for newsug in newsugs:
+                if newsug.score == 1:
+                    selected_suggestions.add(newsug)
+                else:
+                    macro_suggestions.add(newsug)
+            # Remove rules that do not match any rules in the macro
+            # Happens e.g. in cases of multiple occurrences of the same arg,
+            # where the regex version will pick up a rule but the numbered
+            # placeholder version will reject it.
+            for rem in removal_candidates:
+                overall_rules.remove(rem)
+        # Save the suggestions
+        global_suggestions.update(selected_suggestions)
         oldpart = part
         part = default_timer()
         LOG.info("Time spent on \"%s\": %ss", m, part - oldpart)
-        print "Number of suggestions: {}".format(len(macro_suggestions))
-        for mcs in macro_suggestions:
-            print str(mcs)
-            print "\t" + "\n\t".join(mcs.rules)
-        print
-    # TODO: delete
+    # Check how many usages have been fully recognized
+    found_usages = [x.usage for x in global_suggestions if x.score == 1]
+    part_usages = [x.usage for x in global_suggestions if x.score < 1]
+    for x, n in macrousages_dict.iteritems():
+        if n.macro not in selected_macros:
+            continue
+        macros_used += 1
+        if x not in found_usages:
+            if x not in part_usages:
+                print "Usage not found: \"{}\"".format(x)
+            else:
+                print "Usage not fully found: \"{}\"".format(x)
+                y = [z for z in global_suggestions if z.usage == x][0]
+                for z in y.placeholder_rules:
+                    if z in y._rules:
+                        print y._rules[z]
+                    else:
+                        print z
+        else:
+            macros_found += 1
+    # Discard suggestions which are a subset of another with the same score
+    removal_candidates = []
+    # For each suggestion
+    for x in global_suggestions:
+        # If suggestion x is found to be a strict subset of any other,
+        # meaning that its rules are wholly contained in a bigger
+        # suggestion with an equal or greater score, don't suggest it.
+        # Macro_suggestions is originally a set when being filled up, and
+        # suggestions are identified by the macro name and rules they
+        # contain, so there will not be more than one macro suggestion with
+        # the same macro name containing exactly the same rules: therefore
+        # we are only interested in strict subsets (x < y), without "<=".
+        if any(x < y for y in global_suggestions if x.score <= y.score):
+            removal_candidates.append(x)
+    for x in removal_candidates:
+        global_suggestions.remove(x)
+    # Discard suggestions whose usage is already in the policy
+    # This must be done after removing suggestions which are subsets of
+    # others
+    global_suggestions = [
+        x for x in global_suggestions if x.usage not in macrousages_dict]
+    oldpart = part
     print "Usages found: {}/{}".format(macros_found, macros_used)
-    ####
     end = default_timer()
     elapsed = end - begin
     LOG.info("Time spent expanding macros: %ss", elapsed)
@@ -385,8 +422,12 @@ class MacroSuggestion(object):
                 # If the supplied rule matches one of the rules in the macro,
                 # and that rule "slot" is not already taken by another rule
                 if r in self._rules:
-                    already_taken = self._rules[r]
-                    continue
+                    if self._rules[r] == rule:
+                        # If the same rule is already here, just return
+                        return
+                    else:
+                        already_taken = self._rules[r]
+                        continue
                 # If there are any conflicting arguments, don't add this rule
                 # i.e. arguments in the same position but with different values
                 for a in args:
@@ -409,14 +450,14 @@ class MacroSuggestion(object):
                 score *= len(self.args) / float(self.macro.nargs)
                 self._score = score
                 return
-        # If we found a rule that matched, but was already taken, and then
-        # found no suitable rule
+        # If we found a rule that matched a slot which was already taken, and
+        # no other empty slot
         if already_taken:
             raise ValueError(
                 "Slot already taken by \"{}\"!".format(already_taken))
         else:
-            # If we got here, we found no matching rule
-            raise RuntimeError("Invalid rule.")
+            # If we got here, we found no matching rule at all
+            raise RuntimeError("Invalid rule: \"{}\"".format(rule))
 
     def fork_and_fit(self, rule):
         """Fork the current state of the macro suggestion, and modify it to fit
