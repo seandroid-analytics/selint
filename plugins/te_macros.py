@@ -298,11 +298,11 @@ def main(policy, config):
             # Try to match all rules from the query to this suggestion
             for rule in overall_rules:
                 try:
-                    sug.add_rule(str(rule))
+                    sug.add_rule(rule)
                 except ValueError as e:
                     # LOG.debug(e)
                     #LOG.debug("Mismatching rule: \"%s\"", rule)
-                    newsug = sug.fork_and_fit(str(rule))
+                    newsug = sug.fork_and_fit(rule)
                     # If we have a new valid suggestion which has not been
                     # suggested before
                     if newsug and newsug.usage not in tried_usages \
@@ -345,22 +345,12 @@ def main(policy, config):
         LOG.info("Time spent on \"%s\": %ss", m, part - oldpart)
     # Check how many usages have been fully recognized
     found_usages = [x.usage for x in global_suggestions if x.score == 1]
-    part_usages = [x.usage for x in global_suggestions if x.score < 1]
     for x, n in macrousages_dict.iteritems():
         if n.macro not in selected_macros:
             continue
         macros_used += 1
         if x not in found_usages:
-            if x not in part_usages:
-                print "Usage not found: \"{}\"".format(x)
-            else:
-                print "Usage not fully found: \"{}\"".format(x)
-                y = [z for z in global_suggestions if z.usage == x][0]
-                for z in y.placeholder_rules:
-                    if z in y._rules:
-                        print y._rules[z]
-                    else:
-                        print z
+            print "Usage not found: \"{}\"".format(x)
         else:
             macros_found += 1
     # Discard suggestions which are a subset of another with the same score
@@ -406,6 +396,7 @@ class MacroSuggestion(object):
         for r in self._placeholder_rules:
             self._extractors[r] = ArgExtractor(r)
         self._rules = {}
+        self._rules_strings = {}
         self._args = {}
         self._score = 0
 
@@ -419,10 +410,11 @@ class MacroSuggestion(object):
             except ValueError:
                 continue
             else:
+                rulestr = str(rule)
                 # If the supplied rule matches one of the rules in the macro,
                 # and that rule "slot" is not already taken by another rule
                 if r in self._rules:
-                    if self._rules[r] == rule:
+                    if self._rules_strings[r] == rulestr:
                         # If the same rule is already here, just return
                         return
                     else:
@@ -438,6 +430,7 @@ class MacroSuggestion(object):
                 # Add the new rule, associated with the corresponding
                 # placeholder rule
                 self._rules[r] = rule
+                self._rules_strings[r] = rulestr
                 # Update the args dictionary
                 self.args.update(args)
                 # Update the score. The score is given by:
@@ -526,23 +519,23 @@ class MacroSuggestion(object):
     def __eq__(self, other):
         """Check whether this suggestion is a duplicate of another."""
         return self.macro.name == other.macro.name and\
-            set(self.rules) == set(other.rules)
+            set(self._rules_strings) == set(other._rules_strings)
 
     def __ne__(self, other):
         return self.macro.name != other.macro.name or\
-            set(self.rules) != set(other.rules)
+            set(self._rules_strings) != set(other._rules_strings)
 
     def __lt__(self, other):
-        return set(self.rules) < set(other.rules)
+        return set(self._rules_strings) < set(other._rules_strings)
 
     def __le__(self, other):
-        return set(self.rules) <= set(other.rules)
+        return set(self._rules_strings) <= set(other._rules_strings)
 
     def __gt__(self, other):
-        return set(self.rules) > set(other.rules)
+        return set(self._rules_strings) > set(other._rules_strings)
 
     def __ge__(self, other):
-        return set(self.rules) >= set(other.rules)
+        return set(self._rules_strings) >= set(other._rules_strings)
 
     def __repr__(self):
         return self.usage + ": " + str(self.score * 100) + "%"
@@ -620,139 +613,126 @@ class ArgExtractor(object):
         Return True if the rule satisfies (at least) all constraints imposed
         by the extractor."""
         matches = []
-        try:
-            # Parse the rule into blocks
-            rule_blocks = policysource.mapping.Mapper.rule_parser(rule)
-        except ValueError:
-            # Malformed rule
-            # TODO: log?
+        objname = None
+        # Shorter name -> shorter lines
+        regex_blocks = self.regex_blocks
+        regex_blocks_c = self.regex_blocks_c
+        # Match the rule block by block
+        # Pre-check on the number of blocks
+        if len(regex_blocks) == 5:
+            # AV rule or type_transition
+            if str(rule.ruletype) not in policysource.mapping.AVRULES\
+                    and str(rule.ruletype) != "type_transition":
+                return None
+        elif len(regex_blocks) == 6:
+            # Name transition
+            if str(rule.ruletype) == "type_transition":
+                try:
+                    objname = str(rule.filename)
+                except:
+                    return None
+            else:
+                return None
+        ##################### Match block 0 (ruletype) ######################
+        # No macro arguments here, no regex match
+        if str(rule.ruletype) != regex_blocks[0]:
             return None
+        ##################################################################
+        ##################### Match block 1 (source) #####################
+        if regex_blocks[1] in regex_blocks_c:
+            # The domain contains an argument, match the regex
+            m = regex_blocks_c[regex_blocks[1]].match(str(rule.source))
+            if m:
+                matches.append(m.group(1))
+            else:
+                return None
         else:
-            # Shorter name -> shorter lines
-            regex_blocks = self.regex_blocks
-            regex_blocks_c = self.regex_blocks_c
-            # Match the rule block by block
-            # Pre-check on the number of blocks
-            if len(rule_blocks) != len(regex_blocks):
+            # The domain contains no argument, match the string
+            if str(rule.source) != regex_blocks[1]:
                 return None
-            ##################### Match block 0 (rtype) ######################
-            # No macro arguments here, no regex match
-            if rule_blocks[0] != regex_blocks[0]:
+        ##################################################################
+        ##################### Match block 2 (target) #####################
+        if regex_blocks[2] in regex_blocks_c:
+            # The type contains an argument, match the regex
+            m = regex_blocks_c[regex_blocks[2]].match(str(rule.target))
+            if m:
+                matches.append(m.group(1))
+            else:
                 return None
-            ##################################################################
-            ##################### Match block 1 (source) #####################
-            if regex_blocks[1] in regex_blocks_c:
-                # The domain contains an argument, match the regex
-                m = regex_blocks_c[regex_blocks[1]].match(rule_blocks[1])
+        else:
+            # The type contains no argument, match the string
+            if regex_blocks[2] == "self" and str(rule.target) != "self":
+                # Handle "self" expansion case
+                # TODO: check if this actually happens
+                if str(rule.target) != str(rule.source):
+                    return None
+            elif str(rule.source) != regex_blocks[2]:
+                return None
+        ##################################################################
+        ##################### Match block 3 (tclass) #####################
+        if regex_blocks[3] in regex_blocks_c:
+            # The class contains an argument, match the regex
+            # This should never happen, however
+            m = regex_blocks_c[regex_blocks[3]].match(str(rule.tclass))
+            if m:
+                matches.append(m.group(1))
+            else:
+                return None
+        else:
+            # The class contains no argument
+            # Match a (super)set of what is required by the regex
+            if str(rule.tclass) != regex_blocks[3]:
+                # Simple class, match the string
+                return None
+        ##################################################################
+        ##################### Match block 4 (variable) ###################
+        if str(rule.ruletype) in policysource.mapping.AVRULES:
+            ################ Match an AV rule ################
+            # Block 4 is the permission set
+            # Match a (super)set of what is required by the regex
+            if any(x in regex_blocks[4] for x in "{}"):
+                regex_perms = set(regex_blocks[4].strip("{}").split())
+            else:
+                regex_perms = set([regex_blocks[4]])
+            if not regex_perms <= rule.perms:
+                # If the perms in the rule are not at least those in
+                # the regex
+                # TODO: remove
+                # print "Missing perms: {}".format(
+                #    " ".join(regex_perms - rule_perms))
+                return None
+            ##################################################
+        elif str(rule.ruletype) == "type_transition":
+            ################ Match a type_transition rule #################
+            # Block 4 is the default type
+            if regex_blocks[4] in regex_blocks_c:
+                # The default type contains an argument, match the regex
+                m = regex_blocks_c[regex_blocks[4]].match(str(rule.default))
                 if m:
                     matches.append(m.group(1))
                 else:
                     return None
             else:
-                # The domain contains no argument, match the string
-                if rule_blocks[1] != regex_blocks[1]:
+                # The default type contains no argument, match the string
+                if str(rule.default) != regex_blocks[4]:
                     return None
-            ##################################################################
-            ##################### Match block 2 (target) #####################
-            if regex_blocks[2] in regex_blocks_c:
-                # The type contains an argument, match the regex
-                m = regex_blocks_c[regex_blocks[2]].match(rule_blocks[2])
+            ##################################################
+        ##################################################################
+        ##################### Match block 5 (name trans) #################
+        if objname:
+            # If this type transition has 6 fields, it is a name transition
+            # Block 5 is the object name
+            if regex_blocks[5] in regex_blocks_c:
+                # The object name contains an argument, match the regex
+                m = regex_blocks_c[regex_blocks[5]].match(objname)
                 if m:
                     matches.append(m.group(1))
                 else:
                     return None
             else:
-                # The type contains no argument, match the string
-                if regex_blocks[2] == "self" and rule_blocks[2] != "self":
-                    # Handle "self" expansion case
-                    # TODO: check if this actually happens
-                    if rule_blocks[2] != rule_blocks[1]:
-                        return None
-                elif rule_blocks[2] != regex_blocks[2]:
+                # The object name contains no argument, match the string
+                if objname != regex_blocks[5]:
                     return None
-            ##################################################################
-            ##################### Match block 3 (tclass) #####################
-            if regex_blocks[3] in regex_blocks_c:
-                # The class contains an argument, match the regex
-                # This should never happen, however
-                m = regex_blocks_c[regex_blocks[3]].match(rule_blocks[3])
-                if m:
-                    matches.append(m.group(1))
-                else:
-                    return None
-            else:
-                # The class contains no argument
-                if any(x in rule_blocks[3] for x in "{}"):
-                    # This rule contains a class set
-                    # Match a (super)set of what is required by the regex
-                    rule_classes = set(rule_blocks[3].strip("{}").split())
-                    if any(x in regex_blocks[3] for x in "{}"):
-                        regex_classes = set(
-                            regex_blocks[3].strip("{}").split())
-                    else:
-                        regex_classes = set([regex_blocks[3]])
-                    if rule_classes < regex_classes:
-                        # If the classes in the rule are not at least those in
-                        # the regex
-                        return None
-                elif rule_blocks[3] != regex_blocks[3]:
-                    # Simple class, match the string
-                    return None
-            ##################################################################
-            ##################### Match block 4 (variable) ###################
-            if rule_blocks[0] in policysource.mapping.AVRULES:
-                ################ Match an AV rule ################
-                # Block 4 is the permission set
-                if any(x in rule_blocks[4] for x in "{}"):
-                    # This rule contains a permission set
-                    # Match a (super)set of what is required by the regex
-                    rule_perms = set(rule_blocks[4].strip("{}").split())
-                    if any(x in regex_blocks[4] for x in "{}"):
-                        regex_perms = set(regex_blocks[4].strip("{}").split())
-                    else:
-                        regex_perms = set([regex_blocks[4]])
-                    if not regex_perms <= rule_perms:
-                        # If the perms in the rule are not at least those in
-                        # the regex
-                        # TODO: remove
-                        # print "Missing perms: {}".format(
-                        #    " ".join(regex_perms - rule_perms))
-                        return None
-                elif rule_blocks[4] != regex_blocks[4]:
-                    # Simple permission, match the string
-                    return None
-                ##################################################
-            elif rule_blocks[0] == "type_transition":
-                ################ Match a type_transition rule #################
-                # Block 4 is the default type
-                if regex_blocks[4] in regex_blocks_c:
-                    # The default type contains an argument, match the regex
-                    m = regex_blocks_c[regex_blocks[4]].match(rule_blocks[4])
-                    if m:
-                        matches.append(m.group(1))
-                    else:
-                        return None
-                else:
-                    # The default type contains no argument, match the string
-                    if rule_blocks[4] != regex_blocks[4]:
-                        return None
-                ##################################################
-            ##################################################################
-            ##################### Match block 5 (name trans) #################
-            if rule_blocks[0] == "type_transition" and len(rule_blocks) == 6:
-                # If this type transition has 6 fields, it is a name transition
-                # Block 5 is the object name
-                if regex_blocks[5] in regex_blocks_c:
-                    # The object name contains an argument, match the regex
-                    m = regex_blocks_c[regex_blocks[5]].match(rule_blocks[5])
-                    if m:
-                        matches.append(m.group(1))
-                    else:
-                        return None
-                else:
-                    # The object name contains no argument, match the string
-                    if rule_blocks[5] != regex_blocks[5]:
-                        return None
-            ##################################################################
-            ######################## All blocks match ########################
-            return matches
+        ##################################################################
+        ######################## All blocks match ########################
+        return matches
