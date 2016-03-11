@@ -578,6 +578,10 @@ class ArgExtractor(object):
         self.regex = re.sub(self.placeholder_r,
                             "(" + VALID_ARG_R + ")", self.rule)
         self.regex_blocks = policysource.mapping.Mapper.rule_parser(self.regex)
+        self.regex_blocks_c = {}
+        for blk in self.regex_blocks:
+            if VALID_ARG_R in blk:
+                self.regex_blocks_c[blk] = re.compile(blk)
         # Save the argument names as "argN"
         self.args = [x.strip("@").lower()
                      for x in re.findall(self.placeholder_r, self.rule)]
@@ -626,6 +630,7 @@ class ArgExtractor(object):
         else:
             # Shorter name -> shorter lines
             regex_blocks = self.regex_blocks
+            regex_blocks_c = self.regex_blocks_c
             # Match the rule block by block
             # Pre-check on the number of blocks
             if len(rule_blocks) != len(regex_blocks):
@@ -636,9 +641,9 @@ class ArgExtractor(object):
                 return None
             ##################################################################
             ##################### Match block 1 (source) #####################
-            if VALID_ARG_R in regex_blocks[1]:
+            if regex_blocks[1] in regex_blocks_c:
                 # The domain contains an argument, match the regex
-                m = re.match(regex_blocks[1], rule_blocks[1])
+                m = regex_blocks_c[regex_blocks[1]].match(rule_blocks[1])
                 if m:
                     matches.append(m.group(1))
                 else:
@@ -649,9 +654,9 @@ class ArgExtractor(object):
                     return None
             ##################################################################
             ##################### Match block 2 (target) #####################
-            if VALID_ARG_R in regex_blocks[2]:
+            if regex_blocks[2] in regex_blocks_c:
                 # The type contains an argument, match the regex
-                m = re.match(regex_blocks[2], rule_blocks[2])
+                m = regex_blocks_c[regex_blocks[2]].match(rule_blocks[2])
                 if m:
                     matches.append(m.group(1))
                 else:
@@ -667,10 +672,10 @@ class ArgExtractor(object):
                     return None
             ##################################################################
             ##################### Match block 3 (tclass) #####################
-            if VALID_ARG_R in regex_blocks[3]:
+            if regex_blocks[3] in regex_blocks_c:
                 # The class contains an argument, match the regex
                 # This should never happen, however
-                m = re.match(regex_blocks[3], rule_blocks[3])
+                m = regex_blocks_c[regex_blocks[3]].match(rule_blocks[3])
                 if m:
                     matches.append(m.group(1))
                 else:
@@ -720,9 +725,9 @@ class ArgExtractor(object):
             elif rule_blocks[0] == "type_transition":
                 ################ Match a type_transition rule #################
                 # Block 4 is the default type
-                if VALID_ARG_R in regex_blocks[4]:
+                if regex_blocks[4] in regex_blocks_c:
                     # The default type contains an argument, match the regex
-                    m = re.match(regex_blocks[4], rule_blocks[4])
+                    m = regex_blocks_c[regex_blocks[4]].match(rule_blocks[4])
                     if m:
                         matches.append(m.group(1))
                     else:
@@ -737,9 +742,9 @@ class ArgExtractor(object):
             if rule_blocks[0] == "type_transition" and len(rule_blocks) == 6:
                 # If this type transition has 6 fields, it is a name transition
                 # Block 5 is the object name
-                if VALID_ARG_R in regex_blocks[5]:
+                if regex_blocks[5] in regex_blocks_c:
                     # The object name contains an argument, match the regex
-                    m = re.match(regex_blocks[5], rule_blocks[5])
+                    m = regex_blocks_c[regex_blocks[5]].match(rule_blocks[5])
                     if m:
                         matches.append(m.group(1))
                     else:
