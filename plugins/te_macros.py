@@ -38,7 +38,8 @@ RULE_IGNORE_PATHS = []  # ["external/sepolicy"]
 # Do not try to reconstruct these macros
 MACRO_IGNORE = ["recovery_only", "non_system_app_set", "userdebug_or_eng",
                 "print", "permissive_or_unconfined", "userfastboot_only",
-                "notuserfastboot", "eng", "domain_trans", "domain_auto_trans",
+                "notuserfastboot", "eng", "binder_service",
+                "domain_trans", "domain_auto_trans",
                 "file_type_trans", "file_type_auto_trans", "r_dir_file",
                 "init_daemon_domain"]
 
@@ -216,10 +217,6 @@ def main(policy, config):
     FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
                               for p in RULE_IGNORE_PATHS)
 
-    # Create a dictionary of macro usages
-    macrousages_dict = {}
-    for m in policy.macro_usages:
-        macrousages_dict[str(m)] = m
     # Save the suggestions
     global_suggestions = set()
 
@@ -230,6 +227,11 @@ def main(policy, config):
     selected_macros = [x for x in policy.macro_defs.values() if
                        x.file_defined.endswith("te_macros") and not
                        x.name in MACRO_IGNORE]
+    # Create a dictionary of selected macro usages
+    macrousages_dict = {}
+    for m in policy.macro_usages:
+        if m.macro in selected_macros:
+            macrousages_dict[str(m)] = m
     macros_found = 0
     macros_used = 0
     for k, m in enumerate(selected_macros, start=1):
