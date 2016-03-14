@@ -499,6 +499,24 @@ class Mapper(object):
         else:
             raise ValueError("Unsupported rule")
 
+    @staticmethod
+    def rule_split_after_class(string):
+        """Parse the string representation of a rule.
+        Return a tuple containing the rule mask up to the class and the rest of
+        the rule.
+
+        Raises ValueError if the rule is invalid, unsupported, or contains a
+        class set."""
+        if string.startswith(Mapper.supported_rules):
+            i = string.index(":")
+            j = string.index(" ", i)
+            if string[i + 1] == "{" or string[j - 1] == "}":
+                raise ValueError("Rule contains a class set")
+            else:
+                return (string[:j], string[j + 1:])
+        else:
+            raise ValueError("Unsupported rule")
+
     def expand_rule(self, rule):
         """Expand the given rule by interpreting attributes, sets, complement
         sets and complement types.
