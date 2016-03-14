@@ -33,7 +33,7 @@ from setools.terulequery import TERuleQuery as TERuleQuery
 #
 # e.g. to ignore AOSP:
 # RULE_IGNORE_PATHS = ["external/sepolicy"]
-RULE_IGNORE_PATHS = []  # ["external/sepolicy"]
+RULE_IGNORE_PATHS = ["external/sepolicy"]
 
 # Do not try to reconstruct these macros
 MACRO_IGNORE = ["recovery_only", "non_system_app_set", "userdebug_or_eng",
@@ -57,32 +57,11 @@ LOG = None
 # Global variable to hold the mapper
 MAPPER = None
 
+# Global variable to hold the full ignored paths
+FULL_IGNORE_PATHS = None
+
 # Regex for a valid argument in m4
 VALID_ARG_R = r"[a-zA-Z0-9_-]+"
-
-# Discard rules coming from explictly ignored paths
-#            filtered_results = []
-#            for x in results:
-#                rule = MAPPER.rule_factory(str(x))
-#                rutc = rule.up_to_class
-#                # Get the MappedRule(s) corresponding to this rutc
-#                rls = [x for x in policy.mapping.rules[rutc]]
-#                # If this rule comes from an explictly ignored path, skip
-#                if len(rls) == 1:
-#                    if not rls[0].fileline.startswith(FULL_IGNORE_PATHS):
-#                        filtered_results.append(x)
-#                else:
-#                    # If this rule comes from multiple places
-#                    discard = False
-#                    for rl in rls:
-#                        if rl.fileline.startswith(FULL_IGNORE_PATHS):
-#                            # If at least one path is explicitly ignored
-#                            discard = True
-#                            break
-#                    if not discard:
-#                        # If no path was ignored, append
-#                        filtered_results.append(x)
-#            results = filtered_results
 
 
 def process_macro(m, mapper):
@@ -112,9 +91,6 @@ def process_macro(m, mapper):
         # If this is a supported rule (not a comment, not a type def...)
         if l.startswith(policysource.mapping.ONLY_MAP_RULES):
             try:
-                # TODO: maybe don't use "l" below, but use the blocks from the
-                # parsed version? this would take care of multiple curly
-                # brackets.
                 # Substitute the positional placeholder arguments with a
                 # regex matching valid argument characters
                 l_r = re.sub(r"@@ARG[0-9]+@@", VALID_ARG_R, l)
@@ -153,7 +129,6 @@ def process_macro(m, mapper):
                         # of queries that we are going to perform for each rule
                         # in the macro, from 1 to N where N is the cardinality
                         # of the class set.
-                        # TODO: Could we fix this?
                         rules[nl] = policysource.mapping.AVRule(
                             [tmp.rtype, tmp.source, tmp.target, c, permblk])
                 elif tmp.rtype in policysource.mapping.TERULES:
@@ -182,7 +157,6 @@ def process_macro(m, mapper):
                         # of queries that we are going to perform for each rule
                         # in the macro, from 1 to N where N is the cardinality
                         # of the class set.
-                        # TODO: Could we fix this?
                         if tmp.is_name_trans:
                             rules[nl] = policysource.mapping.TERule(
                                 [tmp.rtype, tmp.source, tmp.target, c,
@@ -243,8 +217,40 @@ def query_for_rule(policy, r):
         results = [x for x in query.results() if x.source == x.target]
     else:
         results = list(query.results())
-    # TODO: discard rules coming from ignored paths
-    return results
+    filtered_results = []
+    # Discard rules coming from explicitly ignored paths
+    for x in results:
+        rule = MAPPER.rule_factory(str(x))
+        rutc = rule.up_to_class
+        # Get the MappedRule(s) corresponding to this rutc
+        rls = [y for y in policy.mapping.rules[rutc]]
+        if len(rls) == 1:
+            # If this rule comes from a single place, this is easy.
+            # Drop the rule if the path it comes from is ignored
+            if not rls[0].fileline.startswith(FULL_IGNORE_PATHS):
+                filtered_results.append(x)
+        else:
+            # If this rule comes from multiple places, this is more complex.
+            # Check that all rules that make up the specific rule we found
+            # come from non-ignored paths. If not, drop the rule.
+            if rule.rtype in policysource.mapping.AVRULES:
+                # Check that the permission set of the "x" rule is covered by
+                # non-ignored rules. If not, drop the rule.
+                tmpset = set()
+                for each in rls:
+                    if not each.fileline.startswith(FULL_IGNORE_PATHS):
+                        prmstr = MAPPER.rule_split_after_class(each.rule)[1]
+                        tmpset.update(prmstr.strip(" {};").split())
+                if tmpset >= rule.permset:
+                    # The set of permissions created by non-ignored rules is
+                    # sufficient
+                    filtered_results.append(x)
+            elif rule.rtype in policysource.mapping.TERULES:
+                # Check for every type_transition rule individually
+                for each in rls:
+                    if not each.fileline.startswith(FULL_IGNORE_PATHS):
+                        filtered_results.append(x)
+    return filtered_results
 
 
 def main(policy, config):
@@ -264,6 +270,7 @@ def main(policy, config):
 
     # Compute the absolute ignore paths
     FULL_BASE_DIR = os.path.abspath(os.path.expanduser(config.BASE_DIR_GLOBAL))
+    global FULL_IGNORE_PATHS
     FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
                               for p in RULE_IGNORE_PATHS)
 
@@ -381,6 +388,7 @@ def main(policy, config):
     global_suggestions = [
         x for x in global_suggestions if x.usage not in macrousages_dict]
     # Print output
+    print
     for x in global_suggestions:
         print "These lines could be substituted by macro {}:".format(x)
         for r in x.rules:
@@ -388,6 +396,11 @@ def main(policy, config):
             rule = MAPPER.rule_factory(r_str)
             rls = policy.mapping.rules[rule.up_to_class]
             for y in rls:
+                # Don't print rules coming from explicitly ignored paths
+                # We have to do this here as well, because the mapping contains
+                # all paths and duplicate rules in different paths may exist.
+                if y.fileline.startswith(FULL_IGNORE_PATHS):
+                    continue
                 y_rule = MAPPER.rule_factory(y.rule)
                 if y_rule.rtype in policysource.mapping.AVRULES:
                     # If the rules have at least one permission in common
@@ -408,7 +421,7 @@ def main(policy, config):
         print "Corresponding rules in the macro expansion:"
         for r in x.rules:
             print r
-
+        print
     # Print some information
     LOG.debug("Usages found: %d/%d", macros_found, macros_used)
     end = default_timer()
@@ -735,9 +748,6 @@ class ArgExtractor(object):
             if not self.regex_perms <= rule.perms:
                 # If the perms in the rule are not at least those in
                 # the regex
-                # TODO: remove
-                # print "Missing perms: {}".format(
-                #    " ".join(regex_perms - rule_perms))
                 return None
             ##################################################
         elif rule_blocks[0] == "type_transition":
