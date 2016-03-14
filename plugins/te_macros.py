@@ -466,8 +466,7 @@ def main(policy, config):
                             # If neither has an object name just print
                             print y
         print "Corresponding rules in the macro expansion:"
-        for r in x.rules:
-            print r
+        print x.usage_expansion
         print
     # Print some information
     LOG.debug("Usages found: %d/%d", macros_found, macros_used)
@@ -606,6 +605,24 @@ class MacroSuggestion(object):
         This way, a macro suggestion which does not provide the whole set of
         args is penalised."""
         return self._score
+
+    @property
+    def usage_expansion(self):
+        """Return a multiline string containing the relevant rules of the macro
+        expansion with the current args."""
+        retstr = ""
+        for x in self.placeholder_rules:
+            # Double all curly brackets to make them literal
+            expansion = re.sub(r"([{}])", r"\1\1", x)
+            # Substitute @@ARGN@@ with {N} to format the argument for
+            # Python string formatting
+            expansion = re.sub(r"@@ARG([0-9]+)@@", r"{\1}", expansion)
+            # Print the rule with the current arguments
+            args = []
+            for y in sorted(self.args):
+                args.append(self.args[y])
+            retstr += expansion.format(*args) + "\n"
+        return retstr
 
     def __eq__(self, other):
         """Check whether this suggestion is a duplicate of another."""
