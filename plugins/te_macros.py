@@ -198,6 +198,55 @@ def process_macro(m, mapper):
     return (rules, macro_suggestions)
 
 
+def query_for_rule(policy, r):
+    """Query a policy for rules matching a given rule.
+    The rule may contain regex fields."""
+    # Mark whether a query parameter is a regex or a string
+    sr = r"[a-zA-Z0-9_-]+" in r.source
+    tr = r"[a-zA-Z0-9_-]+" in r.target
+    cr = r"[a-zA-Z0-9_-]+" in r.tclass
+    # Handle self
+    if r.target == "self":
+        # Override the target to match everything
+        xtarget = r"[a-zA-Z0-9_-]+"
+        tr = True
+    else:
+        xtarget = r.target
+    # Query for an AV rule
+    if r.rtype in policysource.mapping.AVRULES:
+        query = TERuleQuery(policy=policy.policy, ruletype=[r.rtype],
+                            source=r.source, source_regex=sr,
+                            source_indirect=False,
+                            target=xtarget, target_regex=tr,
+                            target_indirect=False,
+                            tclass=[r.tclass], tclass_regex=cr,
+                            perms=r.permset, perms_subset=True)
+    # Query for a TE rule
+    elif r.rtype in policysource.mapping.TERULES:
+        dr = r"[a-zA-Z0-9_-]+" in r.deftype
+        query = TERuleQuery(policy=policy.policy, ruletype=[r.rtype],
+                            source=r.source, source_regex=sr,
+                            source_indirect=False,
+                            target=xtarget, target_regex=tr,
+                            target_indirect=False,
+                            tclass=[r.tclass], tclass_regex=cr,
+                            default=r.deftype, default_regex=dr)
+    else:
+        # We should have no other rules, as they are already filtered
+        # when creating the list with the rule_factory method
+        LOG.warning("Unsupported rule: \"%s\"", r)
+        return None
+    # Filter all rules
+    if r.target == "self":
+        # Discard rules whose mask contained "self" as a target,
+        # but whose result's source and target are different
+        results = [x for x in query.results() if x.source == x.target]
+    else:
+        results = list(query.results())
+    # TODO: discard rules coming from ignored paths
+    return results
+
+
 def main(policy, config):
     """Suggest usages of te_macros where appropriate."""
     # Check that we have been fed a valid policy
@@ -246,52 +295,10 @@ def main(policy, config):
         # Query the policy with regexes
         total_queries += len(rules)
         overall_rules = []
-        for l, r in rules.iteritems():
-            # Reset self
-            self_target = False
-            # Set whether a query parameter is a regex or a string
-            sr = r"[a-zA-Z0-9_-]+" in r.source
-            tr = r"[a-zA-Z0-9_-]+" in r.target
-            cr = r"[a-zA-Z0-9_-]+" in r.tclass
-            # Handle self
-            if r.target == "self":
-                self_target = True
-                xtarget = r"[a-zA-Z0-9_-]+"
-                tr = True
-            else:
-                xtarget = r.target
-            # Query for an AV rule
-            if r.rtype in policysource.mapping.AVRULES:
-                query = TERuleQuery(policy=policy.policy, ruletype=[r.rtype],
-                                    source=r.source, source_regex=sr,
-                                    source_indirect=False,
-                                    target=xtarget, target_regex=tr,
-                                    target_indirect=False,
-                                    tclass=[r.tclass], tclass_regex=cr,
-                                    perms=r.permset, perms_subset=True)
-            # Query for a TE rule
-            elif r.rtype in policysource.mapping.TERULES:
-                dr = r"[a-zA-Z0-9_-]+" in r.deftype
-                query = TERuleQuery(policy=policy.policy, ruletype=[r.rtype],
-                                    source=r.source, source_regex=sr,
-                                    source_indirect=False,
-                                    target=xtarget, target_regex=tr,
-                                    target_indirect=False,
-                                    tclass=[r.tclass], tclass_regex=cr,
-                                    default=r.deftype, default_regex=dr)
-            else:
-                # We should have no other rules, as they are already filtered
-                # when creating the list with the rule_factory method
-                LOG.warning("Unsupported rule: \"%s\"", r)
-                continue
-            # Filter all rules
-            if self_target:
-                # Discard rules whose mask contained "self" as a target,
-                # but whose result's source and target are different
-                results = [x for x in query.results() if x.source == x.target]
-            else:
-                results = list(query.results())
-            overall_rules.extend(results)
+        for r in rules.values():
+            results = query_for_rule(policy, r)
+            if results:
+                overall_rules.extend(results)
         # Try to fill macro suggestions
         selected_suggestions = set()
         tried_usages = set()
