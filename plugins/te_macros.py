@@ -39,13 +39,20 @@ RULE_IGNORE_PATHS = ["external/sepolicy"]
 MACRO_IGNORE = ["recovery_only", "non_system_app_set", "userdebug_or_eng",
                 "print", "permissive_or_unconfined", "userfastboot_only",
                 "notuserfastboot", "eng", "binder_service", "net_domain",
-                "unconfined_domain", "bluetooth_domain",
-                "domain_trans", "domain_auto_trans",
-                "file_type_trans", "file_type_auto_trans", "r_dir_file",
-                "init_daemon_domain"]
+                "unconfined_domain", "bluetooth_domain"]
+#                "domain_trans", "domain_auto_trans",
+#                "file_type_trans", "file_type_auto_trans", "r_dir_file",
+#                "init_daemon_domain"]
 
 # Only suggest macros that match above this threshold [0-1]
 SUGGESTION_THRESHOLD = 0.8
+
+# Truncate large macro processing to save time
+TRUNCATE_MACROS = False
+
+# Do not suggest these usages
+# WARNING: Be careful what you put in here.
+USAGES_IGNORE = []
 
 ##############################################################################
 ################# Do not edit configuration below this line ##################
@@ -59,6 +66,9 @@ MAPPER = None
 
 # Global variable to hold the full ignored paths
 FULL_IGNORE_PATHS = None
+
+# Global variable to hold the supported non-ignored rules mapping
+NON_IGNORED_MAPPING = {}
 
 # Regex for a valid argument in m4
 VALID_ARG_R = r"[a-zA-Z0-9_-]+"
@@ -175,6 +185,7 @@ def process_macro(m, mapper):
 def query_for_rule(policy, r):
     """Query a policy for rules matching a given rule.
     The rule may contain regex fields."""
+    global NON_IGNORED_MAPPING
     # Mark whether a query parameter is a regex or a string
     sr = r"[a-zA-Z0-9_-]+" in r.source
     tr = r"[a-zA-Z0-9_-]+" in r.target
@@ -220,7 +231,8 @@ def query_for_rule(policy, r):
     filtered_results = []
     # Discard rules coming from explicitly ignored paths
     for x in results:
-        rule = MAPPER.rule_factory(str(x))
+        x_str = str(x)
+        rule = MAPPER.rule_factory(x_str)
         rutc = rule.up_to_class
         # Get the MappedRule(s) corresponding to this rutc
         rls = [y for y in policy.mapping.rules[rutc]]
@@ -229,6 +241,7 @@ def query_for_rule(policy, r):
             # Drop the rule if the path it comes from is ignored
             if not rls[0].fileline.startswith(FULL_IGNORE_PATHS):
                 filtered_results.append(x)
+                NON_IGNORED_MAPPING[x_str] = [rls[0].fileline]
         else:
             # If this rule comes from multiple places, this is more complex.
             # Check that all rules that make up the specific rule we found
@@ -241,15 +254,25 @@ def query_for_rule(policy, r):
                     if not each.fileline.startswith(FULL_IGNORE_PATHS):
                         prmstr = MAPPER.rule_split_after_class(each.rule)[1]
                         tmpset.update(prmstr.strip(" {};").split())
+                        if x_str in NON_IGNORED_MAPPING:
+                            NON_IGNORED_MAPPING[x_str].append(each.fileline)
+                        else:
+                            NON_IGNORED_MAPPING[x_str] = [each.fileline]
                 if tmpset >= rule.permset:
                     # The set of permissions created by non-ignored rules is
                     # sufficient
                     filtered_results.append(x)
+                else:
+                    NON_IGNORED_MAPPING.pop(x_str, None)
             elif rule.rtype in policysource.mapping.TERULES:
                 # Check for every type_transition rule individually
                 for each in rls:
                     if not each.fileline.startswith(FULL_IGNORE_PATHS):
                         filtered_results.append(x)
+                        if x_str in NON_IGNORED_MAPPING:
+                            NON_IGNORED_MAPPING[x_str].append(each.fileline)
+                        else:
+                            NON_IGNORED_MAPPING[x_str] = [each.fileline]
     return filtered_results
 
 
@@ -274,6 +297,8 @@ def main(policy, config):
     FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
                               for p in RULE_IGNORE_PATHS)
 
+    global NON_IGNORED_MAPPING
+
     # Save the suggestions
     global_suggestions = set()
 
@@ -289,6 +314,15 @@ def main(policy, config):
     for m in policy.macro_usages:
         if m.macro in selected_macros:
             macrousages_dict[str(m)] = m
+    # Create a dictionary of filelines -> macro usages
+    macrousages_filelines = {}
+    for m in policy.macro_usages:
+        fileline = m.file_used + ":" + str(m.line_used)
+        if fileline in macrousages_filelines:
+            macrousages_filelines[fileline].append(m)
+        else:
+            macrousages_filelines[fileline] = [m]
+
     macros_found = 0
     macros_used = 0
     for k, m in enumerate(selected_macros, start=1):
@@ -350,8 +384,21 @@ def main(policy, config):
             # placeholder version will reject it.
             for rem in removal_candidates:
                 overall_rules.remove(rem)
-        # Save the suggestions
-        global_suggestions.update(selected_suggestions)
+        # Discard suggestions entirely made up of rules that already come from
+        # a macro expansion
+        for sug in selected_suggestions:
+            added = False
+            for x in sug.rules:
+                for y in NON_IGNORED_MAPPING[str(x)]:
+                    if y not in macrousages_filelines:
+                        # We have at least one rule that does not come from a
+                        # macro expansion
+                        global_suggestions.add(sug)
+                        added = True
+                        break
+                if added:
+                    break
+        # Print time info
         oldpart = part
         part = default_timer()
         LOG.info("Time spent on \"%s\": %ss", m, part - oldpart)
