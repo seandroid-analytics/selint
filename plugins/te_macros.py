@@ -313,8 +313,6 @@ def main(policy, config):
                 try:
                     sug.add_rule(rule)
                 except ValueError as e:
-                    # LOG.debug(e)
-                    #LOG.debug("Mismatching rule: \"%s\"", rule)
                     newsug = sug.fork_and_fit(rule)
                     # If we have a new valid suggestion which has not been
                     # suggested before
@@ -325,12 +323,6 @@ def main(policy, config):
                         tried_usages.add(newsug.usage)
                 except RuntimeError as e:
                     # This rule does not match any rule in the macro
-                    # This should not happen
-                    # TODO: check whether this happens. If it does, remove the
-                    # log and silently remove the rule
-                    # If not, just remove the log
-                    LOG.warning("Rule does not match any in the \"%s\" macro: "
-                                "\"%s\"", m, rule)
                     removal_candidates.add(rule)
                 else:
                     tried_usages.add(sug.usage)
@@ -357,15 +349,16 @@ def main(policy, config):
         part = default_timer()
         LOG.info("Time spent on \"%s\": %ss", m, part - oldpart)
     # Check how many usages have been fully recognized
-    found_usages = [x.usage for x in global_suggestions if x.score == 1]
-    for x, n in macrousages_dict.iteritems():
-        if n.macro not in selected_macros:
-            continue
-        macros_used += 1
-        if x not in found_usages:
-            print "Usage not found: \"{}\"".format(x)
-        else:
-            macros_found += 1
+    if config.verbosity == 4:
+        found_usages = [x.usage for x in global_suggestions if x.score == 1]
+        for x, n in macrousages_dict.iteritems():
+            if n.macro not in selected_macros:
+                continue
+            macros_used += 1
+            if x not in found_usages:
+                LOG.debug("Usage not found: \"%s\"", x)
+            else:
+                macros_found += 1
     # Discard suggestions which are a subset of another with the same score
     removal_candidates = []
     # For each suggestion
