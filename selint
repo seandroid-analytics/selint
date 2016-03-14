@@ -54,7 +54,7 @@ parser.add_argument("--listpolicyfiles", action="store_true",
                     help="List all the recognized policy files and exit.")
 # Set the verbosity level
 parser.add_argument("-v", "--verbosity", metavar="<LVL>",
-                    choices=[0, 1, 2, 3, 4], type=int, default=0,
+                    choices=[0, 1, 2, 3, 4], type=int, default=-1,
                     help="Be verbose. Supported levels are 0-4, "
                     "with 0 being the default.")
 # Supply a different config file
@@ -79,6 +79,35 @@ elif args.blacklist:
 else:
     selected_plugins = list(plugins.available_plugins)
 
+# Import config file as "config"
+try:
+    config = __import__(args.config[:-3])
+except:
+    print "CRITICAL: Malformed configuration file "\
+        "\"{}\", aborting ...".format(args.config)
+    raise
+
+# Save verbosity in config
+if hasattr(config, "verbosity"):
+    # If we have a verbosity configuration value
+    if args.verbosity == -1:
+        # User didn't explicitly set verbosity on the command line
+        if isinstance(config.verbosity, int) and \
+                config.verbosity >= 0 and config.verbosity <= 4:
+            # If we have a valid verbosity in the config file
+            args.verbosity = config.verbosity
+    else:
+        # User explictly set verbosity on the command line
+        config.verbosity = args.verbosity
+else:
+    # If we have no verbosity configuration value
+    if args.verbosity == -1:
+        # User didn't explicitly set verbosity on the command line: reset it
+        # to the default value
+        args.verbosity = 0
+    # Set the configuration value of verbosity
+    config.verbosity = args.verbosity
+
 # Setup logging
 if args.verbosity == 4:
     logging.basicConfig(level=logging.DEBUG)
@@ -90,14 +119,6 @@ elif args.verbosity == 1:
     logging.basicConfig(level=logging.ERROR)
 elif args.verbosity == 0:
     logging.basicConfig(level=logging.CRITICAL)
-
-# Import config file as "config"
-try:
-    config = __import__(args.config[:-3])
-except:
-    logging.critical(
-        "Malformed configuration file \"%s\", aborting ...", args.config)
-    raise
 
 # Compute list of policy files
 # TODO: add CLI option in addition to config file
