@@ -569,7 +569,7 @@ class MacroSuggestion(object):
         return set(self._rules_strings) >= set(other._rules_strings)
 
     def __repr__(self):
-        return self.usage + ": " + str(self.score * 100) + "%"
+        return self.usage + " (" + str(self.score * 100) + "%)"
 
     def __hash__(self):
         return hash(self.usage)
