@@ -380,13 +380,42 @@ def main(policy, config):
     # others
     global_suggestions = [
         x for x in global_suggestions if x.usage not in macrousages_dict]
-    oldpart = part
-    print "Usages found: {}/{}".format(macros_found, macros_used)
+    # Print output
+    for x in global_suggestions:
+        print "These lines could be substituted by macro {}:".format(x)
+        for r in x.rules:
+            r_str = str(r)
+            rule = MAPPER.rule_factory(r_str)
+            rls = policy.mapping.rules[rule.up_to_class]
+            for y in rls:
+                y_rule = MAPPER.rule_factory(y.rule)
+                if y_rule.rtype in policysource.mapping.AVRULES:
+                    # If the rules have at least one permission in common
+                    if y_rule.permset & rule.permset:
+                        print y
+                elif y_rule.rtype in policysource.mapping.TERULES:
+                    # If the rules have the same default type, and possibly
+                    # object name
+                    if y_rule.deftype == rule.deftype:
+                        if y_rule.objname or rule.objname:
+                            # If either has an object name, it must be the same
+                            if y_rule.objname and rule.objname:
+                                if y_rule.objname == rule.objname:
+                                    print y
+                        else:
+                            # If neither has an object name just print
+                            print y
+        print "Corresponding rules in the macro expansion:"
+        for r in x.rules:
+            print r
+
+    # Print some information
+    LOG.debug("Usages found: %d/%d", macros_found, macros_used)
     end = default_timer()
     elapsed = end - begin
     LOG.info("Time spent expanding macros: %ss", elapsed)
     LOG.info("Avg time/macro: %ss", elapsed / float(len(selected_macros)))
-    LOG.info("Total queries: %s", total_queries)
+    LOG.debug("Total queries: %s", total_queries)
 
 
 class MacroSuggestion(object):
