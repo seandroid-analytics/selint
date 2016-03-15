@@ -18,9 +18,48 @@
 target types, permission sets, ... ."""
 
 import sys
+import os.path
 import config.dangerous_rules as plugin_conf
+import policysource
+import policysource.mapping
 
 
 def main(policy, config):
-    print "Main"
-    print plugin_conf.testvar
+    # Compute the absolute ignore paths
+    FULL_BASE_DIR = os.path.abspath(os.path.expanduser(config.BASE_DIR_GLOBAL))
+    FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
+                              for p in plugin_conf.RULE_IGNORE_PATHS)
+
+    mapper = policysource.mapping.Mapper(
+        policy.policyconf, policy.attributes, policy.types, policy.classes)
+    for rls in policy.mapping.rules.values():
+        for r in rls:
+            score = 0
+            if r.fileline.startswith(FULL_IGNORE_PATHS):
+                # Ignore this rule
+                continue
+            rule = mapper.rule_factory(r.rule)
+            # Match the source
+            for crit in plugin_conf.TYPES:
+                if rule.source in plugin_conf.TYPES[crit]:
+                    score += plugin_conf.SCORE[crit]
+                    break
+            # Match the target
+            for crit in plugin_conf.TYPES:
+                if rule.target in plugin_conf.TYPES[crit]:
+                    score += plugin_conf.SCORE[crit]
+                    break
+            # TODO: do something with default types in type_transition rule
+            # Match the permissions
+            if rule.rtype in policysource.mapping.AVRULES:
+                perm_score = 0
+                for crit in plugin_conf.PERMS:
+                    if rule.permset & plugin_conf.PERMS[crit]:
+                        if perm_score < plugin_conf.SCORE[crit]:
+                            perm_score = plugin_conf.SCORE[crit]
+                score *= perm_score
+            # Normalise score
+            score /= float(plugin_conf.MAXIMUM_SCORE)
+            # Print rule
+            if score >= plugin_conf.SCORE_THRESHOLD:
+                print "{:.2f}: {}".format(score, r)
