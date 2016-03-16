@@ -23,22 +23,7 @@ import logging
 import policysource
 import policysource.policy
 import policysource.mapping
-
-# Do not make suggestions on rules coming from files in these paths
-#
-# e.g. to ignore AOSP:
-# RULE_IGNORE_PATHS = ["external/sepolicy"]
-RULE_IGNORE_PATHS = ["external/sepolicy"]
-
-# Only make suggestions for the following rule types
-# SUPPORTED_RULE_TYPES = ("allow", "auditallow", "dontaudit", "neverallow")
-SUPPORTED_RULE_TYPES = ("allow")
-
-# Parameters for partial match macro suggestions
-# Only suggest macros that match above this threshold [0-1]
-SUGGESTION_THRESHOLD = 0.8
-# Make up to this number of suggestions
-SUGGESTION_MAX_NO = 3
+import config.global_macros as plugin_conf
 
 
 class GlobalMacroSuggestion(object):
@@ -86,7 +71,7 @@ def main(policy, config):
     # Compute the absolute ignore paths
     FULL_BASE_DIR = os.path.abspath(os.path.expanduser(config.BASE_DIR_GLOBAL))
     FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
-                              for p in RULE_IGNORE_PATHS)
+                              for p in plugin_conf.RULE_IGNORE_PATHS)
 
     # Suggestions: {frozenset(filelines): [suggestions]}
     suggestions = {}
@@ -114,7 +99,7 @@ def main(policy, config):
     # Initialize a set fitter
     sf = SetFitter(macroset_dict)
     for r_up_to_class in policy.mapping.rules:
-        if r_up_to_class.startswith(SUPPORTED_RULE_TYPES):
+        if r_up_to_class.startswith(plugin_conf.SUPPORTED_RULE_TYPES):
             rules = policy.mapping.rules[r_up_to_class]
             permset = set()
             # Merge the various permission sets deriving from different rules
@@ -195,9 +180,9 @@ def main(policy, config):
                 if suggest_this:
                     # Select the top SUGGESTION_MAX_NO suggestions above
                     # SUGGESTION_THRESHOLD from the results
-                    sgs = sorted(
-                        [x for x in part if x.score >= SUGGESTION_THRESHOLD],
-                        reverse=True)[:SUGGESTION_MAX_NO]
+                    sgs = sorted([x for x in part if
+                                  x.score >= plugin_conf.SUGGESTION_THRESHOLD],
+                                 reverse=True)[:plugin_conf.SUGGESTION_MAX_NO]
                     for x in sgs:
                         g = GlobalMacroSuggestion(
                             x.name, x.values, filtered_rules, x.score)

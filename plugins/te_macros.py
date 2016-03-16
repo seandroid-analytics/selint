@@ -28,31 +28,8 @@ import policysource.mapping
 import policysource.macro
 import setools
 from setools.terulequery import TERuleQuery as TERuleQuery
+import config.te_macros as plugin_conf
 
-# Do not make suggestions on rules coming from files in these paths
-#
-# e.g. to ignore AOSP:
-# RULE_IGNORE_PATHS = ["external/sepolicy"]
-RULE_IGNORE_PATHS = ["external/sepolicy"]
-
-# Do not try to reconstruct these macros
-MACRO_IGNORE = ["recovery_only", "non_system_app_set", "userdebug_or_eng",
-                "print", "permissive_or_unconfined", "userfastboot_only",
-                "notuserfastboot", "eng", "binder_service", "net_domain",
-                "unconfined_domain", "bluetooth_domain"]
-#                "domain_trans", "domain_auto_trans",
-#                "file_type_trans", "file_type_auto_trans", "r_dir_file",
-#                "init_daemon_domain"]
-
-# Only suggest macros that match above this threshold [0-1]
-SUGGESTION_THRESHOLD = 0.8
-
-# Truncate large macro processing to save time
-TRUNCATE_MACROS = False
-
-# Do not suggest these usages
-# WARNING: Be careful what you put in here.
-USAGES_IGNORE = []
 
 ##############################################################################
 ################# Do not edit configuration below this line ##################
@@ -295,7 +272,7 @@ def main(policy, config):
     FULL_BASE_DIR = os.path.abspath(os.path.expanduser(config.BASE_DIR_GLOBAL))
     global FULL_IGNORE_PATHS
     FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
-                              for p in RULE_IGNORE_PATHS)
+                              for p in plugin_conf.RULE_IGNORE_PATHS)
 
     global NON_IGNORED_MAPPING
 
@@ -308,7 +285,7 @@ def main(policy, config):
     # Only consider te_macros not purposefully ignored
     selected_macros = [x for x in policy.macro_defs.values() if
                        x.file_defined.endswith("te_macros") and not
-                       x.name in MACRO_IGNORE]
+                       x.name in plugin_conf.MACRO_IGNORE]
     # Create a dictionary of selected macro usages
     macrousages_dict = {}
     for m in policy.macro_usages:
@@ -369,7 +346,7 @@ def main(policy, config):
                     tried_usages.add(sug.usage)
             # This suggestion is now exhausted: if acceptable, move to
             # selected_suggestions, otherwise do nothing with it
-            if sug.score >= SUGGESTION_THRESHOLD:
+            if sug.score >= plugin_conf.SUGGESTION_THRESHOLD:
                 selected_suggestions.add(sug)
             # Filter the newsugs and add to macro_suggestions those that still
             # need to be processed. Completed ones go to selected_suggestions
@@ -384,6 +361,9 @@ def main(policy, config):
             # placeholder version will reject it.
             for rem in removal_candidates:
                 overall_rules.remove(rem)
+        # Discard suggestions that are explictly ignored by the user
+        selected_suggestions = [x for x in selected_suggestions
+                                if x.usage not in plugin_conf.USAGES_IGNORE]
         # Discard suggestions entirely made up of rules that already come from
         # a macro expansion
         for sug in selected_suggestions:
