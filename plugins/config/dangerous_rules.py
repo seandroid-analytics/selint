@@ -98,3 +98,6 @@ RULE_IGNORE_PATHS = ["external/sepolicy"]
 
 # Don't report rules that score below this threshold
 SCORE_THRESHOLD = 0.5
+
+# Print the results in reverse order (highest first)
+REVERSE_SORT = True

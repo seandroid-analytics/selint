@@ -32,6 +32,7 @@ def main(policy, config):
 
     mapper = policysource.mapping.Mapper(
         policy.policyconf, policy.attributes, policy.types, policy.classes)
+    printouts = []
     for rls in policy.mapping.rules.values():
         for r in rls:
             score = 0
@@ -69,4 +70,6 @@ def main(policy, config):
             score /= float(plugin_conf.MAXIMUM_SCORE)
             # Print rule
             if score >= plugin_conf.SCORE_THRESHOLD:
-                print "{:.2f}: {}".format(score, r)
+                printouts.append("{:.2f}: {}".format(score, r))
+                # print "{:.2f}: {}".format(score, r)
+    print "\n".join(sorted(printouts, reverse=plugin_conf.REVERSE_SORT))
