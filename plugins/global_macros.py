@@ -27,14 +27,16 @@ import config.global_macros as plugin_conf
 
 
 class GlobalMacroSuggestion(object):
-    """ """
+    """A global_macro usage suggestion for a specific combination of lines."""
 
-    def __init__(self, macro_name, perm_set, rules, score):
+    def __init__(self, macro_name, perm_set, rules, score, rutc, permset):
         self.name = macro_name
         self.macro_perms = perm_set
         self.rules = rules
         self.score = score
         self.filelines = frozenset((r.fileline for r in rules))
+        self.applies_to = rutc
+        self.original_permset = permset
 
     def __hash__(self):
         return hash(self.name + " ".join(self.filelines))
@@ -99,97 +101,98 @@ def main(policy, config):
     # Initialize a set fitter
     sf = SetFitter(macroset_dict)
     for r_up_to_class in policy.mapping.rules:
-        if r_up_to_class.startswith(plugin_conf.SUPPORTED_RULE_TYPES):
-            rules = policy.mapping.rules[r_up_to_class]
-            permset = set()
-            # Merge the various permission sets deriving from different rules
-            # applying to the same domain/type/class
-            filtered_rules = []
-            for r in rules:
-                # Discard rules coming from ignored paths
-                if r.fileline.startswith(FULL_IGNORE_PATHS):
-                    continue
-                filtered_rules.append(r)
-                # Get the permissions from the rule
-                # TODO: ugly, consider substituting with rule factory
-                perms = r.rule[len(r_up_to_class) + 1:].strip("{};").split()
-                permset.update(perms)
-            # If there are no rules left or the permset is empty, process
-            # the next set of rules
-            if not filtered_rules or not permset:
+        # Only match supported rules
+        if not r_up_to_class.startswith(plugin_conf.SUPPORTED_RULE_TYPES):
+            continue
+        rules = policy.mapping.rules[r_up_to_class]
+        permset = set()
+        # Merge the various permission sets deriving from different rules
+        # applying to the same domain/type/class
+        filtered_rules = []
+        for r in rules:
+            # Discard rules coming from ignored paths
+            if r.fileline.startswith(FULL_IGNORE_PATHS):
                 continue
-            # Get up to one full match (combination of one or more macros which
-            # combined fit the permset exactly), and a list of macros that fit
-            # the permset partially
-            (winner, part) = sf.fit(permset)
-            # TODO: refactor this next part, merge winner/part handling where
-            # possible
-            # If we have a winner, we have a full (multi)set match
-            if winner:
-                suggest_this = True
-                # Check if the winner meets all requirements
-                for r in filtered_rules:
-                    # Check if there are macros used on this fileline at all
-                    if r.fileline not in macrousages_dict:
-                        # No macro used on this fileline, check the next
-                        continue
-                    macros_at_line = macrousages_dict[r.fileline]
-                    # Check that no other macros are involved
-                    for m in macros_at_line:
-                        if not m.macro.file_defined.endswith("global_macros"):
-                            # There are other macros at play, do not suggest
-                            suggest_this = False
-                            break
-                    if not suggest_this:
-                        # Also break out of the outer loop
-                        break
-                    # Do not suggest macro usages that are already in the
-                    # policy
-                    alreadyused = [x for x in winner if x.name in (
-                        x.name for x in macros_at_line)]
-                    for a in alreadyused:
-                        # Remove already used macros from the winner
-                        winner.remove(a)
-                    if not winner:
-                        # If the winner is now empty, we don't care about this
-                        # suggestion anymore
-                        suggest_this = False
-                        break
-                if suggest_this:
-                    for x in winner:
-                        g = GlobalMacroSuggestion(
-                            x.name, x.values, filtered_rules, x.score)
-                        if g.filelines not in suggestions:
-                            suggestions[g.filelines] = [g]
-                        elif g not in suggestions[g.filelines]:
-                            suggestions[g.filelines].append(g)
-            # Suggest close matches based on a threshold
-            if part:
-                suggest_this = True
-                # Check if the partial suggestions meet all requirements
-                # for being suggested
-                for r in filtered_rules:
-                    # Check if there are macros used on this fileline at all
-                    if r.fileline not in macrousages_dict:
-                        # No macro used on this fileline, check the next
-                        continue
-                    else:
+            filtered_rules.append(r)
+            # Get the permissions from the rule
+            # TODO: ugly, consider substituting with rule factory
+            perms = r.rule[len(r_up_to_class) + 1:].strip("{};").split()
+            permset.update(perms)
+        # If there are no rules left or the permset is empty, process the next
+        # set of rules
+        if not filtered_rules or not permset:
+            continue
+        # Get up to one full match (combination of one or more macros which
+        # combined fit the permset exactly), and a list of macros that fit the
+        # permset partially
+        (winner, part) = sf.fit(permset)
+        # TODO: cache this result for permset
+        # TODO: refactor next part, merge winner/part handling where possible
+        # If we have a winner, we have a full (multi)set match
+        if winner:
+            suggest_this = True
+            # Check if the winner meets all requirements
+            for r in filtered_rules:
+                # Check if there are macros used on this fileline at all
+                if r.fileline not in macrousages_dict:
+                    # No macro used on this fileline, check the next
+                    continue
+                macros_at_line = macrousages_dict[r.fileline]
+                # Check that no other macros are involved
+                for m in macros_at_line:
+                    if not m.macro.file_defined.endswith("global_macros"):
                         # There are other macros at play, do not suggest
                         suggest_this = False
                         break
-                if suggest_this:
-                    # Select the top SUGGESTION_MAX_NO suggestions above
-                    # SUGGESTION_THRESHOLD from the results
-                    sgs = sorted([x for x in part if
-                                  x.score >= plugin_conf.SUGGESTION_THRESHOLD],
-                                 reverse=True)[:plugin_conf.SUGGESTION_MAX_NO]
-                    for x in sgs:
-                        g = GlobalMacroSuggestion(
-                            x.name, x.values, filtered_rules, x.score)
-                        if g.filelines not in suggestions:
-                            suggestions[g.filelines] = [g]
-                        elif g not in suggestions[g.filelines]:
-                            suggestions[g.filelines].append(g)
+                if not suggest_this:
+                    # Also break out of the outer loop
+                    break
+                # Do not suggest macro usages that are already in the policy
+                alreadyused = [x for x in winner if x.name in (
+                    x.name for x in macros_at_line)]
+                for a in alreadyused:
+                    # Remove already used macros from the winner
+                    winner.remove(a)
+                if not winner:
+                    # If the winner is now empty, we don't care about this
+                    # suggestion anymore
+                    suggest_this = False
+                    break
+            if suggest_this:
+                for x in winner:
+                    g = GlobalMacroSuggestion(x.name, x.values, filtered_rules,
+                                              x.score, r_up_to_class, permset)
+                    if g.filelines not in suggestions:
+                        suggestions[g.filelines] = [g]
+                    elif g not in suggestions[g.filelines]:
+                        suggestions[g.filelines].append(g)
+        # Suggest close matches based on a threshold
+        if part:
+            suggest_this = True
+            # Check if the partial suggestions meet all requirements
+            # for being suggested
+            for r in filtered_rules:
+                # Check if there are macros used on this fileline at all
+                if r.fileline not in macrousages_dict:
+                    # No macro used on this fileline, check the next
+                    continue
+                else:
+                    # There are other macros at play, do not suggest
+                    suggest_this = False
+                    break
+            if suggest_this:
+                # Select the top SUGGESTION_MAX_NO suggestions above
+                # SUGGESTION_THRESHOLD from the results
+                sgs = sorted([x for x in part if
+                              x.score >= plugin_conf.SUGGESTION_THRESHOLD],
+                             reverse=True)[:plugin_conf.SUGGESTION_MAX_NO]
+                for x in sgs:
+                    g = GlobalMacroSuggestion(x.name, x.values, filtered_rules,
+                                              x.score, r_up_to_class, permset)
+                    if g.filelines not in suggestions:
+                        suggestions[g.filelines] = [g]
+                    elif g not in suggestions[g.filelines]:
+                        suggestions[g.filelines].append(g)
     # Print the suggestions
     for filelines, sgs in suggestions.iteritems():
         full = []
@@ -208,10 +211,44 @@ def main(policy, config):
             # Print full match suggestion(s)
             print "Full match:"
             print ", ".join((x.name for x in full))
+            # Compute suggested usage
+            r_up_to_class = full[0].applies_to
+            orig_permset = full[0].original_permset
+            permset = set()
+            for x in full:
+                permset.update(x.macro_perms)
+            extra_perms = orig_permset - permset
+            usage = r_up_to_class
+            if len(full) > 1 or extra_perms:
+                usage += " { " + " ".join([x.name for x in full])
+                if extra_perms:
+                    usage += " " + " ".join(extra_perms)
+                usage += " };"
+            else:
+                usage += " " + full[0].name + ";"
+            print "Suggested usage:"
+            print usage
         if part:
             # Print partial match suggestion(s)
             print "Partial match:"
             print "\n".join(["{}: {}%".format(x.name, x.score * 100) for x in part])
+            # Compute suggested usage
+            r_up_to_class = part[0].applies_to
+            orig_permset = part[0].original_permset
+            permset = set()
+            for x in part:
+                permset.update(x.macro_perms)
+            extra_perms = orig_permset - permset
+            usage = r_up_to_class
+            if len(part) > 1 or extra_perms:
+                usage += " { " + " ".join([x.name for x in part])
+                if extra_perms:
+                    usage += " " + " ".join(extra_perms)
+                usage += " };"
+            else:
+                usage += " " + part[0].name + ";"
+            print "Suggested usage:"
+            print usage
         if full or part:
             print
 
