@@ -35,10 +35,12 @@ def main(policy, config):
     for rls in policy.mapping.rules.values():
         for r in rls:
             score = 0
+            # If this rule comes from an ignored path or its type is not
+            # supported, ignore it
             if r.fileline.startswith(FULL_IGNORE_PATHS)\
-                    or r.rule.startswith("neverallow "):
-                # Ignore this rule
+                    or not r.rule.startswith(plugin_conf.SUPPORTED_RULE_TYPES):
                 continue
+            # Generate the corresponding AV/TErule object
             rule = mapper.rule_factory(r.rule)
             # Match the source
             for crit in plugin_conf.TYPES:
@@ -55,7 +57,10 @@ def main(policy, config):
             if rule.rtype in policysource.mapping.AVRULES:
                 perm_score = 0
                 for crit in plugin_conf.PERMS:
+                    # If the rule has any permission in common with set "crit"
                     if rule.permset & plugin_conf.PERMS[crit]:
+                        # Update the permission coefficient for the rule to
+                        # the one of the "crit" set, if not already higher
                         if perm_score < plugin_conf.SCORE[crit]:
                             perm_score = plugin_conf.SCORE[crit]
                 if perm_score:
