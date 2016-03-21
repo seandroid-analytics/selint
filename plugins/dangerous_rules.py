@@ -58,7 +58,8 @@ def main(policy, config):
                     if rule.permset & plugin_conf.PERMS[crit]:
                         if perm_score < plugin_conf.SCORE[crit]:
                             perm_score = plugin_conf.SCORE[crit]
-                score *= perm_score
+                if perm_score:
+                    score *= perm_score
             # Normalise score
             score /= float(plugin_conf.MAXIMUM_SCORE)
             # Print rule

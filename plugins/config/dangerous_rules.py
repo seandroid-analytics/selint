@@ -79,15 +79,15 @@ TYPES["sensitive"] = ["graphics_device", "ram_device"]
 # TODO: add socket permissions, other permissions from access_vectors
 # High-risk permissions
 SCORE["perms_high"] = 1
-PERMS["perms_high"] = set(["ioctl", "write", "setattr", "lock", "relabelfrom",
-                           "relabelto", "append", "unlink", "link", "rename",
+PERMS["perms_high"] = set(["ioctl", "write", "setattr", "relabelfrom",
+                           "mounton", "relabelto", "append", "rename",
                            "execute"])
 # Medium-risk permissions
 SCORE["perms_med"] = 0.66
-PERMS["perms_med"] = set(["swapon", "quotaon", "mounton"])
+PERMS["perms_med"] = set(["swapon", "quotaon", "unlink", "link"])
 # Low-risk permissions
 SCORE["perms_low"] = 0.33
-PERMS["perms_low"] = set(["read", "create", "getattr"])
+PERMS["perms_low"] = set(["read", "create", "getattr", "lock"])
 
 # Ignore rules coming from files in these paths
 # e.g. to ignore AOSP:
