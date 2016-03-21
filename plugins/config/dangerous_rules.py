@@ -95,4 +95,4 @@ PERMS["perms_low"] = set(["read", "create", "getattr"])
 RULE_IGNORE_PATHS = ["external/sepolicy"]
 
 # Don't report rules that score below this threshold
-SCORE_THRESHOLD = 0.6
+SCORE_THRESHOLD = 0.8

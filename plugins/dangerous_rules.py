@@ -35,7 +35,8 @@ def main(policy, config):
     for rls in policy.mapping.rules.values():
         for r in rls:
             score = 0
-            if r.fileline.startswith(FULL_IGNORE_PATHS):
+            if r.fileline.startswith(FULL_IGNORE_PATHS)\
+                    or r.rule.startswith("neverallow "):
                 # Ignore this rule
                 continue
             rule = mapper.rule_factory(r.rule)
