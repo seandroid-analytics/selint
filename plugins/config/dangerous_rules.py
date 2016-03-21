@@ -16,6 +16,8 @@
 #
 """Configuration file for the dangerous_rules plugin."""
 
+# Only score the following type of rules
+SUPPORTED_RULE_TYPES = ("allow", "type_transition")
 # Dictionary containing the classification of types
 TYPES = {}
 # Dictionary containing the classification of permissions
@@ -83,10 +85,10 @@ PERMS["perms_high"] = set(["ioctl", "write", "setattr", "relabelfrom",
                            "mounton", "relabelto", "append", "rename",
                            "execute"])
 # Medium-risk permissions
-SCORE["perms_med"] = 0.66
+SCORE["perms_med"] = 0.9
 PERMS["perms_med"] = set(["swapon", "quotaon", "unlink", "link"])
 # Low-risk permissions
-SCORE["perms_low"] = 0.33
+SCORE["perms_low"] = 0.8
 PERMS["perms_low"] = set(["read", "create", "getattr", "lock"])
 
 # Ignore rules coming from files in these paths
@@ -95,4 +97,4 @@ PERMS["perms_low"] = set(["read", "create", "getattr", "lock"])
 RULE_IGNORE_PATHS = ["external/sepolicy"]
 
 # Don't report rules that score below this threshold
-SCORE_THRESHOLD = 0.8
+SCORE_THRESHOLD = 0.5
