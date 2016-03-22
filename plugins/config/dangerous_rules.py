@@ -106,10 +106,17 @@ CAPABILITIES = ["capability", "capability2"]
 # Ignore rules coming from files in these paths
 # e.g. to ignore AOSP:
 # RULE_IGNORE_PATHS = ["external/sepolicy"]
-RULE_IGNORE_PATHS = ["external/sepolicy"]
+RULE_IGNORE_PATHS = ["external/sepolicy",
+                     "build/target/board/generic/sepolicy"]
 
 # Don't report rules that score below this threshold
 SCORE_THRESHOLD = 0.5
 
 # Print the results in reverse order (highest first)
 REVERSE_SORT = False
+
+# Do not report these rules
+# The rules must match exactly as strings
+# e.g.
+# IGNORED_RULES = ["allow domain type:class permission;"]
+IGNORED_RULES = []

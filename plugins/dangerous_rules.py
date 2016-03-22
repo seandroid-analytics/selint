@@ -39,7 +39,8 @@ def main(policy, config):
             # If this rule comes from an ignored path or its type is not
             # supported, ignore it
             if r.fileline.startswith(FULL_IGNORE_PATHS)\
-                    or not r.rule.startswith(plugin_conf.SUPPORTED_RULE_TYPES):
+                    or not r.rule.startswith(plugin_conf.SUPPORTED_RULE_TYPES)\
+                    or str(r) in plugin_conf.IGNORED_RULES:
                 continue
             # Generate the corresponding AV/TErule object
             rule = mapper.rule_factory(r.rule)
