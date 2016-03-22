@@ -42,7 +42,7 @@ TYPES["security_sensitive"] = ["proc_security", "security_file",
 # Types assigned to user-installed apps
 # These types must not be granted eccessive permissions.
 # On most devices, there is only one of these types, "untrusted_app".
-SCORE["user_app"] = 10
+SCORE["user_app"] = 30
 TYPES["user_app"] = ["untrusted_app"]
 # Core system domains
 # These types cover core system services launched by the init system.
@@ -56,8 +56,7 @@ TYPES["core_domains"] = ["adbd", "adbd_socket", "init", "init_shell",
                          "vold_prop", "vold_socket", "vold_tmpfs", "drmserver",
                          "drmserver_exec", "drmserver_service",
                          "drmserver_socket", "drmserver_tmpfs",
-                         "drm_data_file", "logd", "logd_debug", "logd_exec",
-                         "logd_prop", "logd_socket", "logd_tmpfs", "netd",
+                         "drm_data_file", "kernel", "netd",
                          "netd_exec", "netd_socket", "netd_tmpfs", "rild",
                          "rild_debug_socket", "rild_exec", "rild_socket",
                          "rild_tmpfs", "system_server",
@@ -68,7 +67,7 @@ TYPES["core_domains"] = ["adbd", "adbd_socket", "init", "init_shell",
 # These types are used to label objects in absence of any specific label
 # applied to them in the policy.
 # These should not be used most of the time.
-SCORE["default_types"] = 10
+SCORE["default_types"] = 30
 TYPES["default_types"] = ["device", "unlabeled", "default_android_service",
                           "socket_device", "default_property", "system_file",
                           "system_data_file", "default_prop"]
@@ -83,13 +82,22 @@ TYPES["sensitive"] = ["graphics_device", "ram_device"]
 SCORE["perms_high"] = 1
 PERMS["perms_high"] = set(["ioctl", "write", "setattr", "relabelfrom",
                            "mounton", "relabelto", "append", "rename",
-                           "execute"])
+                           "execute", "entrypoint", "execute_no_trans", 
+			   "execmod", "transition", "bind", "name_bind",
+			   "connect", "sendto", "setopt", "unix_write",
+			   "mount", "remount", "quotamod"])
 # Medium-risk permissions
 SCORE["perms_med"] = 0.9
-PERMS["perms_med"] = set(["swapon", "quotaon", "unlink", "link"])
+PERMS["perms_med"] = set([ "read", "create", "swapon", "quotaon", 
+			   "unlink", "link", "use", "fork", "listen",
+			   "accept", "associate", "unix_read", 
+			   "unmount" ])
 # Low-risk permissions
-SCORE["perms_low"] = 0.8
-PERMS["perms_low"] = set(["read", "create", "getattr", "lock"])
+SCORE["perms_low"] = 0.5
+PERMS["perms_low"] = set(["search", "getattr", "lock", "audit_access", 
+			  "rmdir", "open", "getopt", "shutdown", "destroy",
+			  "recvfrom", "recv_msg", "send_msg", "drop",
+			  "quotaget"])
 
 # Ignore rules coming from files in these paths
 # e.g. to ignore AOSP:
