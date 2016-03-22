@@ -56,8 +56,8 @@ TYPES["core_domains"] = ["adbd", "adbd_socket", "init", "init_shell",
                          "vold_prop", "vold_socket", "vold_tmpfs", "drmserver",
                          "drmserver_exec", "drmserver_service",
                          "drmserver_socket", "drmserver_tmpfs",
-                         "drm_data_file", "kernel", "netd",
-                         "netd_exec", "netd_socket", "netd_tmpfs", "rild",
+                         "drm_data_file", "kernel", "netd", "netd_exec",
+                         "netd_socket", "netd_tmpfs", "rild",
                          "rild_debug_socket", "rild_exec", "rild_socket",
                          "rild_tmpfs", "system_server",
                          "system_server_service", "system_server_tmpfs",
@@ -82,22 +82,26 @@ TYPES["sensitive"] = ["graphics_device", "ram_device"]
 SCORE["perms_high"] = 1
 PERMS["perms_high"] = set(["ioctl", "write", "setattr", "relabelfrom",
                            "mounton", "relabelto", "append", "rename",
-                           "execute", "entrypoint", "execute_no_trans", 
-			   "execmod", "transition", "bind", "name_bind",
-			   "connect", "sendto", "setopt", "unix_write",
-			   "mount", "remount", "quotamod"])
+                           "execute", "entrypoint", "execute_no_trans",
+                           "execmod", "transition", "bind", "name_bind",
+                           "connect", "sendto", "setopt", "unix_write",
+                           "mount", "remount", "quotamod"])
 # Medium-risk permissions
 SCORE["perms_med"] = 0.9
-PERMS["perms_med"] = set([ "read", "create", "swapon", "quotaon", 
-			   "unlink", "link", "use", "fork", "listen",
-			   "accept", "associate", "unix_read", 
-			   "unmount" ])
+PERMS["perms_med"] = set(["read", "create", "swapon", "quotaon", "unlink",
+                          "link", "use", "fork", "listen", "accept",
+                          "associate", "unix_read", "unmount"])
 # Low-risk permissions
 SCORE["perms_low"] = 0.5
-PERMS["perms_low"] = set(["search", "getattr", "lock", "audit_access", 
-			  "rmdir", "open", "getopt", "shutdown", "destroy",
-			  "recvfrom", "recv_msg", "send_msg", "drop",
-			  "quotaget"])
+PERMS["perms_low"] = set(["search", "getattr", "lock", "audit_access", "rmdir",
+                          "open", "getopt", "shutdown", "destroy", "recvfrom",
+                          "recv_msg", "send_msg", "drop", "quotaget"])
+
+
+# Capabilities
+SCORE["capability"] = 30
+SCORE["capability2"] = 30
+CAPABILITIES = ["capability", "capability2"]
 
 # Ignore rules coming from files in these paths
 # e.g. to ignore AOSP:
@@ -108,4 +112,4 @@ RULE_IGNORE_PATHS = ["external/sepolicy"]
 SCORE_THRESHOLD = 0.5
 
 # Print the results in reverse order (highest first)
-REVERSE_SORT = True
+REVERSE_SORT = False

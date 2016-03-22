@@ -43,20 +43,36 @@ def main(policy, config):
                 continue
             # Generate the corresponding AV/TErule object
             rule = mapper.rule_factory(r.rule)
+            # START of additive scoring system
             # Match the source
             for crit in plugin_conf.TYPES:
                 if rule.source in plugin_conf.TYPES[crit]:
                     score += plugin_conf.SCORE[crit]
                     break
-            # Match the target
-            for crit in plugin_conf.TYPES:
-                if rule.target in plugin_conf.TYPES[crit]:
-                    score += plugin_conf.SCORE[crit]
-                    break
-            # TODO: do something with default types in type_transition rule
+            if rule.rtype in policysource.mapping.AVRULES:
+                if rule.tclass in plugin_conf.CAPABILITIES:
+                    # The rule allows a capability: the second type is always going
+                    # to be "self", and as such is meaningless for scoring
+                    # purposes. Add the capability score instead
+                    score += plugin_conf.SCORE[rule.tclass]
+                else:
+                    # This is a normal allow rule, match the target
+                    for crit in plugin_conf.TYPES:
+                        if rule.target in plugin_conf.TYPES[crit]:
+                            score += plugin_conf.SCORE[crit]
+                            break
+            elif rule.rtype == "type_transition":
+                # This is a type transition: the target type does not mean much
+                # Match the default type instead
+                for crit in plugin_conf.TYPES:
+                    if rule.deftype in plugin_conf.TYPES[crit]:
+                        score += plugin_conf.SCORE[crit]
+                        break
+            # END of additive scoring system, START of multiplicative
             # Match the permissions
             if rule.rtype in policysource.mapping.AVRULES:
                 perm_score = 0
+                # Compute score for the permission set
                 for crit in plugin_conf.PERMS:
                     # If the rule has any permission in common with set "crit"
                     if rule.permset & plugin_conf.PERMS[crit]:
@@ -71,5 +87,4 @@ def main(policy, config):
             # Print rule
             if score >= plugin_conf.SCORE_THRESHOLD:
                 printouts.append("{:.2f}: {}".format(score, r))
-                # print "{:.2f}: {}".format(score, r)
     print "\n".join(sorted(printouts, reverse=plugin_conf.REVERSE_SORT))
