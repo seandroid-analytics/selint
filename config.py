@@ -23,20 +23,20 @@ BASE_DIR_GLOBAL = "~/workspace"
 # Statically specified policy files
 # Some files must go before all .te files
 POLICYFILES_STATIC_PRE = [
-    "external/sepolicy/security_classes",
-    "external/sepolicy/initial_sids",
-    "external/sepolicy/access_vectors",
-    "external/sepolicy/global_macros",
-    "external/sepolicy/neverallow_macros",
-    "external/sepolicy/mls_macros",
-    "external/sepolicy/mls",
-    "external/sepolicy/policy_capabilities",
-    "external/sepolicy/te_macros",
-    "external/sepolicy/attributes",
-    "external/sepolicy/ioctl_macros"]
+    "system/sepolicy/security_classes",
+    "system/sepolicy/initial_sids",
+    "system/sepolicy/access_vectors",
+    "system/sepolicy/global_macros",
+    "system/sepolicy/neverallow_macros",
+    "system/sepolicy/mls_macros",
+    "system/sepolicy/mls",
+    "system/sepolicy/policy_capabilities",
+    "system/sepolicy/te_macros",
+    "system/sepolicy/attributes",
+    "system/sepolicy/ioctl_macros"]
 # All .te files found in these directories will automatically be picked up
 TEFILES_DIRS = [
-    "external/sepolicy/",
+    "system/sepolicy/",
     "build/target/board/generic/sepolicy/"]
 # Statically specified .te files
 # This should not be necessary, use the TEFILES_DIRS variable
@@ -44,9 +44,9 @@ POLICYFILES_STATIC_TE = []
 # Some policy files must go after all .te files
 # Otherwise setools will crash, I believe due to wrong file terminators
 POLICYFILES_STATIC_POST = [
-    "external/sepolicy/roles",
-    "external/sepolicy/users",
-    "external/sepolicy/initial_sid_contexts",
-    "external/sepolicy/fs_use",
-    "external/sepolicy/genfs_contexts",
-    "external/sepolicy/port_contexts"]
+    "system/sepolicy/roles",
+    "system/sepolicy/users",
+    "system/sepolicy/initial_sid_contexts",
+    "system/sepolicy/fs_use",
+    "system/sepolicy/genfs_contexts",
+    "system/sepolicy/port_contexts"]
