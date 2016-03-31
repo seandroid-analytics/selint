@@ -50,3 +50,22 @@ POLICYFILES_STATIC_POST = [
     "system/sepolicy/fs_use",
     "system/sepolicy/genfs_contexts",
     "system/sepolicy/port_contexts"]
+
+# Extra definitions for M4 macro expansion
+# These will be passed to M4 with the "-D" option
+# Additional definitions can also be specified on the command line: they will
+# be combined with these
+# e.g.
+# EXTRA_DEFS = ['mls_num_sens=1', 'mls_num_cats=1024',
+#               'target_build_variant=user']
+EXTRA_DEFS = ['mls_num_sens=1', 'mls_num_cats=1024',
+              'target_build_variant=user']
+
+# Verbosity level
+# 0: critical [default]
+# 1: error
+# 2: warning
+# 3: info
+# 4: debug
+# Can be overridden on the command line
+# VERBOSITY = 4

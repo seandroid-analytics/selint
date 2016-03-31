@@ -33,18 +33,23 @@ parser = argparse.ArgumentParser(
     epilog="If not differently specified, all available plugins will be run.")
 # List the available plugins
 parser.add_argument("-l", "--list", action="store_true",
-                    help="list the available plugins and exit")
+                    help="list the available plugins and exit.")
 # Select the plugins to run (default: all). Specify either with a whitelist
 # or a blacklist, but not both
 plugin_group = parser.add_mutually_exclusive_group()
 # Plugin whitelist
 plugin_group.add_argument(
     "-w", "--whitelist", metavar="<PLUGIN>", choices=plugins.available_plugins,
-    nargs="+", help="specify the plugins to run [Default: run all]")
+    nargs="+", help="specify the plugins to run [Default: run all].")
 # Plugin blacklist
 plugin_group.add_argument(
     "-b", "--blacklist", metavar="<PLUGIN>", choices=plugins.available_plugins,
-    nargs="+", help="specify the plugins not to run [Default: run all]")
+    nargs="+", help="specify the plugins not to run [Default: run all].")
+# Get additional M4 definitions
+parser.add_argument("-D", "--define", metavar="NAME[=VALUE]", nargs="+",
+                    dest="extra_defs",
+                    help="Pass additional definitions to M4 when expanding the"
+                    " policy. Identical to the -D option in m4.")
 # Write out the policy.conf file
 parser.add_argument("--dumppolicyconf", metavar="<FILE>",
                     help="write the policy.conf to a user-specified file. "
@@ -60,7 +65,7 @@ parser.add_argument("-v", "--verbosity", metavar="<LVL>",
 # Supply a different config file
 parser.add_argument("-c", "--config", metavar="<FILE>", type=str,
                     default="config.py", help="Source the specified config "
-                    "file [Default: config.py]")
+                    "file [Default: config.py].")
 
 args = parser.parse_args()
 
@@ -88,17 +93,17 @@ except:
     raise
 
 # Save verbosity in config
-if hasattr(config, "verbosity"):
+if hasattr(config, "VERBOSITY"):
     # If we have a verbosity configuration value
     if args.verbosity == -1:
         # User didn't explicitly set verbosity on the command line
-        if isinstance(config.verbosity, int) and \
-                config.verbosity >= 0 and config.verbosity <= 4:
+        if isinstance(config.VERBOSITY, int) and \
+                config.VERBOSITY >= 0 and config.VERBOSITY <= 4:
             # If we have a valid verbosity in the config file
-            args.verbosity = config.verbosity
+            args.verbosity = config.VERBOSITY
     else:
         # User explictly set verbosity on the command line
-        config.verbosity = args.verbosity
+        config.VERBOSITY = args.verbosity
 else:
     # If we have no verbosity configuration value
     if args.verbosity == -1:
@@ -106,7 +111,24 @@ else:
         # to the default value
         args.verbosity = 0
     # Set the configuration value of verbosity
-    config.verbosity = args.verbosity
+    config.VERBOSITY = args.verbosity
+# Save extra_defs in config
+if hasattr(config, "EXTRA_DEFS"):
+    # If we have an extra_defs configuration value
+    if args.extra_defs is None:
+        # User didn't explicitly set extra_defs on the command line
+        args.extra_defs = config.EXTRA_DEFS
+    else:
+        # User explictly set extra_defs on the command line: combine the two
+        args.extra_defs.extend(config.EXTRA_DEFS)
+else:
+    # If we have no extra_defs configuration value
+    if args.extra_defs is None:
+        # User didn't explicitly set extra_defs on the command line: set it
+        # to an empty list
+        args.extra_defs = []
+    # Set the configuration value of extra_defs
+    config.EXTRA_DEFS = args.extra_defs
 
 # Setup logging
 if args.verbosity == 4:
@@ -180,7 +202,7 @@ if args.listpolicyfiles:
     sys.exit(0)
 
 # Create policy
-policy = policysource.policy.SourcePolicy(ALL_POLICY_FILES)
+policy = policysource.policy.SourcePolicy(ALL_POLICY_FILES, args.extra_defs)
 # Write the policy.conf to file, if requested
 if args.dumppolicyconf:
     try:

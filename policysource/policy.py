@@ -38,7 +38,7 @@ class SourcePolicy(object):
     regex_macrodef = re.compile(r'^define\(\`([^\']+)\',')
     regex_usageargstring = r'(\(.*\));?'
 
-    def __init__(self, policyfiles):
+    def __init__(self, policyfiles, extra_defs):
         """Construct a SourcePolicy object by parsing the supplied files.
 
         Keyword arguments:
@@ -49,9 +49,8 @@ class SourcePolicy(object):
         self._policyconf = None
         # Set up a general-purpose macro expander for internal use
         self._expander = None
-        # These will go in some conf file or cli option
-        self.extra_defs = ['mls_num_sens=1', 'mls_num_cats=1024',
-                           'target_build_variant=eng']
+        # Set the extra M4 defs ("-D target_build_variant=user", ...)
+        self.extra_defs = extra_defs
         # Create a temporary work directory
         self._tmpdir = mkdtemp()
         self.log.debug("Created temporary directory \"%s\".", self._tmpdir)
