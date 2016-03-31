@@ -14,23 +14,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Configuration file for the dangerous_rules plugin."""
+"""Configuration file for the risky_rules plugin."""
 
+# Which scoring system do you want?
+# Available: risk, trust_hl, trust_lh, trust_hh, trust_ll
+# risk:
+#       score rules by the potential risk associated with the components, using
+#       the SCORE_RISK values. Scored components are domains, types,
+#       permissions, capabilities for allow rules, domains and default types
+#       for type_transition rules
+# trust_XX:
+#       score rules by the trust level associated with their domain and type,
+#       using the SCORE_TRUST values.
+#       The scoring can highlight rules which go from a "low" domain to a
+#       "high" type (lh), from "high" to "low" (hl), from high to high (hh) and
+#       from "low" to "low" (ll).
+SCORING_SYSTEM = "risk"
 # Only score the following type of rules
 SUPPORTED_RULE_TYPES = ("allow", "type_transition")
 # Dictionary containing the classification of types
 TYPES = {}
 # Dictionary containing the classification of permissions
 PERMS = {}
-# Dictionary containing the score for each entry in types/permissions
+# Dictionary containing the generic score for non-type entries
 SCORE = {}
+# Dictionary containing the trust score for each entry in types
+SCORE_TRUST = {}
+# Dictionary containing the risk score for each entry in types
+SCORE_RISK = {}
 # Maximum score a rule can obtain (2x highest scoring type)
 MAXIMUM_SCORE = 60
 
 # Security sensitive types
 # These are the types that directly impact system security, and as such must be
 # closely guarded.
-SCORE["security_sensitive"] = 30
+SCORE_TRUST["security_sensitive"] = 30
+SCORE_RISK["security_sensitive"] = 30
 TYPES["security_sensitive"] = ["proc_security", "security_file",
                                "security_prop", "securityfile_service",
                                "securitymanager_service", "tee",
@@ -42,12 +61,14 @@ TYPES["security_sensitive"] = ["proc_security", "security_file",
 # Types assigned to user-installed apps
 # These types must not be granted eccessive permissions.
 # On most devices, there is only one of these types, "untrusted_app".
-SCORE["user_app"] = 30
+SCORE_TRUST["user_app"] = 0
+SCORE_RISK["user_app"] = 30
 TYPES["user_app"] = ["untrusted_app"]
 # Core system domains
 # These types cover core system services launched by the init system.
 # While not directly involved with security, these services are very important.
-SCORE["core_domains"] = 15
+SCORE_TRUST["core_domains"] = 10
+SCORE_RISK["core_domains"] = 15
 TYPES["core_domains"] = ["adbd", "adbd_socket", "init", "init_shell",
                          "init_tmpfs", "installd", "installd_exec",
                          "installd_socket", "installd_tmpfs", "radio",
@@ -67,14 +88,16 @@ TYPES["core_domains"] = ["adbd", "adbd_socket", "init", "init_shell",
 # These types are used to label objects in absence of any specific label
 # applied to them in the policy.
 # These should not be used most of the time.
-SCORE["default_types"] = 30
+SCORE_TRUST["default_types"] = 5
+SCORE_RISK["default_types"] = 30
 TYPES["default_types"] = ["device", "unlabeled", "default_android_service",
                           "socket_device", "default_property", "system_file",
                           "system_data_file", "default_prop"]
 # Sensitive types
 # These types are non directly security-related, but protect key parts of the
 # system such as the graphics device memory.
-SCORE["sensitive"] = 20
+SCORE_TRUST["sensitive"] = 10
+SCORE_RISK["sensitive"] = 20
 TYPES["sensitive"] = ["graphics_device", "ram_device"]
 
 # TODO: add socket permissions, other permissions from access_vectors
