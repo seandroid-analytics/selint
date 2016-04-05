@@ -706,7 +706,7 @@ class ArgExtractor(object):
     def match_rule(self, rule):
         """Perform a rich comparison between the provided rule and the rule
         expected by the extractor.
-        The rule must be passed in as a string.
+        The rule must be passed in as an AV/TE rule.
 
         Return True if the rule satisfies (at least) all constraints imposed
         by the extractor."""
