@@ -244,10 +244,10 @@ def main(policy, config):
                         # If not a subset, print the rule and the missing
                         # permissions
                         if not nec_rule_full.permset <= permset:
-                            missing = ": missing \""
+                            missing = " (missing \""
                             missing += " ".join(nec_rule_full.permset -
                                                 permset)
-                            missing += "\""
+                            missing += "\")"
                             missing_rules.append(nec_rule + missing)
                     if nec_rule_full.rtype in policysource.mapping.TERULES:
                         if nec_rule not in policy.mapping.rules[nrfutc]:
