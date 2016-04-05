@@ -45,4 +45,7 @@ RULE_IGNORE_PATHS = ["external/sepolicy",
 RULES_TUPLES = [("type_transition @@ARG0@@ @@ARG1@@:process @@ARG2@@;",
                  "allow @@ARG0@@ @@ARG1@@:file execute;",
                  "allow @@ARG2@@ @@ARG1@@:file entrypoint;",
-                 "allow @@ARG0@@ @@ARG2@@:process transition;")]
+                 "allow @@ARG0@@ @@ARG2@@:process transition;"),
+                ("type_transition @@ARG0@@ @@ARG1@@:file @@ARG2@@;",
+                 "allow @@ARG0@@ @@ARG1@@:dir { search add_name write };",
+                 "allow @@ARG0@@ @@ARG2@@:file { create write };")]
