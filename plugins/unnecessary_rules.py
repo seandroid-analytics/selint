@@ -19,10 +19,9 @@
 import logging
 import re
 import os.path
-import config.unnecessary_rules as plugin_conf
-import policysource
-import setools
 from setools.terulequery import TERuleQuery as TERuleQuery
+import plugins.config.unnecessary_rules as plugin_conf
+import policysource
 import policysource.mapping
 
 # Global variable to hold the log
@@ -168,9 +167,6 @@ def main(policy, config):
     FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
                               for p in plugin_conf.RULE_IGNORE_PATHS)
 
-    # Valid argument for a regex query
-    VALID_ARG_R = r"[a-zA-Z0-9_-]+"
-
     # Create a global mapper to expand the rules
     global MAPPER
     MAPPER = policysource.mapping.Mapper(
@@ -180,6 +176,7 @@ def main(policy, config):
     rule_w_placeholder_r = re.compile(
         r".*" + ArgExtractor.placeholder_r + r".*")
     # Look for missing rules in predetermined tuples
+    print "Checking for missing rules"
     for t in plugin_conf.RULES_TUPLES:
         log.debug("Checking tuple containing these rules:")
         for x in t:
@@ -250,16 +247,65 @@ def main(policy, config):
                             missing += "\")"
                             missing_rules.append(nec_rule + missing)
                     if nec_rule_full.rtype in policysource.mapping.TERULES:
+                        # If we are looking for a TE rule, check for an
+                        # identical match
                         if nec_rule not in policy.mapping.rules[nrfutc]:
                             missing_rules.append(nec_rule)
+                # If the rule is not even in the mapping
                 else:
+                    # The rule is completely missing from the policy
                     missing_rules.append(nec_rule)
             if missing_rules:
                 # TODO: print fileline
+                rutc = MAPPER.rule_split_after_class(str(r))[0]
                 print "Rule:"
-                print r
+                if len(policy.mapping.rules[rutc]) > 1:
+                    print "  " + r
+                    print "made up of rules:"
+                    for x in policy.mapping.rules[rutc]:
+                        print "  " + str(x)
+                else:
+                    print "  " + str(policy.mapping.rules[rutc][0])
                 print "is missing associated rule(s):"
-                print "\n".join(missing_rules)
+                for x in missing_rules:
+                    print "  " + str(x)
+    # Look for debug types
+    print "Checking for rules containing debug types"
+    for rutc in policy.mapping.rules:
+        for dbt in plugin_conf.DEBUG_TYPES:
+            if dbt and dbt in rutc:
+                print "Rule contains debug type \"{}\":".format(dbt)
+                for each in policy.mapping.rules[rutc]:
+                    print "  " + str(each)
+
+    # Look for rules not granting minimum permissions
+    print "Checking for rules not granting minimum required permissions"
+    for rutc in policy.mapping.rules:
+        # Filter the rules by type (beginning of the "rule up to class")
+        if not rutc.startswith("allow"):
+            continue
+        for cls, (perms, req_perms) in plugin_conf.REQUIRED_PERMS.iteritems():
+            # Filter the rules by class
+            # (from ":" to the ending of the "rule up to class")
+            if not rutc.endswith(":" + cls):
+                continue
+            found_perms = set()
+            for x in policy.mapping.rules[rutc]:
+                found_perms.update(x.rule[len(rutc):].strip(" {};").split())
+            # If a rule for this class grants some permission from the first
+            # set, but does not grant at least the required permission(s)
+            if found_perms & perms and not found_perms >= req_perms:
+                res_str = rutc + " "
+                if len(found_perms) > 1:
+                    res_str += "{ " + " ".join(found_perms) + " };"
+                else:
+                    res_str += " ".join(found_perms) + ";"
+                print "Permissions present in rule require additional "\
+                    "\"{}\":".format(" ".join(req_perms - found_perms))
+                print "  " + res_str
+                rutc = MAPPER.rule_split_after_class(res_str)[0]
+                for each in policy.mapping.rules[rutc]:
+                    print "    " + each.fileline
 
 
 class ArgExtractor(object):

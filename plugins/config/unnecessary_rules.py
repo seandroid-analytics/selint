@@ -49,3 +49,17 @@ RULES_TUPLES = [("type_transition @@ARG0@@ @@ARG1@@:process @@ARG2@@;",
                 ("type_transition @@ARG0@@ @@ARG1@@:file @@ARG2@@;",
                  "allow @@ARG0@@ @@ARG1@@:dir { search add_name write };",
                  "allow @@ARG0@@ @@ARG2@@:file { create write };")]
+
+# List of debug types, which must not be in the user policy
+# The plugin will report any rule which contains any of these types.
+DEBUG_TYPES = [""]
+
+# Dictionary of class-specific permissions required for a rule to make sense
+# The plugin will report any rule which grants any permission from the first
+# set without granting at least the required perms in the second set.
+# The dictionary key is the name of the class as a string; the dictionary value
+# is a tuple of two sets of strings.
+#                       class     at least 1 perm       required perms
+# e.g. REQUIRED_PERMS = {"file": (set(["write"]), set(["open"]))}
+REQUIRED_PERMS = {"file": (set(["write", "read", "append", "ioctl"]), set(["open"])),
+                  "socket": (set(["listen", "accept"]), set(["bind"]))}
