@@ -17,7 +17,6 @@
 """Plugin to analyse usage of TE macros and suggest new ones."""
 
 import logging
-import sys
 import os
 import os.path
 import re
@@ -26,9 +25,8 @@ import policysource
 import policysource.policy
 import policysource.mapping
 import policysource.macro
-import setools
 from setools.terulequery import TERuleQuery as TERuleQuery
-import config.te_macros as plugin_conf
+import plugins.config.te_macros as plugin_conf
 
 
 ##############################################################################

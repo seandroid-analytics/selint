@@ -18,9 +18,8 @@
 target types, permission sets, ... ."""
 
 import logging
-import sys
 import os.path
-import config.risky_rules as plugin_conf
+import plugins.config.risky_rules as plugin_conf
 import policysource
 import policysource.mapping
 

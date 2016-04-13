@@ -23,7 +23,7 @@ import logging
 import policysource
 import policysource.policy
 import policysource.mapping
-import config.global_macros as plugin_conf
+import plugins.config.global_macros as plugin_conf
 
 
 class GlobalMacroSuggestion(object):
