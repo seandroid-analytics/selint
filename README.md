@@ -25,7 +25,7 @@ You may also use the latest version of the `setools` library from the [official 
 
 After cloning the repo in `<SETOOLS4_DIRECTORY>`, add the directory to your `$PYTHONPATH`; for example, on Ubuntu 14.04 LTS add this to your `.profile`:
 ```
-export PYTHONPATH="<SETOOLS4_DIRECTORY>/prebuilts/python/linux-x86/2.7.5/lib/python2.7/site-packages:$PYTHONPATH"
+export PYTHONPATH="<SETOOLS4_DIRECTORY>:$PYTHONPATH"
 ```
 
 ## Running SELint
