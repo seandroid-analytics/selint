@@ -381,7 +381,7 @@ def main(policy, config):
         part = default_timer()
         LOG.info("Time spent on \"%s\": %ss", m, part - oldpart)
     # Check how many usages have been fully recognized
-    if config.verbosity == 4:
+    if config.VERBOSITY == 4:
         found_usages = [x.usage for x in global_suggestions if x.score == 1]
         for x, n in macrousages_dict.iteritems():
             if n.macro not in selected_macros:
