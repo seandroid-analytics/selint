@@ -198,6 +198,7 @@ def main(policy, config):
             l_r = re.sub(r"@@ARG[0-9]+@@", VALID_ARG_R, t[0])
             tmp = MAPPER.rule_factory(l_r)
             # Get the rules matching the query for the rule with regexes
+            # N.B. this already discards rules coming from ignored paths
             rules = query_for_rule(policy, tmp)
             if not rules:
                 continue
@@ -260,7 +261,7 @@ def main(policy, config):
                 rutc = MAPPER.rule_split_after_class(str(r))[0]
                 print "Rule:"
                 if len(policy.mapping.rules[rutc]) > 1:
-                    print "  " + r
+                    print "  " + str(r)
                     print "made up of rules:"
                     for x in policy.mapping.rules[rutc]:
                         print "  " + str(x)
@@ -284,28 +285,42 @@ def main(policy, config):
         # Filter the rules by type (beginning of the "rule up to class")
         if not rutc.startswith("allow"):
             continue
-        for cls, (perms, req_perms) in plugin_conf.REQUIRED_PERMS.iteritems():
-            # Filter the rules by class
-            # (from ":" to the ending of the "rule up to class")
-            if not rutc.endswith(":" + cls):
-                continue
-            found_perms = set()
-            for x in policy.mapping.rules[rutc]:
-                found_perms.update(x.rule[len(rutc):].strip(" {};").split())
-            # If a rule for this class grants some permission from the first
-            # set, but does not grant at least the required permission(s)
-            if found_perms & perms and not found_perms >= req_perms:
-                res_str = rutc + " "
-                if len(found_perms) > 1:
-                    res_str += "{ " + " ".join(found_perms) + " };"
-                else:
-                    res_str += " ".join(found_perms) + ";"
-                print "Permissions present in rule require additional "\
-                    "\"{}\":".format(" ".join(req_perms - found_perms))
-                print "  " + res_str
-                rutc = MAPPER.rule_split_after_class(res_str)[0]
-                for each in policy.mapping.rules[rutc]:
-                    print "    " + each.fileline
+        # Get the rule class
+        cls = rutc.split(":")[1]
+        # Check if there are any constraint for this class
+        if cls not in plugin_conf.REQUIRED_PERMS:
+            # If not, skip this rule
+            continue
+        # Get the "interesting" perms and the minimum perms required by them
+        perms, req_perms = plugin_conf.REQUIRED_PERMS[cls]
+        found_perms = set()
+        # Accumulate the permissions granted by all the rules under "rutc"
+        for x in policy.mapping.rules[rutc]:
+            # If a rule comes from an ignored path, not only ignore it, but
+            # ignore the whole rutc
+            if x.fileline.startswith(FULL_IGNORE_PATHS):
+                found_perms = None
+                break
+            # Get the permission string, strip it, split it, and update the
+            # permission set
+            found_perms.update(x.rule[len(rutc):].strip(" {};").split())
+        # If found_perms has been set to None, skip this rule
+        if found_perms is None:
+            continue
+        # If a rule for this class grants some permission from the first
+        # set, but does not grant at least the required permission(s)
+        if found_perms & perms and not found_perms >= req_perms:
+            res_str = rutc + " "
+            if len(found_perms) > 1:
+                res_str += "{ " + " ".join(found_perms) + " };"
+            else:
+                res_str += " ".join(found_perms) + ";"
+            print "Permissions present in rule require additional "\
+                "\"{}\":".format(" ".join(req_perms - found_perms))
+            print "  " + res_str
+            rutc = MAPPER.rule_split_after_class(res_str)[0]
+            for each in policy.mapping.rules[rutc]:
+                print "    " + each.fileline
 
 
 class ArgExtractor(object):
@@ -370,7 +385,7 @@ class ArgExtractor(object):
     def match_rule(self, rule):
         """Perform a rich comparison between the provided rule and the rule
         expected by the extractor.
-        The rule must be passed in as a string.
+        The rule must be passed in as a setools AV/TERule object.
 
         Return True if the rule satisfies (at least) all constraints imposed
         by the extractor."""
