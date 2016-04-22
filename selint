@@ -22,6 +22,7 @@ import os.path
 import sys
 import argparse
 import logging
+import imp
 import shutil
 import policysource
 import policysource.policy
@@ -64,7 +65,7 @@ parser.add_argument("-v", "--verbosity", metavar="<LVL>",
                     "with 0 being the default.")
 # Supply a different config file
 parser.add_argument("-c", "--config", metavar="<FILE>", type=str,
-                    default="config.py", help="Source the specified config "
+                    default=None, help="Source the specified config "
                     "file [Default: config.py].")
 
 args = parser.parse_args()
@@ -85,8 +86,15 @@ else:
     selected_plugins = list(plugins.available_plugins)
 
 # Import config file as "config"
+if args.config is None:
+    args.config = os.path.join(os.path.dirname(
+        os.path.realpath(__file__)), "config.py")
+    print "Using default configuration file \"{}\"...".format(args.config)
+else:
+    print "Using configuration file \"{}\"...".format(args.config)
 try:
-    config = __import__(args.config[:-3])
+    config = imp.load_source("config", os.path.abspath(
+        os.path.expanduser(args.config)))
 except:
     print "CRITICAL: Malformed configuration file "\
         "\"{}\", aborting ...".format(args.config)
