@@ -23,6 +23,7 @@
 RULE_IGNORE_PATHS = ["external/sepolicy",
                      "build/target/board/generic/sepolicy"]
 
+# Functionality 1
 # Tuples of rules that must always be found together. If the first rule in the
 # tuple is found in the policy, report any other rule in the tuple which is
 # not in the policy.
@@ -50,10 +51,12 @@ RULES_TUPLES = [("type_transition @@ARG0@@ @@ARG1@@:process @@ARG2@@;",
                  "allow @@ARG0@@ @@ARG1@@:dir { search add_name write };",
                  "allow @@ARG0@@ @@ARG2@@:file { create write };")]
 
+# Functionality 2
 # List of debug types, which must not be in the user policy
 # The plugin will report any rule which contains any of these types.
 DEBUG_TYPES = [""]
 
+# Functionality 3
 # Dictionary of class-specific permissions required for a rule to make sense
 # The plugin will report any rule which grants any permission from the first
 # set without granting at least the required perms in the second set.
@@ -63,3 +66,15 @@ DEBUG_TYPES = [""]
 # e.g. REQUIRED_PERMS = {"file": (set(["write"]), set(["open"]))}
 REQUIRED_PERMS = {"file": (set(["write", "read", "append", "ioctl"]), set(["open"])),
                   "socket": (set(["listen", "accept"]), set(["bind"]))}
+
+# Do not report these rules
+# Rules in this configuration parameter will be ignored when looking for the
+# first rule in a tuple (functionality 1), when looking for rules containing
+# debug types (functionality 2) and when looking for rules not granting desired
+# permissions (functionality 3).
+# They WILL be detected, if applicable, when looking for matching additional
+# rules in tuples (functionality 1).
+# The rules must match exactly as strings
+# e.g.
+# IGNORED_RULES = ["allow domain type:class permission;"]
+IGNORED_RULES = []

@@ -14,7 +14,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""TODO: file docstring"""
+"""Report rules matching some criteria specified in the configuration file.
+Specifically, this plugin provides 3 functionalities, described here.
+
+# Functionality 1
+Detect missing rules from a (ordered) tuple of rules.
+Some rules are expected to be found together: type_transition rules require
+specific associated allow rules to be meaningful, etc.
+This functionality looks for rules matching the first rule in a tuple specified
+in the configuration file, and verifies that all other rules in the tuple are
+actually present: if not, they are reported.
+
+Rules can be matched using simple placeholders: see the configuration file for
+examples.
+
+# Functionality 2
+Detect rules containing debug types.
+The user can define some types as "debug types" in the configuration file, and
+this functionality will report any rule found in the policy using those types.
+
+# Functionality 3
+Detect rules that grant some permission over some class without granting some
+necessary or required permission, e.g. a rule which grants "write" but not
+"open" over a "file" class.
+
+More precisely, this functionality reports rules that grant at least one
+permission from set F_A, without granting at least all permissions in set F_B
+over an object of class F.
+All these permission sets can be specified by the user in the configuration
+file.
+
+"""
 
 import logging
 import re
@@ -175,6 +205,7 @@ def main(policy, config):
     # Compile the regex for speed
     rule_w_placeholder_r = re.compile(
         r".*" + ArgExtractor.placeholder_r + r".*")
+    # Functionality 1
     # Look for missing rules in predetermined tuples
     print "Checking for missing rules"
     for t in plugin_conf.RULES_TUPLES:
@@ -206,15 +237,21 @@ def main(policy, config):
             for x in rules:
                 log.debug(str(x))
         else:
+            # If the first rule contains no placeholder, simply use it as a
+            # string
             rules = [t[0]]
         # For each rule matching the query
         for r in rules:
+            # Skip rules purposefully ignored by the user
+            if r in plugin_conf.IGNORED_RULES:
+                continue
+            # For each additional rule in the tuple, check that it is in the
+            # policy, substituting placeholders if necessary.
             missing_rules = []
             if placeholder_sub:
                 # Get the arguments from the rule
                 args = e.extract(r)
-            # For each additional rule in the tuple, check that it is in the
-            # policy, substituting placeholders if necessary.
+            # For each additional rule in the tuple
             for each_rule in t[1:]:
                 # Ignore unsupported rules
                 if not each_rule.startswith(policysource.mapping.ONLY_MAP_RULES):
@@ -270,6 +307,7 @@ def main(policy, config):
                 print "is missing associated rule(s):"
                 for x in missing_rules:
                     print "  " + str(x)
+    # Functionality 2
     # Look for debug types
     print "Checking for rules containing debug types"
     for rutc in policy.mapping.rules:
@@ -277,8 +315,12 @@ def main(policy, config):
             if dbt and dbt in rutc:
                 print "Rule contains debug type \"{}\":".format(dbt)
                 for each in policy.mapping.rules[rutc]:
-                    print "  " + str(each)
+                    eachstr = str(each)
+                    # Skip rules purposefully ignored by the user
+                    if eachstr not in plugin_conf.IGNORED_RULES:
+                        print "  " + eachstr
 
+    # Functionality 3
     # Look for rules not granting minimum permissions
     print "Checking for rules not granting minimum required permissions"
     for rutc in policy.mapping.rules:
@@ -315,6 +357,9 @@ def main(policy, config):
                 res_str += "{ " + " ".join(found_perms) + " };"
             else:
                 res_str += " ".join(found_perms) + ";"
+            # Skip rules purposefully ignored by the user
+            if res_str in plugin_conf.IGNORED_RULES:
+                continue
             print "Permissions present in rule require additional "\
                 "\"{}\":".format(" ".join(req_perms - found_perms))
             print "  " + res_str
