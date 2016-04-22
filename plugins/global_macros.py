@@ -160,8 +160,13 @@ def main(policy, config):
                     break
             if suggest_this:
                 for x in winner:
+                    # Skip usages purposefully ignored by the user
+                    if x.name in plugin_conf.USAGES_IGNORE:
+                        continue
+                    # Create the Suggestion object
                     g = GlobalMacroSuggestion(x.name, x.values, filtered_rules,
                                               x.score, r_up_to_class, permset)
+                    # Add it to the suggestions dictionary
                     if g.filelines not in suggestions:
                         suggestions[g.filelines] = [g]
                     elif g not in suggestions[g.filelines]:
@@ -181,11 +186,15 @@ def main(policy, config):
                     suggest_this = False
                     break
             if suggest_this:
-                # Select the top SUGGESTION_MAX_NO suggestions above
-                # SUGGESTION_THRESHOLD from the results
+                # Select the top SUGGESTION_MAX_NO suggestions
+                # above SUGGESTION_THRESHOLD from the results, which are not
+                # purposefully ignored by the user
                 sgs = sorted([x for x in part if
-                              x.score >= plugin_conf.SUGGESTION_THRESHOLD],
+                              x.score >= plugin_conf.SUGGESTION_THRESHOLD
+                              and x.name not in plugin_conf.USAGES_IGNORE],
                              reverse=True)[:plugin_conf.SUGGESTION_MAX_NO]
+                # For each of the selected close-matching suggestions, create
+                # the Suggestion object and add it to the dictionary
                 for x in sgs:
                     g = GlobalMacroSuggestion(x.name, x.values, filtered_rules,
                                               x.score, r_up_to_class, permset)

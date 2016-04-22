@@ -32,3 +32,7 @@ SUPPORTED_RULE_TYPES = ("allow")
 SUGGESTION_THRESHOLD = 0.8
 # Make up to this number of suggestions
 SUGGESTION_MAX_NO = 3
+
+# Do not suggest these usages
+# WARNING: Be careful what you put in here.
+USAGES_IGNORE = []
