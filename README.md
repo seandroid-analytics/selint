@@ -23,19 +23,24 @@ export PYTHONPATH="<WORKING_DIRECTORY>/prebuilts/python/linux-x86/2.7.5/lib/pyth
 ### Using `setools4` from the official git repository
 You may also use the latest version of the `setools` library from the [official git repo](https://github.com/TresysTechnology/setools).
 
-After cloning the repo in `<SETOOLS4_DIRECTORY>`, add the directory to your `$PYTHONPATH`; for example, on Ubuntu 14.04 LTS add this to your `.profile`:
+After cloning the repo in `<SETOOLS4_DIRECTORY>`, you need to build SETools for local use: follow the instructions on the official SETools repo.
+To use the newly built software, add the directory to your `$PYTHONPATH`; for example, on Ubuntu 14.04 LTS add this to your `.profile`:
 ```
 export PYTHONPATH="<SETOOLS4_DIRECTORY>:$PYTHONPATH"
 ```
 
 ## Running SELint
-From the resulting directory, run:
+Before running SELint, you need to configure it to work on the desired SEAndroid policy source files. You can specify them in a configuration file.
+The configuration file is a regular Python file; the default one is `config.py` in the project directory, which you can modify directly or use as reference to see what configuration parameters are available.
+You can pass SELint a different configuration file with the `-c` option.
+
+After configuring the software, you can run it:
 ```
 $ ./selint [OPTIONS]
 ```
 
 ### Usage
-You may obtain the full list of options by running:
+You may obtain the full list of command line options by running:
 ```
 $ ./selint -h
 usage: selint [-h] [-l] [-w <PLUGIN> [<PLUGIN> ...] | -b <PLUGIN>
@@ -68,8 +73,29 @@ optional arguments:
 If not differently specified, all available plugins will be run.
 ```
 
-You can specify additional configuration parameters as variables in a regular Python file, and pass it as a command-line parameter with the `-c` option.
-To see what configuration parameters are available, see the default `config.py` file distributed with `SELint`. You most likely will need to change at least the location of the SELinux policy directory (`BASE_DIR_GLOBAL`).
+### Example usages
+Here are some example usages of SELint which you may find useful.
+
+See all available plugins:
+```
+$ ./selint -l
+```
+
+Run `global_macros` and `te_macros` plugins, using a user-provided configuration file:
+```
+$ ./selint -c user-config.py -w global_macros te_macros
+```
+
+Run all plugins except `global_macros` and `te_macros`, using a user-provided configuration file:
+```
+$ ./selint -c user-config.py -b global_macros te_macros
+```
+
+List all the recognized policy files from a user-provided configuration file and exit:
+```
+$ ./selint -c user-config.py --listpolicyfiles
+```
+
 
 ## Reporting bugs
 You can report bugs in the project [issue tracker](https://github.com/seandroid-analytics/selint/issues).
