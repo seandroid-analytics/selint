@@ -135,35 +135,6 @@ class SourcePolicy(object):
             policyconf = None
         return policyconf
 
-    def __join_policy_files__(self, base_dir, policyfiles):
-        """Get the absolute path of the policy files, removing empty values"""
-        sanitized_files = []
-        if not base_dir:
-            # If the directory is None or the name is empty
-            self.log.error("Bad policy base directory.")
-            return None
-        # Expand and sanitize the directory name
-        full_dir = os.path.abspath(os.path.expanduser(base_dir))
-        # If the directory does not exist or is not traversable/readable
-        if (not os.access(full_dir, os.F_OK)
-                or not os.access(full_dir, os.X_OK | os.R_OK)):
-            self.log.error("Bad policy base directory \"%s\"", full_dir)
-            return None
-        if not policyfiles:
-            # If policyfiles is None or the list is empty
-            return None
-        # For each non-empty value in the list
-        for each_file in (x for x in policyfiles if x):
-            # Expand and sanitize the file name
-            full_path = os.path.abspath(os.path.join(full_dir, each_file))
-            # If the file exists and is readable, add it to the list
-            if os.access(full_path, os.F_OK) and os.access(full_path, os.R_OK):
-                self.log.debug("Found policy file \"%s\"", full_path)
-                sanitized_files.append(full_path)
-            else:
-                self.log.warning("Bad policy file \"%s\"", full_path)
-        return sanitized_files
-
     def __find_macro_files__(self, policy_files):
         """Find files that contain m4 macro definitions."""
         # Regex to match the macro definition string
