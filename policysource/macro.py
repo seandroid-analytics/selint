@@ -20,6 +20,11 @@
 #
 """Classes providing abstractions for m4 macros."""
 
+# Necessary for Python 2/3 compatibility
+from __future__ import absolute_import
+from io import open
+from builtins import range
+
 import os
 import re
 import tempfile
@@ -70,7 +75,8 @@ class M4MacroExpander(object):
         else:
             # Create a temporary directory
             self._tmpdir = tempfile.mkdtemp()
-            self.log.debug("Created temporary directory \"%s\".", self._tmpdir)
+            self.log.debug(
+                u"Created temporary directory \"%s\".", self._tmpdir)
             # We manage it (we must destroy it when we're done)
             self._tmpdir_managed = True
         # Setup freeze file
@@ -79,7 +85,7 @@ class M4MacroExpander(object):
                 macro_files, self.tmpdir, extra_defs)
         except M4FreezeFileError as e:
             # We failed to generate the freeze file, abort
-            self.log.error("%s", e.message)
+            self.log.error(u"%s", e.message)
             raise M4MacroExpanderError(e.message)
         # Create a temporary file that will contain, at each request, the
         # macro to be expanded by m4. This is better than piping input to m4.
@@ -88,9 +94,9 @@ class M4MacroExpander(object):
         tpl = tempfile.mkstemp(dir=self.tmpdir)
         os.close(tpl[0])
         self._tmp = tpl[1]
-        self.log.debug("Created temporary file \"%s\".", self.tmp)
+        self.log.debug(u"Created temporary file \"%s\".", self.tmp)
         # Define the expansion command
-        self.expansion_command = ["m4", "-R",
+        self.expansion_command = [u"m4", u"-R",
                                   self.freeze_file.freeze_file, self.tmp]
 
     def __del__(self):
@@ -100,11 +106,11 @@ class M4MacroExpander(object):
         try:
             os.remove(self.tmp)
         except OSError:
-            self.log.warning("Trying to remove the temporary file"
-                             " \"%s\"... failed!", self.tmp)
+            self.log.warning(u"Trying to remove the temporary file"
+                             u" \"%s\"... failed!", self.tmp)
         else:
-            self.log.debug("Trying to remove the temporary file"
-                           " \"%s\"... done!", self.tmp)
+            self.log.debug(u"Trying to remove the temporary file"
+                           u" \"%s\"... done!", self.tmp)
         # Force removal of the freeze file
         del self.freeze_file
         # Try to remove the temporary directory if managed
@@ -112,38 +118,38 @@ class M4MacroExpander(object):
             try:
                 os.rmdir(self.tmpdir)
             except OSError:
-                self.log.warning("Trying to remove the temporary directory"
-                                 " \"%s\"... failed!", self.tmpdir)
+                self.log.warning(u"Trying to remove the temporary directory"
+                                 u" \"%s\"... failed!", self.tmpdir)
             else:
-                self.log.debug("Trying to remove the temporary directory"
-                               " \"%s\"... done!", self.tmpdir)
+                self.log.debug(u"Trying to remove the temporary directory"
+                               u" \"%s\"... done!", self.tmpdir)
 
     def expand(self, text):
         """Expand a string of text representing a m4 macro."""
         # Write the macro to the temporary file
-        with open(self.tmp, "w") as mfile:
+        with open(self.tmp, u"w", encoding=u'utf-8') as mfile:
             mfile.write(text)
         # Try to get the macro expansion with m4
         try:
             expansion = subprocess.check_output(self.expansion_command)
         except subprocess.CalledProcessError as e:
             # Log the error and change the function return value to None
-            self.log.warning("%s", e.output)
+            self.log.warning(u"%s", e.output)
             expansion = None
         return expansion
 
     def dump(self, text):
         """Dump the definition of a m4 macro."""
         # Write the command to a temporary file
-        with open(self.tmp, "w") as mfile:
-            mfile.write("dumpdef(`{}')".format(text))
+        with open(self.tmp, u"w", encoding=u'utf-8') as mfile:
+            mfile.write(u"dumpdef(`{}')".format(text))
         # Run the m4 command
         try:
             definition = subprocess.check_output(self.expansion_command,
                                                  stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             # Log the error and change the function return value to None
-            self.log.warning("%s", e.output)
+            self.log.warning(u"%s", e.output)
             definition = None
         return definition
 
@@ -178,27 +184,27 @@ class M4FreezeFile(object):
         self.extra_defs = extra_defs
         self.name = name
         self.freeze_file = os.path.join(tmpdir, name)
-        self.command = ["m4"]
+        self.command = [u"m4"]
         for definition in self.extra_defs:
-            self.command.extend(["-D", definition])
-        self.command.extend(["-s"])
+            self.command.extend([u"-D", definition])
+        self.command.extend([u"-s"])
         self.command.extend(self.files)
-        self.command.extend(["-F", self.freeze_file])
-        self.log.debug("Trying to generate freeze file \"%s\"...",
+        self.command.extend([u"-F", self.freeze_file])
+        self.log.debug(u"Trying to generate freeze file \"%s\"...",
                        self.freeze_file)
-        self.log.debug("$ %s", " ".join(self.command))
+        self.log.debug(u"$ %s", u" ".join(self.command))
         try:
             # Generate the freeze file
-            with open(os.devnull, "w") as devnull:
+            with open(os.devnull, u"w", encoding=u'utf-8') as devnull:
                 subprocess.check_call(self.command, stdout=devnull)
         except subprocess.CalledProcessError:
             # We failed to generate the freeze file, abort
             self.log.error(
-                "Failed to generate freeze file \"%s\".", self.freeze_file)
-            raise M4FreezeFileError("Failed to generate freeze file")
+                u"Failed to generate freeze file \"%s\".", self.freeze_file)
+            raise M4FreezeFileError(u"Failed to generate freeze file")
         else:
             # We successfully generated the freeze file
-            self.log.debug("Successfully generated freeze file \"%s\".",
+            self.log.debug(u"Successfully generated freeze file \"%s\".",
                            self.freeze_file)
 
     def __del__(self):
@@ -206,28 +212,28 @@ class M4FreezeFile(object):
         try:
             os.remove(self.freeze_file)
         except OSError:
-            self.log.debug("Trying to remove the freeze file "
-                           "\"%s\"... failed!", self.freeze_file)
+            self.log.debug(u"Trying to remove the freeze file "
+                           u"\"%s\"... failed!", self.freeze_file)
         else:
-            self.log.debug("Trying to remove the freeze file "
-                           "\"%s\"... done!", self.freeze_file)
+            self.log.debug(u"Trying to remove the freeze file "
+                           u"\"%s\"... done!", self.freeze_file)
 
 
 class M4Macro(object):
 
     """Class providing an abstraction for a m4 macro."""
-    operators = ("ifelse(", "incr(", "decr(", "errprint(")
+    operators = (u"ifelse(", u"incr(", u"decr(", u"errprint(")
 
     def __init__(self, name, expander, file_defined, args=[], comments=[]):
         # Check if we have enough data
         if (not name or not expander or not file_defined or args is None
                 or comments is None):
             if not name:
-                name = "noname"
+                name = u"noname"
             if args is None:
-                args = ["noargs"]
-            raise M4MacroError("Bad parameters for macro \"{}({})\"".format(
-                name, ", ".join(args)))
+                args = [u"noargs"]
+            raise M4MacroError(u"Bad parameters for macro \"{}({})\"".format(
+                name, u", ".join(args)))
         # Initialize the macro
         self._name = name
         self._expander = expander
@@ -272,7 +278,7 @@ class M4Macro(object):
         # Expand the macro
         if not self.expansion_static:
             # If the expansion is dynamic, we have to call m4 every time
-            text = self.name + "(" + ", ".join(args) + ")"
+            text = self.name + u"(" + u", ".join(args) + u")"
             return self._expander.expand(text)
         else:
             # If the expansion is static, we can call m4 only once, and then
@@ -280,9 +286,9 @@ class M4Macro(object):
             if not self._expansion:
                 # Get the expansion with placeholders, if we don't have it
                 placeholders = []
-                for i in xrange(self.nargs):
-                    placeholders.append("@@ARG{}@@".format(i))
-                tmp = self.name + "(" + ", ".join(placeholders) + ")"
+                for i in range(self.nargs):
+                    placeholders.append(u"@@ARG{}@@".format(i))
+                tmp = self.name + u"(" + u", ".join(placeholders) + u")"
                 expansion = self._expander.expand(tmp)
                 # Double all curly brackets to make them literal
                 expansion = re.sub(r"([{}])", r"\1\1", expansion)
@@ -305,7 +311,7 @@ class M4Macro(object):
         if not self._dump:
             dump = self._expander.dump(self.name)
             # Remove the first line ("name:")
-            self._dump = "\n".join(dump.splitlines()[1:])
+            self._dump = u"\n".join(dump.splitlines()[1:])
         return self._dump
 
     @property
@@ -331,7 +337,7 @@ class M4Macro(object):
     def __repr__(self):
         tmp = self.name
         if self.nargs > 0:
-            tmp += "(" + ", ".join(self.args) + ")"
+            tmp += u"(" + u", ".join(self.args) + u")"
         return tmp
 
     def __eq__(self, other):
@@ -345,7 +351,7 @@ class M4Macro(object):
             and self.file_defined == other.file_defined\
             and self.nargs == other.nargs\
             and len(self.comments) == len(other.comments)\
-            and "".join(self.comments) == "".join(other.comments)
+            and u"".join(self.comments) == u"".join(other.comments)
 
     def __ne__(self, other):
         return not self == other
@@ -360,9 +366,9 @@ class MacroInPolicy(object):
         """Parse a macro usage to extract the name and arguments.
 
         Return a tuple (name, [args])."""
-        i = string.index("(")
+        i = string.index(u"(")
         name = string[:i]
-        args = [x.strip() for x in string[i:].strip("()").split(",")]
+        args = [x.strip() for x in string[i:].strip(u"()").split(u",")]
         return (name, args)
 
     def __init__(self, existing_macros, file_used, line_used, name, args=[]):
@@ -371,12 +377,12 @@ class MacroInPolicy(object):
                 not isinstance(line_used, int) or int(line_used) < 0 or
                 not name or args is None):
             if not name:
-                name = "noname"
+                name = u"noname"
             if args is None:
-                args = ["noargs"]
+                args = [u"noargs"]
             raise M4MacroError(
-                "Bad parameters for macro \"{}({})\"".format(
-                    name, ", ".join(args)))
+                u"Bad parameters for macro \"{}({})\"".format(
+                    name, u", ".join(args)))
         # Initialize the macro
         # If the macro is a valid macro
         if name in existing_macros and existing_macros[name]\
@@ -391,7 +397,7 @@ class MacroInPolicy(object):
             self._line_used = int(line_used)
         else:
             raise M4MacroError(
-                "Invalid macro \"{}({})\"".format(name, ", ".join(args)))
+                u"Invalid macro \"{}({})\"".format(name, ", ".join(args)))
 
     @property
     def name(self):
@@ -403,7 +409,7 @@ class MacroInPolicy(object):
         """Get the macro expansion using the specific usage's arguments."""
         # If we have not generated the macro expansion yet, generate it on the
         # fly and save it for future use
-        if not hasattr(self, "_expansion"):
+        if not hasattr(self, u"_expansion"):
             # TODO: warning: expand() can return None if the number of
             # arguments is wrong. This should not happen, maybe put some more
             # checks to be sure?
@@ -417,7 +423,7 @@ class MacroInPolicy(object):
         arguments."""
         # If we have not generated the macro expansion yet, generate it on the
         # fly and save it for future use
-        if not hasattr(self, "_expansion"):
+        if not hasattr(self, u"_expansion"):
             # TODO: warning: expand() can return None if the number of
             # arguments is wrong. This should not happen, maybe put some more
             # checks to be sure?
@@ -453,7 +459,7 @@ class MacroInPolicy(object):
     def __repr__(self):
         tmp = self.name
         if self.nargs > 0:
-            tmp += "(" + ", ".join(self.args) + ")"
+            tmp += u"(" + u", ".join(self.args) + u")"
         return tmp
 
     def __eq__(self, other):

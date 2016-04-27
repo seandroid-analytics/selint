@@ -20,12 +20,16 @@
 #
 """Plugin to parse the global_macros file"""
 
+# Necessary for Python 2/3 compatibility
+from __future__ import absolute_import
+from io import open
+
 import os
 import re
 import logging
 import policysource.macro
 
-MACRO_FILE = "global_macros"
+MACRO_FILE = u"global_macros"
 LOG = logging.getLogger(__name__)
 
 
@@ -40,11 +44,11 @@ def parse(f_to_parse, macro_expander):
     Raise ValueError if unable to handle the file."""
     # Check that we can handle the file we're served
     if not f_to_parse or not expects(f_to_parse):
-        raise ValueError("{} can't handle {}.".format(MACRO_FILE, f_to_parse))
+        raise ValueError(u"{} can't handle {}.".format(MACRO_FILE, f_to_parse))
     macros = {}
     # Parse the global_macros file
-    macrodef = re.compile(r'^define\(\`([^\']+)\',\s+`([^\']+)\'')
-    with open(f_to_parse) as global_macros_file:
+    macrodef = re.compile(ur'^define\(\`([^\']+)\',\s+`([^\']+)\'')
+    with open(f_to_parse, encoding=u'utf-8') as global_macros_file:
         for lineno, line in enumerate(global_macros_file):
             # If the line contains a macro, parse it
             macro_match = macrodef.search(line)
@@ -57,8 +61,8 @@ def parse(f_to_parse, macro_expander):
                 except policysource.macro.M4MacroError as e:
                     # Log the failure and skip
                     # Find the macro line and report it to the user
-                    LOG.warning("%s", e.message)
-                    LOG.warning("Macro \"%s\" is at %s:%s",
+                    LOG.warning(u"%s", e.message)
+                    LOG.warning(u"Macro \"%s\" is at %s:%s",
                                 name, f_to_parse, lineno)
                 else:
                     # Add the new macro to the dictionary

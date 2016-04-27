@@ -20,12 +20,16 @@
 #
 """Plugin to parse the te_macros file"""
 
+# Necessary for Python 2/3 compatibility
+from __future__ import absolute_import
+from io import open
+
 import os
 import re
 import logging
 import policysource.macro
 
-MACRO_FILE = "te_macros"
+MACRO_FILE = u"te_macros"
 LOG = logging.getLogger(__name__)
 MDL = r"^#\s[a-zA-Z][a-zA-Z0-9_]*\((?:[a-zA-Z0-9_]+,\s?)*(?:[a-zA-Z0-9_]+)\)$"
 BLK_SEP = r"^##+$"
@@ -44,7 +48,7 @@ class TEBlock(object):
         """
         # Sanity check
         if start + len(content) != end:
-            raise ValueError("Invalid range for the supplied content.")
+            raise ValueError(u"Invalid range for the supplied content.")
         self._start = start
         self._end = end
         self._content = content
@@ -53,7 +57,7 @@ class TEBlock(object):
             self._valid = True
             # Tokenize the macro definition line, removing empy tokens
             # "# macro(arg1,arg2)" -> ["macro", "arg1", "arg2"]
-            definition = [x for x in re.split(r'\W+', content[1]) if x]
+            definition = [x for x in re.split(ur'\W+', content[1]) if x]
             self._name = definition[0]    # ["macro"]
             self._args = definition[1:]   # ["arg1", "arg2"]
         else:
@@ -154,7 +158,7 @@ def __split__(file_lines):
     start = 0
     previous_is_empty = False
     for i, line in enumerate(file_lines):
-        if line == "":
+        if line == u"":
             # Mark if we find a blank line
             previous_is_empty = True
         elif previous_is_empty:
@@ -164,7 +168,7 @@ def __split__(file_lines):
                 # List slicing syntax: list[start:end] means [start, end)
                 tmpblk = TEBlock(start, i, file_lines[start:i])
                 blocks.append(tmpblk)
-                LOG.debug("Found block at lines %d-%d (inclusive)",
+                LOG.debug(u"Found block at lines %d-%d (inclusive)",
                           tmpblk.start(), tmpblk.end(inclusive=True))
                 # Mark the start of the new block
                 start = i
@@ -173,7 +177,7 @@ def __split__(file_lines):
     # Handle the last block
     tmpblk = TEBlock(start, len(file_lines), file_lines[start:])
     blocks.append(tmpblk)
-    LOG.debug("Found block at lines %d-%d (inclusive)",
+    LOG.debug(u"Found block at lines %d-%d (inclusive)",
               tmpblk.start(), tmpblk.end(inclusive=True))
     return blocks
 
@@ -184,13 +188,13 @@ def parse(f_to_parse, macro_expander):
     Raise ValueError if unable to handle the file."""
     # Check that we can handle the file we're served
     if not f_to_parse or not expects(f_to_parse):
-        raise ValueError("{} can't handle {}.".format(MACRO_FILE, f_to_parse))
+        raise ValueError(u"{} can't handle {}.".format(MACRO_FILE, f_to_parse))
     macros = {}
-    macrodef = re.compile(r'^define\(\`([^\']+)\'')
-    macroargs = re.compile(r'\$[0-9]+')
+    macrodef = re.compile(ur'^define\(\`([^\']+)\'')
+    macroargs = re.compile(ur'\$[0-9]+')
     # Parse the te_macros file
     # Read the te_macros file in as a list of lines
-    with open(f_to_parse) as ftp:
+    with open(f_to_parse, encoding=u'utf-8') as ftp:
         file_lines = ftp.read().splitlines()
     # Split the file in blocks
     blocks = __split__(file_lines)
@@ -214,7 +218,7 @@ def parse(f_to_parse, macro_expander):
                                                            block.comments)
                 except policysource.macro.M4MacroError as e:
                     # Log the failure and skip
-                    LOG.warning("%s", e.message)
+                    LOG.warning(u"%s", e.message)
                 else:
                     # Add the macro to the macro dictionary
                     macros[m] = new_macro
@@ -227,7 +231,7 @@ def parse(f_to_parse, macro_expander):
                                                        block.comments)
             except policysource.macro.M4MacroError as e:
                 # Log the failure and skip
-                LOG.warning("%s", e.message)
+                LOG.warning(u"%s", e.message)
             else:
                 # Add the macro to the macro dictionary
                 macros[block.name] = new_macro

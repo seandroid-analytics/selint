@@ -19,6 +19,11 @@
 #    <http://www.gnu.org/licenses/>.
 #
 """Plugin module implementing file-specific macro parsing functions"""
+
+# Necessary for Python 2/3 compatibility
+from __future__ import absolute_import
+from future.utils import itervalues
+
 import os
 from os import path
 import sys
@@ -31,14 +36,14 @@ import policysource.macro
 __all__ = []
 __plugins__ = {}
 for plugin_file in os.listdir(os.path.dirname(__file__)):
-    if plugin_file.endswith(".py"):
+    if plugin_file.endswith(u".py"):
         module = os.path.splitext(plugin_file)[0]
-        if not module.startswith('_') and not keyword.iskeyword(module):
+        if not module.startswith(u'_') and not keyword.iskeyword(module):
             try:
-                __import__(__name__ + '.' + module)
+                __import__(__name__ + u'.' + module)
             except:
                 e = sys.exc_info()
-                print e
+                print(e)
             else:
                 __all__.append(module)
                 __plugins__[module] = locals()[module]
@@ -72,9 +77,9 @@ class M4MacroParser(object):
             if (inspect.isfunction(plugin.expects)
                     and inspect.isfunction(plugin.parse)):
                 self.plugins[mod] = plugin
-                self.log.debug("Found plugin \"%s\"", mod)
+                self.log.debug(u"Found plugin \"%s\"", mod)
             else:
-                self.log.debug("Invalid plugin \"%s\"", mod)
+                self.log.debug(u"Invalid plugin \"%s\"", mod)
         # Setup temporary directory passthrough
         self._tmpdir = tmpdir
         self._tmpdir_managed = False
@@ -94,7 +99,7 @@ class M4MacroParser(object):
 
     def __get_parser__(self, single_file):
         """Find the appropriate parser for the given file."""
-        for plg in self.plugins.values():
+        for plg in itervalues(self.plugins):
             if plg.expects(single_file):
                 return plg
         return None
@@ -109,11 +114,11 @@ class M4MacroParser(object):
             # This really should not happen, since we have already
             # checked that the plugin accepts the file.
             # Log and skip
-            self.log.warning("%s", e)
-            self.log.warning("Could not parse \"%s\"", single_file)
+            self.log.warning(u"%s", e)
+            self.log.warning(u"Could not parse \"%s\"", single_file)
         else:
             # File parsed successfully
-            self.log.info("Parsed macros from \"%s\"", single_file)
+            self.log.info(u"Parsed macros from \"%s\"", single_file)
         return f_macros
 
     def expects(self):
@@ -127,7 +132,7 @@ class M4MacroParser(object):
             self.macro_expander = policysource.macro.M4MacroExpander(
                 files, self.tmpdir, self.extra_defs)
         except policysource.macro.M4MacroExpanderError as e:
-            self.log.error("%s", e.message)
+            self.log.error(u"%s", e.message)
             macros = None
         else:
             # Parse each file, using the macro expander
@@ -137,8 +142,8 @@ class M4MacroParser(object):
                 parser = self.__get_parser__(single_file)
                 if parser:
                     # We have a parser for this file
-                    self.log.debug("Parsing macros from \"%s\" with plugin "
-                                   "\"%s\"", single_file, parser.__name__)
+                    self.log.debug(u"Parsing macros from \"%s\" with plugin "
+                                   u"\"%s\"", single_file, parser.__name__)
                     # Parse this file and obtain a dictionary of macros
                     f_macros = self.__parse_file__(single_file, parser)
                     if f_macros:
@@ -146,5 +151,5 @@ class M4MacroParser(object):
                         macros.update(f_macros)
                 else:
                     # We don't have a parser for this file
-                    self.log.debug("No parser for \"%s\"", single_file)
+                    self.log.debug(u"No parser for \"%s\"", single_file)
         return macros

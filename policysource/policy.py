@@ -20,6 +20,11 @@
 #
 """Class providing an abstraction for a source SEAndroid policy"""
 
+# Necessary for Python 2/3 compatibility
+from __future__ import absolute_import
+from builtins import range
+from io import open
+
 from tempfile import mkdtemp
 import subprocess
 import os.path
@@ -53,26 +58,26 @@ class SourcePolicy(object):
         self.extra_defs = extra_defs
         # Create a temporary work directory
         self._tmpdir = mkdtemp()
-        self.log.debug("Created temporary directory \"%s\".", self._tmpdir)
+        self.log.debug(u"Created temporary directory \"%s\".", self._tmpdir)
 
         # Get a list of policy files with full paths
         self._policy_files = policyfiles
         if not self._policy_files:
             raise RuntimeError(
-                "Could not find any policy files to parse, aborting...")
+                u"Could not find any policy files to parse, aborting...")
         # Parse the macros and macro usages in the policy
         self._macro_defs = self.__find_macro_defs__(self._policy_files)
         if self._macro_defs is None:
-            raise RuntimeError("Error parsing macro definitions, aborting...")
+            raise RuntimeError(u"Error parsing macro definitions, aborting...")
         self._macro_usages = self.__find_macro_usages__(self._policy_files,
                                                         self._macro_defs)
         if self._macro_usages is None:
-            raise RuntimeError("Error parsing macro usages, aborting...")
+            raise RuntimeError(u"Error parsing macro usages, aborting...")
         # Create the policyconf
         self._policyconf = self.__create_policyconf__(self._policy_files)
         if not self._policyconf:
             raise RuntimeError(
-                "Could not create the policy.conf file, aborting...")
+                u"Could not create the policy.conf file, aborting...")
         # Create the actual policy instance
         self._policy = setools.policyrep.SELinuxPolicy(self.policyconf)
         # Initialise some useful variables
@@ -85,7 +90,7 @@ class SourcePolicy(object):
         self._mapping = mapper.get_mapping()
         if not self._mapping:
             raise RuntimeError(
-                "Error creating the file/line mapping, aborting...")
+                u"Error creating the file/line mapping, aborting...")
 
     def __del__(self):
         # Remove the macro usages and definitions to remove the associated
@@ -97,41 +102,41 @@ class SourcePolicy(object):
             try:
                 os.remove(self.policyconf)
             except OSError:
-                self.log.warning("Trying to remove policy.conf file \"%s\"... "
-                                 "failed!", self.policyconf)
+                self.log.warning(u"Trying to remove policy.conf file \"%s\"..."
+                                 u" failed!", self.policyconf)
             else:
-                self.log.debug("Trying to remove policy.conf file \"%s\"... "
-                               "done!", self.policyconf)
+                self.log.debug(u"Trying to remove policy.conf file \"%s\"... "
+                               u"done!", self.policyconf)
         # Try to remove the temporary directory
         if self._tmpdir:
             try:
                 os.rmdir(self._tmpdir)
             except OSError:
-                self.log.warning("Trying to remove the temporary directory "
-                                 "\"%s\"... failed!", self._tmpdir)
+                self.log.warning(u"Trying to remove the temporary directory "
+                                 u"\"%s\"... failed!", self._tmpdir)
             else:
-                self.log.debug("Trying to remove the temporary directory "
-                               "\"%s\"... done!", self._tmpdir)
+                self.log.debug(u"Trying to remove the temporary directory "
+                               u"\"%s\"... done!", self._tmpdir)
 
     def __create_policyconf__(self, policy_files):
         """Process the separate policy files with m4 and return a single
         policy.conf file"""
         # Prepare the output file
-        policyconf = os.path.join(self._tmpdir, "policy.conf")
+        policyconf = os.path.join(self._tmpdir, u"policy.conf")
         # Prepare the m4 command line
-        command = ['m4']
+        command = [u'm4']
         for definition in self.extra_defs:
-            command.extend(["-D", definition])
-        command.extend(['-s'])
+            command.extend([u"-D", definition])
+        command.extend([u'-s'])
         command.extend(policy_files)
         # Try to run m4
         try:
-            with open(policyconf, "w") as pcf:
+            with open(policyconf, u"w", encoding=u'utf-8') as pcf:
                 subprocess.check_call(command, stdout=pcf)
         except subprocess.CalledProcessError as e:
             self.log.error(e.message)
             self.log.error(
-                "Could not create the policy.conf \"%s\" file", policyconf)
+                u"Could not create the policy.conf \"%s\" file", policyconf)
             policyconf = None
         return policyconf
 
@@ -140,7 +145,7 @@ class SourcePolicy(object):
         # Regex to match the macro definition string
         macro_files = []
         for single_file in policy_files:
-            with open(single_file, 'r') as macro_file:
+            with open(single_file, u'r', encoding=u'utf-8') as macro_file:
                 for line in macro_file:
                     # If this file contains at least one macro definition,
                     # append it to the list of macro files and skip to
@@ -171,14 +176,14 @@ class SourcePolicy(object):
         would be split in 3 arguments as such
         ["{ appdomain, -isolated_app }", "something", "`third argument'"]
         """
-        group = ""
+        group = u""
         args = []
         nested_curly = 0
         nested_quotes = 0
         nested_parentheses = 0
         for c in argstring:
             # Found opening parenthesis
-            if c == "(":
+            if c == u"(":
                 # If this is the outermost parenthesis, drop it
                 # Otherwise keep it
                 if nested_quotes or nested_curly or nested_parentheses:
@@ -188,14 +193,14 @@ class SourcePolicy(object):
                 if not nested_quotes and not nested_curly:
                     nested_parentheses += 1
             # Found opening curly bracket
-            elif c == "{":
+            elif c == u"{":
                 # If we are outside nested quotes, this is a special character
                 if not nested_quotes:
                     # Increase nest level
                     nested_curly += 1
                 group += c
             # Found opening quote
-            elif c == "`":
+            elif c == u"`":
                 # If we are outside nested curly brackets, this is a special
                 # character
                 if not nested_curly:
@@ -203,7 +208,7 @@ class SourcePolicy(object):
                     nested_quotes += 1
                 group += c
             # Found closing curly bracket
-            elif c == "}":
+            elif c == u"}":
                 # If we are outside nested quotes, this is a special character
                 if not nested_quotes:
                     # Decrease nested level
@@ -213,7 +218,7 @@ class SourcePolicy(object):
                         return None
                 group += c
             # Found closing quote
-            elif c == "'":
+            elif c == u"'":
                 # If we are outside nested curly brackets, this is a special
                 # character
                 if not nested_curly:
@@ -224,7 +229,7 @@ class SourcePolicy(object):
                         return None
                 group += c
             # Found closing parenthesis
-            elif c == ")":
+            elif c == u")":
                 # If we are outside nested quotes or brackets, this is a
                 # special character
                 if not nested_quotes and not nested_curly:
@@ -240,19 +245,19 @@ class SourcePolicy(object):
                     # Mismatched parentheses
                     return None
             # Found comma
-            elif c == ",":
+            elif c == u",":
                 # If we are outside nested curly brackets and quotes, this is
                 # the separator character
                 if not nested_curly and not nested_quotes:
                     # Append the group as a new argument
                     args.append(group)
                     # Initialize a new empty group
-                    group = ""
+                    group = u""
                 else:
                     # Append to the group as a regular character
                     group += c
             # Found space
-            elif c == " ":
+            elif c == u" ":
                 # If we are outside nested curly brackets and quotes, discard
                 # spaces
                 if nested_curly or nested_quotes:
@@ -280,10 +285,10 @@ class SourcePolicy(object):
                     args = None
             else:
                 # Special case: multiline macros (e.g. "eng(` \n ... \n')")
-                if "{}(`".format(macro.name) in line:
+                if u"{}(`".format(macro.name) in line:
                     args = []
-                    for i in xrange(macro.nargs):
-                        args.append("multiline")
+                    for i in range(macro.nargs):
+                        args.append(u"multiline")
                 else:
                     args = None
         else:
@@ -296,18 +301,18 @@ class SourcePolicy(object):
 
         The list contains MacroInPolicy objects."""
         macro_usages = []
-        for current_file in (x for x in policy_files if x.endswith(".te")):
+        for current_file in (x for x in policy_files if x.endswith(u".te")):
             # For each .te file
-            with open(current_file) as current_file_content:
+            with open(current_file, encoding=u'utf-8') as current_file_content:
                 for lineno, line in enumerate(current_file_content, 1):
                     # Remove extra whitespace
                     line = line.strip()
-                    if line.startswith("#"):
+                    if line.startswith(u"#"):
                         # Ignore comments
                         continue
                     # Strip end-of-line comments
-                    if "#" in line:
-                        line = line.split("#")[0].strip()
+                    if u"#" in line:
+                        line = line.split(u"#")[0].strip()
                     # Search for macros
                     stripped_line = str(line)
                     for word in re.split(r'\W+', line):
@@ -325,9 +330,9 @@ class SourcePolicy(object):
                                 macros[word], stripped_line)
                             if args is None:
                                 # The macro usage is not valid
-                                self.log.warning("\"%s\" is a macro name but "
-                                                 "it is used wrong at:", word)
-                                self.log.warning("%s:%s: %s", current_file,
+                                self.log.warning(u"\"%s\" is a macro name but "
+                                                 u"it is used wrong at:", word)
+                                self.log.warning(u"%s:%s: %s", current_file,
                                                  lineno, line.rstrip())
                                 continue
                             # Construct the new macro object
@@ -336,7 +341,7 @@ class SourcePolicy(object):
                                                     lineno, word, args)
                             except M4MacroError as e:
                                 # Bad macro, skip
-                                self.log.warning("%s", e.message)
+                                self.log.warning(u"%s", e.message)
                             else:
                                 # Add the new macro to the list
                                 macro_usages.append(n_m)
