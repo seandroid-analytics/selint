@@ -14,8 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Assign a score to OEM rules depending on various criteria such as source and
+u"""Assign a score to OEM rules depending on various criteria such as source and
 target types, permission sets, ... ."""
+
+# Necessary for Python 2/3 compatibility
+from __future__ import absolute_import
+from __future__ import division
+from future.utils import itervalues
 
 import logging
 import os.path
@@ -25,7 +30,7 @@ import policysource.mapping
 
 
 def score_terule(rule):
-    """Assign a score to a TE rule depending on the scoring system."""
+    u"""Assign a score to a TE rule depending on the scoring system."""
     score = 0
     # START of the additive scoring system
     # Match the source
@@ -35,17 +40,17 @@ def score_terule(rule):
         if rule.source in plugin_conf.TYPES[crit]:
             # Assign a score depending on the scoring system:
             # Risk
-            if plugin_conf.SCORING_SYSTEM == "risk":
+            if plugin_conf.SCORING_SYSTEM == u"risk":
                 # Simply add the risk score
                 score += plugin_conf.SCORE_RISK[crit]
             # Trust, low
-            elif plugin_conf.SCORING_SYSTEM in ("trust_lh", "trust_ll"):
+            elif plugin_conf.SCORING_SYSTEM in (u"trust_lh", u"trust_ll"):
                 # Add the score with inverted weight wrt the max type value
                 # i.e. give a "high" score to a type marked with a "low" score
-                score += (plugin_conf.MAXIMUM_SCORE / float(2)) \
+                score += (plugin_conf.MAXIMUM_SCORE / 2) \
                     - plugin_conf.SCORE_TRUST[crit]
             # Trust, high
-            elif plugin_conf.SCORING_SYSTEM in ("trust_hl", "trust_hh"):
+            elif plugin_conf.SCORING_SYSTEM in (u"trust_hl", u"trust_hh"):
                 # Simply add the trust score
                 score += plugin_conf.SCORE_TRUST[crit]
             break
@@ -57,28 +62,28 @@ def score_terule(rule):
         if rule.deftype in plugin_conf.TYPES[crit]:
             # Assign a score depending on the scoring system:
             # Risk
-            if plugin_conf.SCORING_SYSTEM == "risk":
+            if plugin_conf.SCORING_SYSTEM == u"risk":
                 # Simply add the risk score
                 score += plugin_conf.SCORE_RISK[crit]
             # Trust, low
-            elif plugin_conf.SCORING_SYSTEM in ("trust_hl", "trust_ll"):
+            elif plugin_conf.SCORING_SYSTEM in (u"trust_hl", u"trust_ll"):
                 # Add the score with inverted weight wrt the max type value
                 # i.e. give a "high" score to a type marked with a "low" score
-                score += (plugin_conf.MAXIMUM_SCORE / float(2)) \
+                score += (plugin_conf.MAXIMUM_SCORE / 2) \
                     - plugin_conf.SCORE_TRUST[crit]
             # Trust, high
-            elif plugin_conf.SCORING_SYSTEM in ("trust_lh", "trust_hh"):
+            elif plugin_conf.SCORING_SYSTEM in (u"trust_lh", u"trust_hh"):
                 # Simply add the trust score
                 score += plugin_conf.SCORE_TRUST[crit]
             break
     # END of the additive scoring system
     # Normalise score
-    score /= float(plugin_conf.MAXIMUM_SCORE)
+    score /= plugin_conf.MAXIMUM_SCORE
     return score
 
 
 def score_avrule(rule):
-    """Assign a score to an AV rule depending on the scoring system."""
+    u"""Assign a score to an AV rule depending on the scoring system."""
     score = 0
     # START of the additive scoring system
     # Match the source
@@ -88,23 +93,23 @@ def score_avrule(rule):
         if rule.source in plugin_conf.TYPES[crit]:
             # Assign a score depending on the scoring system:
             # Risk
-            if plugin_conf.SCORING_SYSTEM == "risk":
+            if plugin_conf.SCORING_SYSTEM == u"risk":
                 # Simply add the risk score
                 score += plugin_conf.SCORE_RISK[crit]
             # Trust, low
-            elif plugin_conf.SCORING_SYSTEM in ("trust_lh", "trust_ll"):
+            elif plugin_conf.SCORING_SYSTEM in (u"trust_lh", u"trust_ll"):
                 # Add the score with inverted weight wrt the max type value
                 # i.e. give a "high" score to a type marked with a "low" score
-                score += (plugin_conf.MAXIMUM_SCORE / float(2)) \
+                score += (plugin_conf.MAXIMUM_SCORE / 2) \
                     - plugin_conf.SCORE_TRUST[crit]
             # Trust, high
-            elif plugin_conf.SCORING_SYSTEM in ("trust_hl", "trust_hh"):
+            elif plugin_conf.SCORING_SYSTEM in (u"trust_hl", u"trust_hh"):
                 # Simply add the trust score
                 score += plugin_conf.SCORE_TRUST[crit]
             break
     # Match the target
     # Risk
-    if plugin_conf.SCORING_SYSTEM == "risk":
+    if plugin_conf.SCORING_SYSTEM == u"risk":
         # If the rule allows a capability, the second type is always going to
         # be "self", and as such meaningless for scoring purposes.
         if rule.tclass in plugin_conf.CAPABILITIES:
@@ -121,18 +126,18 @@ def score_avrule(rule):
         for crit in plugin_conf.TYPES:
             if rule.target in plugin_conf.TYPES[crit]:
                 # Trust, low
-                if plugin_conf.SCORING_SYSTEM in ("trust_hl", "trust_ll"):
+                if plugin_conf.SCORING_SYSTEM in (u"trust_hl", u"trust_ll"):
                     # Add the score with inverted weight wrt the max type value
                     # i.e. give a "high" score to a type marked with "low"
-                    score += (plugin_conf.MAXIMUM_SCORE / float(2)) \
+                    score += (plugin_conf.MAXIMUM_SCORE / 2) \
                         - plugin_conf.SCORE_TRUST[crit]
                 # Trust, high
-                if plugin_conf.SCORING_SYSTEM in ("trust_lh", "trust_hh"):
+                if plugin_conf.SCORING_SYSTEM in (u"trust_lh", u"trust_hh"):
                     # Simply add the trust score
                     score += plugin_conf.SCORE_TRUST[crit]
     # END of additive scoring system
     # START of multiplicative, if applicable
-    if plugin_conf.SCORING_SYSTEM == "risk":
+    if plugin_conf.SCORING_SYSTEM == u"risk":
         perm_score = 0
         # Compute score for the permission set
         for crit in plugin_conf.PERMS:
@@ -146,12 +151,12 @@ def score_avrule(rule):
             score *= perm_score
     # END of multiplicative scoring system
     # Normalise score
-    score /= float(plugin_conf.MAXIMUM_SCORE)
+    score /= plugin_conf.MAXIMUM_SCORE
     return score
 
 
 def score_rule(rule):
-    """Assign a score to a generic rule."""
+    u"""Assign a score to a generic rule."""
     if rule.rtype in policysource.mapping.AVRULES:
         return score_avrule(rule)
     elif rule.rtype in policysource.mapping.TERULES:
@@ -162,20 +167,20 @@ def score_rule(rule):
 
 
 def main(policy, config):
-    """Score OEM rules depending on a scoring system."""
+    u"""Score OEM rules depending on a scoring system."""
     # Check that we have been fed a valid policy
     if not isinstance(policy, policysource.policy.SourcePolicy):
-        raise ValueError("Invalid policy")
+        raise ValueError(u"Invalid policy")
     # Setup logging
     log = logging.getLogger(__name__)
     # Check that we are using a supported scoring system
-    if plugin_conf.SCORING_SYSTEM not in ("risk", "trust_hl", "trust_lh",
-                                          "trust_hh", "trust_ll"):
-        log.critical("Unsupported scoring system \"%s\". Aborting...",
+    if plugin_conf.SCORING_SYSTEM not in (u"risk", u"trust_hl", u"trust_lh",
+                                          u"trust_hh", u"trust_ll"):
+        log.critical(u"Unsupported scoring system \"%s\". Aborting...",
                      plugin_conf.SCORING_SYSTEM)
         return
     else:
-        log.info("Scoring rules with \"%s\" scoring system...",
+        log.info(u"Scoring rules with \"%s\" scoring system...",
                  plugin_conf.SCORING_SYSTEM)
     # Compute the absolute ignore paths
     FULL_BASE_DIR = os.path.abspath(os.path.expanduser(config.BASE_DIR_GLOBAL))
@@ -186,7 +191,7 @@ def main(policy, config):
         policy.policyconf, policy.attributes, policy.types, policy.classes)
     printouts = []
     # Score the rules
-    for rls in policy.mapping.rules.values():
+    for rls in itervalues(policy.mapping.rules):
         for r in rls:
             # If this rule comes from an ignored path or its type is not
             # supported, ignore it
@@ -200,5 +205,5 @@ def main(policy, config):
             score = score_rule(rule)
             # Print rule
             if score >= plugin_conf.SCORE_THRESHOLD:
-                printouts.append("{:.2f}: {}".format(score, r))
-    print "\n".join(sorted(printouts, reverse=plugin_conf.REVERSE_SORT))
+                printouts.append(u"{:.2f}: {}".format(score, r))
+    print(u"\n".join(sorted(printouts, reverse=plugin_conf.REVERSE_SORT)))

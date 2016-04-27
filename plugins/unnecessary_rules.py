@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Report rules matching some criteria specified in the configuration file.
+u"""Report rules matching some criteria specified in the configuration file.
 Specifically, this plugin provides 3 functionalities, described here.
 
 # Functionality 1
@@ -46,6 +46,11 @@ file.
 
 """
 
+# Necessary for Python 2/3 compatibility
+from __future__ import absolute_import
+from builtins import range
+from future.utils import iteritems
+
 import logging
 import re
 import os.path
@@ -71,7 +76,7 @@ VALID_ARG_R = r"[a-zA-Z0-9_-]+"
 
 
 def query_for_rule(policy, r):
-    """Query a policy for rules matching a given rule.
+    u"""Query a policy for rules matching a given rule.
     The rule may contain regex fields."""
     global NON_IGNORED_MAPPING
     # Mark whether a query parameter is a regex or a string
@@ -79,7 +84,7 @@ def query_for_rule(policy, r):
     tr = r"[a-zA-Z0-9_-]+" in r.target
     cr = r"[a-zA-Z0-9_-]+" in r.tclass
     # Handle self
-    if r.target == "self":
+    if r.target == u"self":
         # Override the target to match everything
         xtarget = VALID_ARG_R
         tr = True
@@ -107,10 +112,10 @@ def query_for_rule(policy, r):
     else:
         # We should have no other rules, as they are already filtered
         # when creating the list with the rule_factory method
-        LOG.warning("Unsupported rule: \"%s\"", r)
+        LOG.warning(u"Unsupported rule: \"%s\"", r)
         return None
     # Filter all rules
-    if r.target == "self":
+    if r.target == u"self":
         # Discard rules whose mask contained "self" as a target,
         # but whose result's source and target are different
         results = [x for x in query.results() if x.source == x.target]
@@ -141,7 +146,7 @@ def query_for_rule(policy, r):
                 for each in rls:
                     if not each.fileline.startswith(FULL_IGNORE_PATHS):
                         prmstr = MAPPER.rule_split_after_class(each.rule)[1]
-                        tmpset.update(prmstr.strip(" {};").split())
+                        tmpset.update(prmstr.strip(u" {};").split())
                         if x_str in NON_IGNORED_MAPPING:
                             NON_IGNORED_MAPPING[x_str].append(each.fileline)
                         else:
@@ -165,7 +170,7 @@ def query_for_rule(policy, r):
 
 
 def substitute_args(rule, args):
-    """Substitute placeholder arguments in a rule with their actual values.
+    u"""Substitute placeholder arguments in a rule with their actual values.
 
     The rule must be passed in as a string.
     e.g.
@@ -174,18 +179,18 @@ def substitute_args(rule, args):
     -> returns "allow somedomain sometype:class perm;"
     """
     modified_args = {}
-    for k, v in args.iteritems():
-        modified_args["@@" + k.upper() + "@@"] = v
-    for k, v in modified_args.iteritems():
+    for (k, v) in iteritems(args):
+        modified_args[u"@@" + k.upper() + u"@@"] = v
+    for (k, v) in iteritems(modified_args):
         rule = rule.replace(k, v)
     return rule
 
 
 def main(policy, config):
-    """Find unnecessary or missing rules in the policy."""
+    u"""Find unnecessary or missing rules in the policy."""
     # Check that we have been fed a valid policy
     if not isinstance(policy, policysource.policy.SourcePolicy):
-        raise ValueError("Invalid policy")
+        raise ValueError(u"Invalid policy")
     # Setup logging
     log = logging.getLogger(__name__)
     global LOG
@@ -207,9 +212,9 @@ def main(policy, config):
         r".*" + ArgExtractor.placeholder_r + r".*")
     # Functionality 1
     # Look for missing rules in predetermined tuples
-    print "Checking for missing rules"
+    print(u"Checking for missing rules")
     for t in plugin_conf.RULES_TUPLES:
-        log.debug("Checking tuple containing these rules:")
+        log.debug(u"Checking tuple containing these rules:")
         for x in t:
             log.debug(x)
         placeholder_sub = False
@@ -233,7 +238,7 @@ def main(policy, config):
             rules = query_for_rule(policy, tmp)
             if not rules:
                 continue
-            log.debug("Found rules:")
+            log.debug(u"Found rules:")
             for x in rules:
                 log.debug(str(x))
         else:
@@ -279,10 +284,10 @@ def main(policy, config):
                         # If not a subset, print the rule and the missing
                         # permissions
                         if not nec_rule_full.permset <= permset:
-                            missing = " (missing \""
-                            missing += " ".join(nec_rule_full.permset -
-                                                permset)
-                            missing += "\")"
+                            missing = u" (missing \""
+                            missing += u" ".join(nec_rule_full.permset -
+                                                 permset)
+                            missing += u"\")"
                             missing_rules.append(nec_rule + missing)
                     if nec_rule_full.rtype in policysource.mapping.TERULES:
                         # If we are looking for a TE rule, check for an
@@ -296,39 +301,39 @@ def main(policy, config):
             if missing_rules:
                 # TODO: print fileline
                 rutc = MAPPER.rule_split_after_class(str(r))[0]
-                print "Rule:"
+                print(u"Rule:")
                 if len(policy.mapping.rules[rutc]) > 1:
-                    print "  " + str(r)
-                    print "made up of rules:"
+                    print(u"  " + str(r))
+                    print(u"made up of rules:")
                     for x in policy.mapping.rules[rutc]:
-                        print "  " + str(x)
+                        print(u"  " + str(x))
                 else:
-                    print "  " + str(policy.mapping.rules[rutc][0])
-                print "is missing associated rule(s):"
+                    print(u"  " + str(policy.mapping.rules[rutc][0]))
+                print(u"is missing associated rule(s):")
                 for x in missing_rules:
-                    print "  " + str(x)
+                    print(u"  " + str(x))
     # Functionality 2
     # Look for debug types
-    print "Checking for rules containing debug types"
+    print(u"Checking for rules containing debug types")
     for rutc in policy.mapping.rules:
         for dbt in plugin_conf.DEBUG_TYPES:
             if dbt and dbt in rutc:
-                print "Rule contains debug type \"{}\":".format(dbt)
+                print(u"Rule contains debug type \"{}\":".format(dbt))
                 for each in policy.mapping.rules[rutc]:
                     eachstr = str(each)
                     # Skip rules purposefully ignored by the user
                     if eachstr not in plugin_conf.IGNORED_RULES:
-                        print "  " + eachstr
+                        print(u"  " + eachstr)
 
     # Functionality 3
     # Look for rules not granting minimum permissions
-    print "Checking for rules not granting minimum required permissions"
+    print(u"Checking for rules not granting minimum required permissions")
     for rutc in policy.mapping.rules:
         # Filter the rules by type (beginning of the "rule up to class")
-        if not rutc.startswith("allow"):
+        if not rutc.startswith(u"allow"):
             continue
         # Get the rule class
-        cls = rutc.split(":")[1]
+        cls = rutc.split(u":")[1]
         # Check if there are any constraint for this class
         if cls not in plugin_conf.REQUIRED_PERMS:
             # If not, skip this rule
@@ -345,35 +350,35 @@ def main(policy, config):
                 break
             # Get the permission string, strip it, split it, and update the
             # permission set
-            found_perms.update(x.rule[len(rutc):].strip(" {};").split())
+            found_perms.update(x.rule[len(rutc):].strip(u" {};").split())
         # If found_perms has been set to None, skip this rule
         if found_perms is None:
             continue
         # If a rule for this class grants some permission from the first
         # set, but does not grant at least the required permission(s)
         if found_perms & perms and not found_perms >= req_perms:
-            res_str = rutc + " "
+            res_str = rutc + u" "
             if len(found_perms) > 1:
-                res_str += "{ " + " ".join(found_perms) + " };"
+                res_str += u"{ " + u" ".join(found_perms) + u" };"
             else:
-                res_str += " ".join(found_perms) + ";"
+                res_str += u" ".join(found_perms) + u";"
             # Skip rules purposefully ignored by the user
             if res_str in plugin_conf.IGNORED_RULES:
                 continue
-            print "Permissions present in rule require additional "\
-                "\"{}\":".format(" ".join(req_perms - found_perms))
-            print "  " + res_str
+            print(u"Permissions present in rule require additional "
+                  u"\"{}\":".format(u" ".join(req_perms - found_perms)))
+            print(u"  " + res_str)
             rutc = MAPPER.rule_split_after_class(res_str)[0]
             for each in policy.mapping.rules[rutc]:
-                print "    " + each.fileline
+                print(u"    " + each.fileline)
 
 
 class ArgExtractor(object):
-    """Extract macro arguments from an expanded rule according to a regex."""
+    u"""Extract macro arguments from an expanded rule according to a regex."""
     placeholder_r = r"@@ARG[0-9]+@@"
 
     def __init__(self, rule):
-        """Initialise the ArgExtractor with the rule expanded with the named
+        u"""Initialise the ArgExtractor with the rule expanded with the named
         placeholders.
 
         e.g.: "allow @@ARG0@@ @@ARG0@@_tmpfs:file execute;"
@@ -381,7 +386,7 @@ class ArgExtractor(object):
         self.rule = rule
         # Convert the rule to a regex that matches it and extracts the groups
         self.regex = re.sub(self.placeholder_r,
-                            "(" + VALID_ARG_R + ")", self.rule)
+                            u"(" + VALID_ARG_R + u")", self.rule)
         self.regex_blocks = policysource.mapping.Mapper.rule_parser(self.regex)
         self.regex_blocks_c = {}
         # Save precompiled regex blocks
@@ -390,24 +395,24 @@ class ArgExtractor(object):
                 self.regex_blocks_c[blk] = re.compile(blk)
         # Save pre-computed rule permission set
         if self.regex_blocks[0] in policysource.mapping.AVRULES:
-            if any(x in self.regex_blocks[4] for x in "{}"):
+            if any(x in self.regex_blocks[4] for x in u"{}"):
                 self.regex_perms = set(
-                    self.regex_blocks[4].strip("{}").split())
+                    self.regex_blocks[4].strip(u"{}").split())
             else:
                 self.regex_perms = set([self.regex_blocks[4]])
         else:
             self.regex_perms = None
         # Save the argument names as "argN"
-        self.args = [x.strip("@").lower()
+        self.args = [x.strip(u"@").lower()
                      for x in re.findall(self.placeholder_r, self.rule)]
 
     def extract(self, rule):
-        """Extract the named arguments from a matching rule."""
+        u"""Extract the named arguments from a matching rule."""
         matches = self.match_rule(rule)
         retdict = {}
         if matches:
             # The rule matches the regex: extract the matches
-            for i in xrange(len(matches)):
+            for i in range(len(matches)):
                 # Handle multiple occurrences of the same argument in a rule
                 # If the occurrences don't all have the same value, this rule
                 # does not actually match the placeholder rule
@@ -416,19 +421,19 @@ class ArgExtractor(object):
                     if retdict[self.args[i]] != matches[i]:
                         # If the value we just found is different
                         # The rule does not actually match the regex
-                        raise ValueError("Rule does not match ArgExtractor"
-                                         "expression: \"{}\"".format(
+                        raise ValueError(u"Rule does not match ArgExtractor"
+                                         u"expression: \"{}\"".format(
                                              self.regex))
                 else:
                     retdict[self.args[i]] = matches[i]
             return retdict
         else:
             # The rule does not match the regex
-            raise ValueError("Rule does not match ArgExtractor expression: "
-                             "\"{}\"".format(self.regex))
+            raise ValueError(u"Rule does not match ArgExtractor expression: "
+                             u"\"{}\"".format(self.regex))
 
     def match_rule(self, rule):
-        """Perform a rich comparison between the provided rule and the rule
+        u"""Perform a rich comparison between the provided rule and the rule
         expected by the extractor.
         The rule must be passed in as a setools AV/TERule object.
 
@@ -442,7 +447,7 @@ class ArgExtractor(object):
         # Only call the rule methods once, cache values locally
         rule_blocks = []
         rule_blocks.append(str(rule.ruletype))
-        if rule_blocks[0] == "type_transition":
+        if rule_blocks[0] == u"type_transition":
             if len(regex_blocks) == 6:
                 # Name transition
                 try:
@@ -483,7 +488,7 @@ class ArgExtractor(object):
                 return None
         else:
             # The type contains no argument, match the string
-            if regex_blocks[2] == "self" and rule_blocks[2] != "self":
+            if regex_blocks[2] == u"self" and rule_blocks[2] != u"self":
                 # Handle "self" expansion case
                 # TODO: check if this actually happens
                 if rule_blocks[2] != rule_blocks[1]:
@@ -518,7 +523,7 @@ class ArgExtractor(object):
                 # the regex
                 return None
             ##################################################
-        elif rule_blocks[0] == "type_transition":
+        elif rule_blocks[0] == u"type_transition":
             ################ Match a type_transition rule #################
             # Block 4 is the default type
             rule_default = str(rule.default)
@@ -548,7 +553,7 @@ class ArgExtractor(object):
                     return None
             else:
                 # The object name contains no argument, match the string
-                if rule_objname.strip("\"") != regex_blocks[5].strip("\""):
+                if rule_objname.strip(u"\"") != regex_blocks[5].strip(u"\""):
                     return None
         ##################################################################
         ######################## All blocks match ########################

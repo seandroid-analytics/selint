@@ -14,7 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Plugin to analyse usage of global macros and suggest new ones."""
+u"""Plugin to analyse usage of global macros and suggest new ones."""
+
+# Necessary for Python 2/3 compatibility
+from __future__ import absolute_import
+from __future__ import division
+from future.utils import iteritems
+from builtins import range
 
 import itertools
 import os
@@ -27,7 +33,7 @@ import plugins.config.global_macros as plugin_conf
 
 
 class GlobalMacroSuggestion(object):
-    """A global_macro usage suggestion for a specific combination of lines."""
+    u"""A global_macro usage suggestion for a specific combination of lines."""
 
     def __init__(self, macro_name, perm_set, rules, score, rutc, permset):
         self.name = macro_name
@@ -39,10 +45,10 @@ class GlobalMacroSuggestion(object):
         self.original_permset = permset
 
     def __hash__(self):
-        return hash(self.name + " ".join(self.filelines))
+        return hash(self.name + u" ".join(self.filelines))
 
     def __repr__(self):
-        return self.name + ":\n" + "\n".join(self.filelines)
+        return self.name + u":\n" + u"\n".join(self.filelines)
 
     def __eq__(self, other):
         return self.name == other.name and self.filelines == other.filelines
@@ -66,7 +72,7 @@ class GlobalMacroSuggestion(object):
 def main(policy, config):
     # Check that we have been fed a valid policy
     if not isinstance(policy, policysource.policy.SourcePolicy):
-        raise ValueError("Invalid policy")
+        raise ValueError(u"Invalid policy")
     # Setup logging
     log = logging.getLogger(__name__)
 
@@ -81,18 +87,16 @@ def main(policy, config):
     # Prepare macro definition dictionaries
     macroset_dict = {}
     macroset_labels = {}
-    #all_elements = set()
     for m in policy.macro_defs:
-        if policy.macro_defs[m].file_defined.endswith("global_macros"):
+        if policy.macro_defs[m].file_defined.endswith(u"global_macros"):
             exp = policy.macro_defs[m].expand()
-            args = frozenset(x for x in exp.split() if x not in "{}")
+            args = frozenset(x for x in exp.split() if x not in u"{}")
             macroset_dict[m] = args
             macroset_labels[args] = m
-            # all_elements.update(args)
     # Prepare macro usages dictionaries
     macrousages_dict = {}
     for m in policy.macro_usages:
-        fileline = m.file_used + ":" + str(m.line_used)
+        fileline = m.file_used + u":" + str(m.line_used)
         if fileline in macrousages_dict:
             macrousages_dict[fileline].append(m)
         else:
@@ -116,7 +120,7 @@ def main(policy, config):
             filtered_rules.append(r)
             # Get the permissions from the rule
             # TODO: ugly, consider substituting with rule factory
-            perms = r.rule[len(r_up_to_class) + 1:].strip("{};").split()
+            perms = r.rule[len(r_up_to_class) + 1:].strip(u"{};").split()
             permset.update(perms)
         # If there are no rules left or the permset is empty, process the next
         # set of rules
@@ -140,7 +144,7 @@ def main(policy, config):
                 macros_at_line = macrousages_dict[r.fileline]
                 # Check that no other macros are involved
                 for m in macros_at_line:
-                    if not m.macro.file_defined.endswith("global_macros"):
+                    if not m.macro.file_defined.endswith(u"global_macros"):
                         # There are other macros at play, do not suggest
                         suggest_this = False
                         break
@@ -203,7 +207,7 @@ def main(policy, config):
                     elif g not in suggestions[g.filelines]:
                         suggestions[g.filelines].append(g)
     # Print the suggestions
-    for filelines, sgs in suggestions.iteritems():
+    for filelines, sgs in iteritems(suggestions):
         full = []
         part = []
         for x in sgs:
@@ -213,13 +217,13 @@ def main(policy, config):
                 part.append(x)
         part.sort(reverse=True)
         if full or part:
-            print "The following macros match these lines:"
+            print(u"The following macros match these lines:")
             for x in filelines:
-                print x + ": " + policy.mapping.lines[x]
+                print x + u": " + policy.mapping.lines[x]
         if full:
             # Print full match suggestion(s)
-            print "Full match:"
-            print ", ".join((x.name for x in full))
+            print(u"Full match:")
+            print(u", ".join((x.name for x in full)))
             # Compute suggested usage
             r_up_to_class = full[0].applies_to
             orig_permset = full[0].original_permset
@@ -229,18 +233,19 @@ def main(policy, config):
             extra_perms = orig_permset - permset
             usage = r_up_to_class
             if len(full) > 1 or extra_perms:
-                usage += " { " + " ".join([x.name for x in full])
+                usage += u" { " + u" ".join([x.name for x in full])
                 if extra_perms:
-                    usage += " " + " ".join(extra_perms)
-                usage += " };"
+                    usage += u" " + u" ".join(extra_perms)
+                usage += u" };"
             else:
-                usage += " " + full[0].name + ";"
-            print "Suggested usage:"
-            print usage
+                usage += u" " + full[0].name + u";"
+            print(u"Suggested usage:")
+            print(usage)
         if part:
             # Print partial match suggestion(s)
-            print "Partial match:"
-            print "\n".join(["{}: {}%".format(x.name, x.score * 100) for x in part])
+            print(u"Partial match:")
+            print(u"\n".join([
+                u"{}: {}%".format(x.name, x.score * 100) for x in part]))
             # Compute suggested usage
             r_up_to_class = part[0].applies_to
             orig_permset = part[0].original_permset
@@ -250,25 +255,25 @@ def main(policy, config):
             extra_perms = orig_permset - permset
             usage = r_up_to_class
             if len(part) > 1 or extra_perms:
-                usage += " { " + " ".join([x.name for x in part])
+                usage += u" { " + u" ".join([x.name for x in part])
                 if extra_perms:
-                    usage += " " + " ".join(extra_perms)
-                usage += " };"
+                    usage += u" " + u" ".join(extra_perms)
+                usage += u" };"
             else:
-                usage += " " + part[0].name + ";"
-            print "Suggested usage:"
-            print usage
+                usage += u" " + part[0].name + u";"
+            print(u"Suggested usage:")
+            print(usage)
         if full or part:
-            print
+            print(u"")
 
 
 class SetFitter(object):
-    """Cover a given set with the minimum number of known sets.
+    u"""Cover a given set with the minimum number of known sets.
 
     Pass the sets in as dict: {label: set}"""
 
     class RichSet(object):
-        """A dict with an associated score for each element"""
+        u"""A dict with an associated score for each element"""
 
         def __init__(self, name, values):
             self.name = name
@@ -287,16 +292,16 @@ class SetFitter(object):
                 if self.tally[elem] == 0:
                     # First match, update score
                     self.nonzero += 1
-                    self.score = self.nonzero / float(len(self.tally))
+                    self.score = self.nonzero / len(self.tally)
                 self.tally[elem] += 1
 
         def print_full(self):
-            print self.name + " ({}/{})".format(self.score, len(self.tally))
-            for k, v in self.tally.iteritems():
-                print k + " ({})".format(v)
+            print(self.name + u" ({}/{})".format(self.score, len(self.tally)))
+            for k, v in iteritems(self.tally):
+                print(k + u" ({})".format(v))
 
         def __repr__(self):
-            return self.name + ": " + str(self.score)
+            return self.name + u": " + str(self.score)
 
         def __eq__(self, other):
             return self.score == other.score
@@ -317,7 +322,7 @@ class SetFitter(object):
             return self.score >= other.score
 
     def __init__(self, d):
-        """Initialise a SetFitter with a dictionary of the available sets.
+        u"""Initialise a SetFitter with a dictionary of the available sets.
 
         d    - A dictionary {name: set} with the available sets accessible by
                name.
@@ -325,10 +330,10 @@ class SetFitter(object):
         self.d = d
 
     def fit(self, s):
-        """Fit a set with the pre-supplied available sets."""
+        u"""Fit a set with the pre-supplied available sets."""
         # Initialise a new list of rich sets
         rich_sets = [
-            SetFitter.RichSet(key, value) for key, value in self.d.iteritems()]
+            SetFitter.RichSet(key, value) for key, value in iteritems(self.d)]
         # Fit the set
         for elem in s:
             for each in rich_sets:
@@ -340,10 +345,9 @@ class SetFitter(object):
                 ones.append(x)
             else:
                 part.append(x)
-        # part.sort(reverse=True)
         # Compute all combinations of full macros
         combinations = []
-        for i in xrange(1, len(ones) + 1):
+        for i in range(1, len(ones) + 1):
             combinations.extend(itertools.combinations(ones, i))
         # Find the one that leaves the smallest extra set
         extra_dim = {}
