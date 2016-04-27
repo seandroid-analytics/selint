@@ -197,9 +197,8 @@ def main(policy, config):
     LOG = log
 
     # Compute the absolute ignore paths
-    FULL_BASE_DIR = os.path.abspath(os.path.expanduser(config.BASE_DIR_GLOBAL))
     global FULL_IGNORE_PATHS
-    FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
+    FULL_IGNORE_PATHS = tuple(os.path.join(config.FULL_BASE_DIR, p)
                               for p in plugin_conf.RULE_IGNORE_PATHS)
 
     # Create a global mapper to expand the rules

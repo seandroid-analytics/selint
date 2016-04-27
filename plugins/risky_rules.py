@@ -183,8 +183,7 @@ def main(policy, config):
         log.info(u"Scoring rules with \"%s\" scoring system...",
                  plugin_conf.SCORING_SYSTEM)
     # Compute the absolute ignore paths
-    FULL_BASE_DIR = os.path.abspath(os.path.expanduser(config.BASE_DIR_GLOBAL))
-    FULL_IGNORE_PATHS = tuple(os.path.join(FULL_BASE_DIR, p)
+    FULL_IGNORE_PATHS = tuple(os.path.join(config.FULL_BASE_DIR, p)
                               for p in plugin_conf.RULE_IGNORE_PATHS)
 
     mapper = policysource.mapping.Mapper(

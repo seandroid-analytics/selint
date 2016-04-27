@@ -272,6 +272,9 @@ ALL_POLICY_FILES = get_policy_files(config)
 if args.listpolicyfiles:
     print(u"\n".join(ALL_POLICY_FILES))
     sys.exit(0)
+# Save the absolute path of the base directory in config
+config.FULL_BASE_DIR = os.path.abspath(
+    os.path.expanduser(config.BASE_DIR_GLOBAL))
 
 # Create policy
 policy = policysource.policy.SourcePolicy(ALL_POLICY_FILES, args.extra_defs)
