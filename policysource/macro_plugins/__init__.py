@@ -18,7 +18,7 @@
 #    License along with this program.  If not, see
 #    <http://www.gnu.org/licenses/>.
 #
-"""Plugin module implementing file-specific macro parsing functions"""
+u"""Plugin module implementing file-specific macro parsing functions"""
 
 # Necessary for Python 2/3 compatibility
 from __future__ import absolute_import
@@ -52,13 +52,13 @@ __all__.sort()
 
 class M4MacroParser(object):
 
-    """Class providing a m4 file parser.
+    u"""Class providing a m4 file parser.
 
     The class handles a list of specific macro files through a plugin
     architecture defined in the macro_plugin module."""
 
     def __init__(self, tmpdir=None, extra_defs=None):
-        """Initialize plugin architecture.
+        u"""Initialize plugin architecture.
 
         Find all plugins offered by macro_plugins, check that they implement
         the required methods and add them to the plugin dictionary.
@@ -89,23 +89,23 @@ class M4MacroParser(object):
 
     @property
     def tmpdir(self):
-        """Get the temporary directory used by the parser."""
+        u"""Get the temporary directory used by the parser."""
         return self._tmpdir
 
     @property
     def tmpdir_managed(self):
-        """Check if the temporary directory is managed by the parser."""
+        u"""Check if the temporary directory is managed by the parser."""
         return self._tmpdir_managed
 
     def __get_parser__(self, single_file):
-        """Find the appropriate parser for the given file."""
+        u"""Find the appropriate parser for the given file."""
         for plg in itervalues(self.plugins):
             if plg.expects(single_file):
                 return plg
         return None
 
     def __parse_file__(self, single_file, parser):
-        """Parse a single file"""
+        u"""Parse a single file"""
         f_macros = None
         try:
             # Parse the file using the appropriate parser
@@ -122,11 +122,11 @@ class M4MacroParser(object):
         return f_macros
 
     def expects(self):
-        """Returns a list of files that the parser can handle."""
+        u"""Returns a list of files that the parser can handle."""
         return self.plugins.keys()
 
     def parse(self, files):
-        """Parses a list of files and returns a dictionary of macros."""
+        u"""Parses a list of files and returns a dictionary of macros."""
         # Setup the M4MacroExpander
         try:
             self.macro_expander = policysource.macro.M4MacroExpander(

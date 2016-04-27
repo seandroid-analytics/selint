@@ -16,6 +16,9 @@
 #
 """TODO: file docstring"""
 
+# Necessary for Python 2/3 compatibility
+from __future__ import absolute_import
+
 import os
 import os.path
 import sys
@@ -30,22 +33,22 @@ LOG = logging.getLogger(__name__)
 available_plugins = []
 __plugins = {}
 for plugin_file in os.listdir(os.path.dirname(__file__)):
-    if plugin_file.endswith(".py"):
+    if plugin_file.endswith(u".py"):
         plugin = os.path.splitext(plugin_file)[0]
-        if not plugin.startswith("_") and not keyword.iskeyword(plugin):
+        if not plugin.startswith(u"_") and not keyword.iskeyword(plugin):
             try:
-                __import__(__name__ + "." + plugin)
+                __import__(__name__ + u"." + plugin)
             except:
                 e = sys.exc_info()
-                print e
-                LOG.debug("Found invalid plugin \"%s\"", plugin)
+                print(e)
+                LOG.debug(u"Found invalid plugin \"%s\"", plugin)
             else:
                 if inspect.isfunction(locals()[plugin].main):
                     available_plugins.append(plugin)
                     __plugins[plugin] = locals()[plugin]
-                    LOG.debug("Found valid plugin \"%s\"", plugin)
+                    LOG.debug(u"Found valid plugin \"%s\"", plugin)
                 else:
-                    LOG.debug("Found invalid plugin \"%s\"", plugin)
+                    LOG.debug(u"Found invalid plugin \"%s\"", plugin)
 available_plugins.sort()
 
 
