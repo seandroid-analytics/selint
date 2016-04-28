@@ -20,37 +20,43 @@
 # All paths expressed in other variables will be relative to this
 BASE_DIR_GLOBAL = "~/extra/android-ia"
 
-# Statically specified policy files
-# Some files must go before all .te files
-POLICYFILES_STATIC_PRE = [
-    "external/sepolicy/security_classes",
-    "external/sepolicy/initial_sids",
-    "external/sepolicy/access_vectors",
-    "external/sepolicy/global_macros",
-    "external/sepolicy/mls_macros",
-    "external/sepolicy/mls",
-    "external/sepolicy/policy_capabilities",
-    "external/sepolicy/te_macros",
-    "device/intel/common/sepolicy/te_macros",
-    "external/sepolicy/attributes"]
-# All .te files found in these directories will automatically be picked up
-TEFILES_DIRS = [
-    "external/sepolicy/",
-    "build/target/board/generic/sepolicy/",
-    "device/intel/common/sepolicy"]
-# Statically specified .te files
-# This should not be necessary, use the TEFILES_DIRS variable
-POLICYFILES_STATIC_TE = []
-# Some policy files must go after all .te files
-# Otherwise setools will crash, I believe due to wrong file terminators
-POLICYFILES_STATIC_POST = [
-    "external/sepolicy/roles",
-    "external/sepolicy/users",
-    "external/sepolicy/initial_sid_contexts",
-    "external/sepolicy/fs_use",
-    "external/sepolicy/genfs_contexts",
-    "device/intel/common/sepolicy/genfs_contexts",
-    "external/sepolicy/port_contexts"]
+# Policy source file directories
+# This list contains directories to be searched for policy files specified in
+# POLICY_FILES below. This is the rough equivalent of the BOARD_SEPOLICY_DIRS
+# variable in the BoardConfig.mk makefile, except it also specifies the AOSP
+# sepolicy directory.
+# This list can contain both strings and tuples (string, bool), where a bool
+# value of True means that the directory must be searched recursively. E.g.:
+# POLICY_DIRS = ["external/sepolicy",
+#                ("device/intel/sepolicy", True)]
+POLICY_DIRS = ["external/sepolicy",
+               ("device/intel/common/sepolicy", True),
+               "build/target/board/generic/sepolicy"]
+
+# Policy source files
+# This list contains file names to be searched in the POLICY_DIRS specified
+# above. This is the rough equivalent of the sepolicy_build_files variable in
+# the sepolicy Android.mk makefile.
+# This list contains strings. It supports UNIX shell-style patterns ("*", ...)
+# Files will be processed in the order in which they are specified.
+POLICY_FILES = ["security_classes",
+                "initial_sids",
+                "access_vectors",
+                "global_macros",
+                "neverallow_macros",
+                "mls_macros",
+                "mls",
+                "policy_capabilities",
+                "te_macros",
+                "attributes",
+                "ioctl_macros",
+                "*.te",
+                "roles",
+                "users",
+                "initial_sid_contexts",
+                "fs_use",
+                "genfs_contexts",
+                "port_contexts"]
 
 # Extra definitions for M4 macro expansion
 # These will be passed to M4 with the "-D" option

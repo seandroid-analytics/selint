@@ -27,6 +27,9 @@ import argparse
 import logging
 import imp
 import shutil
+# Match filenames
+import fnmatch
+
 import policysource
 import policysource.policy
 import plugins
@@ -55,82 +58,70 @@ def get_policy_files(config):
                          u"or is not readable/traversable!", FULL_BASE_DIR)
         return None
     # Check that we have at least one file/directory
-    if not ((hasattr(config, u"TEFILES_DIRS") and not config.TEFILES_DIRS)
-            or (hasattr(config, u"POLICYFILES_STATIC_PRE") and
-                not config.POLICYFILES_STATIC_PRE)
-            or (hasattr(config, u"POLICYFILES_STATIC_TE") and
-                not config.POLICYFILES_STATIC_TE)
-            or (hasattr(config, u"POLICYFILES_STATIC_POST") and
-                not config.POLICYFILES_STATIC_POST)):
-        logging.critical(u"No policy files specified.")
+    if not hasattr(config, u"POLICY_DIRS"):
+        logging.critical(u"Configuration file is missing POLICY_DIRS "
+                         u"variable: no policy directories specified.")
         return None
-    # Add the static policy files that go before the .te files
-    if hasattr(config, u"POLICYFILES_STATIC_PRE"):
-        # For each non-empty value
-        for f in [x for x in config.POLICYFILES_STATIC_PRE if x]:
-            # Compute the absolute path
-            full_f = os.path.abspath(os.path.join(FULL_BASE_DIR, f))
-            # If the file exists and is readable
-            if os.path.isfile(full_f) and os.access(full_f, os.R_OK):
-                all_policy_files.append(full_f)
-            else:
-                logging.error(u"File \"%s\" does not exist or is not readable",
-                              full_f)
-    # Pick up the .te files from the supplied directories
-    if hasattr(config, u"TEFILES_DIRS"):
-        # We may have valid empty values, e.g. .te files directly in the
-        # base directory
-        for d in config.TEFILES_DIRS:
-            # Compute the absolute directory path
-            full_d = os.path.abspath(os.path.join(FULL_BASE_DIR, d))
-            # If the directory does not exist or is not readable/traversable
-            if (not os.path.isdir(full_d) or
-                    not os.access(full_d, os.X_OK | os.R_OK)):
-                logging.critical(u"Directory \"%s\" does not exist or is not "
-                                 u"readable/traversable!", full_d)
-                # Process the next directory
-                continue
-            # Get the full list of files under this directory
-            files = sorted(os.listdir(full_d))
-            # For each file
-            for f in files:
-                # Compute the absolute path of the file
-                full_f = os.path.join(full_d, f)
-                # If this is a .te file
-                if full_f.endswith(u".te"):
-                    # If the file exists and is readable
-                    if os.path.isfile(full_f) and os.access(full_f, os.R_OK):
-                        all_policy_files.append(full_f)
-                    else:
-                        logging.error(u"File \"%s\" does not exist or is not "
-                                      u"readable", full_f)
-    # Add the static .te files, if any
-    if hasattr(config, u"POLICYFILES_STATIC_TE"):
-        for f in [x for x in config.POLICYFILES_STATIC_TE if x]:
-            # Compute the absolute filename
-            full_f = os.path.abspath(os.path.join(FULL_BASE_DIR, f))
-            # If the file exists and is readable
-            if os.path.isfile(full_f) and os.access(full_f, os.R_OK):
-                all_policy_files.append(full_f)
-            else:
-                logging.error(u"File \"%s\" does not exist or is not "
-                              u"readable", full_f)
-    # Add the static policy files that go after the .te files
-    if hasattr(config, u"POLICYFILES_STATIC_POST"):
-        for f in [x for x in config.POLICYFILES_STATIC_POST if x]:
-            # Compute the absolute filename
-            full_f = os.path.abspath(os.path.join(FULL_BASE_DIR, f))
-            # If the file exists and is readable
-            if os.path.isfile(full_f) and os.access(full_f, os.R_OK):
-                all_policy_files.append(full_f)
-            else:
-                logging.error(u"File \"%s\" does not exist or is not "
-                              u"readable", full_f)
+    # If the POLICY_DIRS variable is empty or contains empty tuples
+    if not config.POLICY_DIRS or not\
+            any(x if type(x) in (unicode, str) else x[0]
+                for x in config.POLICY_DIRS):
+        logging.critical(
+            u"Bad POLICY_DIRS value: no policy directories specified.")
+        return None
+    ###########################################################################
+    # Pick up all the files from the supplied directories
+    all_files = set()
+    for x in config.POLICY_DIRS:
+        list_recursive = False
+        # Check that the directory exists and is readable, traversable
+        # Compute the absolute path
+        # If this is a simple non-empty string, just use the string
+        if type(x) in (unicode, str) and x:
+            fp = os.path.abspath(os.path.join(FULL_BASE_DIR, x))
+        # If this is a tuple of len=2, made up of a non-empty string and a
+        # boolean, use only the string
+        elif type(x) is tuple and len(x) == 2 and type(x[0]) in (unicode, str)\
+                and type(x[1]) is bool and x[0]:
+            fp = os.path.abspath(os.path.join(FULL_BASE_DIR, x[0]))
+            list_recursive = x[1]
+        # If the directory does not exist or is not readable/traversable
+        if not os.path.isdir(fp) or not os.access(fp, os.X_OK | os.R_OK):
+            logging.critical(u"Directory \"%s\" does not exist or is not "
+                             u"readable/traversable!", fp)
+            # Process the next directory
+            continue
+        # If a recursive list has been requested, walk the subtree
+        if list_recursive:
+            # List all directories under fp, and all files under each, get
+            # their full name and add them to all_files
+            all_files.update([os.path.join(dp, f)
+                              for dp, dn, fn in os.walk(fp) for f in fn])
+        # If no recursive listing has been requested, just list the directory
+        else:
+            # List all files in the directory, get their full name and add them
+            # to all_files
+            all_files.update([os.path.join(fp, f) for f in os.listdir(fp)])
+    ###########################################################################
+    # Get all the supplied filenames
+    supplied_files = [x for x in config.POLICY_FILES if x]
+    # Filter all_files, keep only files whose name is in supplied_files
+    filtered_files = []
+    # Iterate over supplied_files to maintain the order in which the filenames
+    # have been specified (important)
+    for sf in supplied_files:
+        for f in all_files:
+            # Compute the basename of the file
+            bn = os.path.basename(f)
+            # If a file matches the supplied filename, and is readable, add it
+            if fnmatch.fnmatch(bn, sf) and os.access(f, os.R_OK):
+                if f not in filtered_files:
+                    filtered_files.append(f)
     # Final sanity check
-    if not all_policy_files:
+    if not filtered_files:
         logging.critical(u"No policy files found.")
         return None
-    return all_policy_files
+    return filtered_files
 
 
 # Parse arguments

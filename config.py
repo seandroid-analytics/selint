@@ -20,36 +20,42 @@
 # All paths expressed in other variables will be relative to this
 BASE_DIR_GLOBAL = "~/workspace"
 
-# Statically specified policy files
-# Some files must go before all .te files
-POLICYFILES_STATIC_PRE = [
-    "system/sepolicy/security_classes",
-    "system/sepolicy/initial_sids",
-    "system/sepolicy/access_vectors",
-    "system/sepolicy/global_macros",
-    "system/sepolicy/neverallow_macros",
-    "system/sepolicy/mls_macros",
-    "system/sepolicy/mls",
-    "system/sepolicy/policy_capabilities",
-    "system/sepolicy/te_macros",
-    "system/sepolicy/attributes",
-    "system/sepolicy/ioctl_macros"]
-# All .te files found in these directories will automatically be picked up
-TEFILES_DIRS = [
-    "system/sepolicy/",
-    "build/target/board/generic/sepolicy/"]
-# Statically specified .te files
-# This should not be necessary, use the TEFILES_DIRS variable
-POLICYFILES_STATIC_TE = []
-# Some policy files must go after all .te files
-# Otherwise setools will crash, I believe due to wrong file terminators
-POLICYFILES_STATIC_POST = [
-    "system/sepolicy/roles",
-    "system/sepolicy/users",
-    "system/sepolicy/initial_sid_contexts",
-    "system/sepolicy/fs_use",
-    "system/sepolicy/genfs_contexts",
-    "system/sepolicy/port_contexts"]
+# Policy source file directories
+# This list contains directories to be searched for policy files specified in
+# POLICY_FILES below. This is the rough equivalent of the BOARD_SEPOLICY_DIRS
+# variable in the BoardConfig.mk makefile, except it also specifies the AOSP
+# sepolicy directory.
+# This list can contain both strings and tuples (string, bool), where a bool
+# value of True means that the directory must be searched recursively. E.g.:
+# POLICY_DIRS = ["external/sepolicy",
+#                ("device/intel/sepolicy", True)]
+POLICY_DIRS = ["system/sepolicy",
+               "build/target/board/generic/sepolicy"]
+
+# Policy source files
+# This list contains file names to be searched in the POLICY_DIRS specified
+# above. This is the rough equivalent of the sepolicy_build_files variable in
+# the sepolicy Android.mk makefile.
+# This list contains strings. It supports UNIX shell-style patterns ("*", ...)
+# Files will be processed in the order in which they are specified.
+POLICY_FILES = ["security_classes",
+                "initial_sids",
+                "access_vectors",
+                "global_macros",
+                "neverallow_macros",
+                "mls_macros",
+                "mls",
+                "policy_capabilities",
+                "te_macros",
+                "attributes",
+                "ioctl_macros",
+                "*.te",
+                "roles",
+                "users",
+                "initial_sid_contexts",
+                "fs_use",
+                "genfs_contexts",
+                "port_contexts"]
 
 # Extra definitions for M4 macro expansion
 # These will be passed to M4 with the "-D" option
