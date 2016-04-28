@@ -331,7 +331,7 @@ def main(policy, config):
             for rule in overall_rules:
                 try:
                     sug.add_rule(rule)
-                except ValueError as e:
+                except ValueError:
                     newsug = sug.fork_and_fit(rule)
                     # If we have a new valid suggestion which has not been
                     # suggested before
@@ -510,7 +510,7 @@ class MacroSuggestion(object):
                 # Ratio of determined arguments
                 # This way, a macro suggestion which does not provide the whole
                 # set of args is penalised
-                score = len(self.rules) / len(self._placeholder_rules)
+                score = len(self.rules) / len(self.placeholder_rules)
                 score *= len(self.args) / self.macro.nargs
                 self._score = score
                 return
@@ -575,7 +575,7 @@ class MacroSuggestion(object):
     def rules(self):
         u"""Get the list of valid rules contained in the macro expansion with
         the suggestion arguments."""
-        return itervalues(self._rules)
+        return self._rules.values()
 
     @property
     def score(self):

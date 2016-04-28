@@ -53,6 +53,7 @@ available_plugins.sort()
 
 
 def get_plugin(name):
+    """Get a plugin by name."""
     if name in __plugins:
         return __plugins[name]
     else:

@@ -70,11 +70,12 @@ class GlobalMacroSuggestion(object):
 
 
 def main(policy, config):
+    """Suggest new usages of global_macros."""
     # Check that we have been fed a valid policy
     if not isinstance(policy, policysource.policy.SourcePolicy):
         raise ValueError(u"Invalid policy")
     # Setup logging
-    log = logging.getLogger(__name__)
+    # log = logging.getLogger(__name__)
 
     # Compute the absolute ignore paths
     FULL_IGNORE_PATHS = tuple(os.path.join(config.FULL_BASE_DIR, p)
@@ -284,9 +285,12 @@ class SetFitter(object):
             self.score = 0
 
         def contains(self, elem):
+            """Check if the set contains a given element."""
             return elem in self.values
 
         def incr(self, elem):
+            """Add an element to the set.
+            Increment the number of occurrences of this element in the set."""
             if elem in self.tally:
                 if self.tally[elem] == 0:
                     # First match, update score
@@ -295,6 +299,7 @@ class SetFitter(object):
                 self.tally[elem] += 1
 
         def print_full(self):
+            """Print the full string representation of the set."""
             print(self.name + u" ({}/{})".format(self.score, len(self.tally)))
             for k, v in iteritems(self.tally):
                 print(k + u" ({})".format(v))
