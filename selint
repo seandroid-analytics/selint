@@ -38,7 +38,6 @@ import plugins
 def get_policy_files(config):
     u"""Get a list of policy files given a configuration module with some
     specific variables."""
-    all_policy_files = []
     # Check the base Android tree directory
     if not hasattr(config, u"BASE_DIR_GLOBAL"):
         # If the config file does not contain the base directory variable
@@ -63,9 +62,8 @@ def get_policy_files(config):
                          u"variable: no policy directories specified.")
         return None
     # If the POLICY_DIRS variable is empty or contains empty tuples
-    if not config.POLICY_DIRS or not\
-            any(x if type(x) in (unicode, str) else x[0]
-                for x in config.POLICY_DIRS):
+    if (not config.POLICY_DIRS or not any(x if isinstance(x, basestring) else x[0]
+                                          for x in config.POLICY_DIRS)):
         logging.critical(
             u"Bad POLICY_DIRS value: no policy directories specified.")
         return None
@@ -77,12 +75,12 @@ def get_policy_files(config):
         # Check that the directory exists and is readable, traversable
         # Compute the absolute path
         # If this is a simple non-empty string, just use the string
-        if type(x) in (unicode, str) and x:
+        if isinstance(x, basestring) and x:
             fp = os.path.abspath(os.path.join(FULL_BASE_DIR, x))
         # If this is a tuple of len=2, made up of a non-empty string and a
         # boolean, use only the string
-        elif type(x) is tuple and len(x) == 2 and type(x[0]) in (unicode, str)\
-                and type(x[1]) is bool and x[0]:
+        elif isinstance(x, tuple) and len(x) == 2 and\
+                isinstance(x[0], basestring) and isinstance(x[1], bool) and x[0]:
             fp = os.path.abspath(os.path.join(FULL_BASE_DIR, x[0]))
             list_recursive = x[1]
         # If the directory does not exist or is not readable/traversable
