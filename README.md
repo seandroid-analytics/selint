@@ -8,7 +8,13 @@ SELing may be obtained by cloning this repository. From the command line, do:
 $ git clone git@github.com:seandroid-analytics/selint.git
 ```
 
-SELint requires the `setools` library from [SEToolsv4](https://github.com/TresysTechnology/setools).
+## Requirements
+SELint requires the `setools` library from [SEToolsv4](https://github.com/TresysTechnology/setools), and the `future` Python module.
+
+You can install the `future` module with Pip:
+```
+$ pip install --upgrade future
+```
 
 ### Using `setools4` from the AOSP tree (recommended)
 The `setools` library is distributed as part of the [AOSP tree](https://source.android.com/source/index.html), where it is bundled as a prebuilt. After [downloading the AOSP tree](https://source.android.com/source/downloading.html) in `<WORKING_DIRECTORY>`, the `setools` package will be in
