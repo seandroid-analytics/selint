@@ -29,6 +29,7 @@ BASE_DIR_GLOBAL = "~/workspace"
 # value of True means that the directory must be searched recursively. E.g.:
 # POLICY_DIRS = ["external/sepolicy",
 #                ("device/intel/sepolicy", True)]
+# Directories will be processed in the order in which they are specified.
 POLICY_DIRS = ["system/sepolicy",
                "build/target/board/generic/sepolicy"]
 

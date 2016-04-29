@@ -69,7 +69,7 @@ def get_policy_files(config):
         return None
     ###########################################################################
     # Pick up all the files from the supplied directories
-    all_files = set()
+    all_files = []
     for x in config.POLICY_DIRS:
         list_recursive = False
         # Check that the directory exists and is readable, traversable
@@ -93,14 +93,16 @@ def get_policy_files(config):
         if list_recursive:
             # List all directories under fp, and all files under each, get
             # their full name and add them to all_files
-            all_files.update([os.path.join(dp, f)
-                              for dp, dn, fn in os.walk(fp) for f in fn])
+            all_files.extend(sorted([os.path.join(dp, f)
+                                     for dp, dn, fn in os.walk(fp)
+                                     for f in fn]))
         # If no recursive listing has been requested, just list the directory
         else:
             # List all files in the directory, get their full name and add them
             # to all_files
-            all_files.update([os.path.join(fp, f) for f in os.listdir(fp)])
-    ###########################################################################
+            all_files.extend(sorted([os.path.join(fp, f)
+                                     for f in os.listdir(fp)]))
+    #######################################################################
     # Get all the supplied filenames
     supplied_files = [x for x in config.POLICY_FILES if x]
     # Filter all_files, keep only files whose name is in supplied_files
