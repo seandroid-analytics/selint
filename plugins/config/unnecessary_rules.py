@@ -59,13 +59,27 @@ DEBUG_TYPES = [""]
 # Functionality 3
 # Dictionary of class-specific permissions required for a rule to make sense
 # The plugin will report any rule which grants any permission from the first
-# set without granting at least the required perms in the second set.
+# set without granting at least the required perms in the second set, or an
+# additional set of permissions on another class.
 # The dictionary key is the name of the class as a string; the dictionary value
-# is a tuple of two sets of strings.
-#                       class     at least 1 perm       required perms
-# e.g. REQUIRED_PERMS = {"file": (set(["write"]), set(["open"]))}
-REQUIRED_PERMS = {"file": (set(["write", "read", "append", "ioctl"]), set(["open"])),
-                  "socket": (set(["listen", "accept"]), set(["bind"]))}
+# is a tuple of two sets of strings and a dictionary containing a set.
+# E.g.:
+# REQUIRED_PERMS = {"file": (set(["write", " read", "append", "ioctl"]), # SET1
+#                            set(["open"]),                              # SET2
+#                            {"fd": set(["use"])})                       # ADD
+#                   }
+# means: for class "file"
+# IF any permission from SET1 is granted AND NOT (
+#   (all the permissions in SET2 are granted)
+#   OR
+#   (for each class in the ADD dictionary, all permissions in the relative
+#       set are granted)
+#   ):
+#     REPORT RULE
+REQUIRED_PERMS = {"file": (set(["write", "read", "append", "ioctl"]),
+                           set(["open"]),
+                           {"fd": set(["use"])})
+                  }
 
 # Do not report these rules
 # Rules in this configuration parameter will be ignored when looking for the

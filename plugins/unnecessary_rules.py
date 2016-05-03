@@ -36,11 +36,12 @@ this functionality will report any rule found in the policy using those types.
 # Functionality 3
 Detect rules that grant some permission over some class without granting some
 necessary or required permission, e.g. a rule which grants "write" but not
-"open" over a "file" class.
+"open" over a "file" class, without granting "use" over the corresponding "fd"
+class.
 
 More precisely, this functionality reports rules that grant at least one
-permission from set F_A, without granting at least all permissions in set F_B
-over an object of class F.
+permission over an object of class F from set F_A, without granting at least
+all permissions in set F_B or some extra permissions on some other class.
 All these permission sets can be specified by the user in the configuration
 file.
 
@@ -78,7 +79,6 @@ VALID_ARG_R = r"[a-zA-Z0-9_-]+"
 def query_for_rule(policy, r):
     u"""Query a policy for rules matching a given rule.
     The rule may contain regex fields."""
-    global NON_IGNORED_MAPPING
     # Mark whether a query parameter is a regex or a string
     sr = r"[a-zA-Z0-9_-]+" in r.source
     tr = r"[a-zA-Z0-9_-]+" in r.target
@@ -184,6 +184,22 @@ def substitute_args(rule, args):
     for (k, v) in iteritems(modified_args):
         rule = rule.replace(k, v)
     return rule
+
+
+def accumulate_perms(rutc, rules):
+    u"""Accumulate the permissions found in rules having a common subprefix up
+    to the class (rutc)."""
+    found_perms = set()
+    for x in rules:
+        # If a rule comes from an ignored path, not only ignore it, but
+        # ignore the whole rutc
+        if x.fileline.startswith(FULL_IGNORE_PATHS):
+            found_perms = None
+            break
+        # Get the permission string, strip it, split it, burn it, rip it,
+        # drag and drop it, zip - unzip it and update the permission set
+        found_perms.update(x.rule[len(rutc):].strip(u" {};").split())
+    return found_perms
 
 
 def main(policy, config):
@@ -327,35 +343,70 @@ def main(policy, config):
     # Functionality 3
     # Look for rules not granting minimum permissions
     print(u"Checking for rules not granting minimum required permissions")
+    # Check that the configuration value of REQUIRED_PERMS is valid
+    if hasattr(plugin_conf, u"REQUIRED_PERMS") and \
+            isinstance(plugin_conf.REQUIRED_PERMS, dict) and\
+            plugin_conf.REQUIRED_PERMS:
+        # The REQUIRED_PERMS dictionary exists and is not empty
+        rmv = []
+        for (k, v) in iteritems(plugin_conf.REQUIRED_PERMS):
+            if not(isinstance(k, str) and isinstance(v, tuple) and
+                   isinstance(v[0], set) and isinstance(v[1], set) and
+                   isinstance(v[2], dict)):
+                # If the format is invalid
+                log.error("Ignoring invalid REQUIRED_PERMS value \"%s\"", k)
+                log.error("  %s", v)
+                rmv.append(k)
+        for rm in rmv:
+            del plugin_conf.REQUIRED_PERMS[rm]
     for rutc in policy.mapping.rules:
         # Filter the rules by type (beginning of the "rule up to class")
         if not rutc.startswith(u"allow"):
             continue
-        # Get the rule class
-        cls = rutc.split(u":")[1]
+        # Get the rule class and pre-class part
+        pre_cls, cls = rutc.split(u":")
         # Check if there are any constraint for this class
         if cls not in plugin_conf.REQUIRED_PERMS:
             # If not, skip this rule
             continue
         # Get the "interesting" perms and the minimum perms required by them
-        perms, req_perms = plugin_conf.REQUIRED_PERMS[cls]
-        found_perms = set()
+        perms, req_perms, add_perms = plugin_conf.REQUIRED_PERMS[cls]
         # Accumulate the permissions granted by all the rules under "rutc"
-        for x in policy.mapping.rules[rutc]:
-            # If a rule comes from an ignored path, not only ignore it, but
-            # ignore the whole rutc
-            if x.fileline.startswith(FULL_IGNORE_PATHS):
-                found_perms = None
-                break
-            # Get the permission string, strip it, split it, and update the
-            # permission set
-            found_perms.update(x.rule[len(rutc):].strip(u" {};").split())
+        found_perms = accumulate_perms(rutc, policy.mapping.rules[rutc])
         # If found_perms has been set to None, skip this rule
         if found_perms is None:
             continue
+        report = False
+        all_extras_granted = True
         # If a rule for this class grants some permission from the first
         # set, but does not grant at least the required permission(s)
         if found_perms & perms and not found_perms >= req_perms:
+            # Check if it grants the additional permissions over additional
+            # classes instead
+            # Preliminarily mark the rule to be reported: correct this if the
+            # rule grants all extra required permissions
+            report = True
+            for k, v in iteritems(add_perms):
+                # Check if the found additional permissions (found_ap) are a
+                # superset of the required additional permissions (v)
+                found_ap = None
+                # Search for the new rule composed of OLD_RULE:new class
+                new_rutc = pre_cls + ":" + k
+                if new_rutc in policy.mapping.rules:
+                    found_ap = accumulate_perms(
+                        rutc, policy.mapping.rules[new_rutc])
+                if found_ap is None or not found_ap >= v:
+                    # If new_rutc is not in the mapping, or if all its rules
+                    # come from ignored paths, or the set of found
+                    # permissions is not a superset of the required
+                    # permissions, mark false and break
+                    all_extras_granted = False
+                    break
+            # If all extra required permissions have been granted, do not
+            # report the rule
+            if all_extras_granted:
+                report = False
+        if report:
             res_str = rutc + u" "
             if len(found_perms) > 1:
                 res_str += u"{ " + u" ".join(found_perms) + u" };"
@@ -364,12 +415,22 @@ def main(policy, config):
             # Skip rules purposefully ignored by the user
             if res_str in plugin_conf.IGNORED_RULES:
                 continue
-            print(u"Permissions present in rule require additional "
-                  u"\"{}\":".format(u" ".join(req_perms - found_perms)))
-            print(u"  " + res_str)
+            print(u"Permissions in rule:")
+            print(res_str)
             rutc = MAPPER.rule_split_after_class(res_str)[0]
             for each in policy.mapping.rules[rutc]:
-                print(u"    " + each.fileline)
+                print(u"  " + each.fileline)
+            print(u"require additional permissions: "
+                  u"\"{}\"".format(u" ".join(req_perms - found_perms)))
+            print(u"or permissions over different classes:")
+            for k, v in iteritems(add_perms):
+                extra_str = u"\"" + k + u" "
+                if len(v) > 1:
+                    extra_str += u"{ " + u" ".join(v) + u" }\""
+                else:
+                    extra_str += u" ".join(v) + u"\""
+                print(u" " + extra_str)
+            print(u"")
 
 
 class ArgExtractor(object):
