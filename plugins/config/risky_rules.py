@@ -14,7 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Configuration file for the risky_rules plugin."""
+"""Configuration file for the risky_rules plugin.
+
+Assign a score to rules using different scoring systems, "risk", and "trust" in
+all its High/Low combinations. The types, permissions and their weights must be
+defined in the plugin configuration file.
+"""
 
 # Which scoring system do you want?
 # Available: risk, trust_hl, trust_lh, trust_hh, trust_ll
@@ -131,6 +136,7 @@ CAPABILITIES = ["capability", "capability2"]
 # RULE_IGNORE_PATHS = ["external/sepolicy"]
 RULE_IGNORE_PATHS = ["external/sepolicy",
                      "build/target/board/generic/sepolicy"]
+# RULE_IGNORE_PATHS = []
 
 # Don't report rules that score below this threshold
 SCORE_THRESHOLD = 0.5
