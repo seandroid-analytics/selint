@@ -69,14 +69,16 @@ class Mapping(object):
 class MappedRule(object):
     """A rule with associated origin file/line information."""
 
-    def __init__(self, rule, fileline):
+    def __init__(self, rule, original_rule, fileline):
         """Initialize a MappedRule.
 
-        rule     - the rule as a string
-        fileline - the origin file/line of the rule represented as a string
+        rule          - the rule, as a string
+        original_rule - the rule as found on its origin line, as a string
+        fileline      - the origin file/line of the rule, as a string
         e.g. "/the/path/to/the/file.te:42"
         """
         self.rule = rule
+        self.original_rule = original_rule
         self.fileline = fileline
 
     def __hash__(self):
@@ -315,9 +317,7 @@ class Mapper(object):
         """Parse the policy and map every supported rule to its origin
         file/line.
 
-        Return a dictionary (base, [MappedRule]) where the key is
-        the rule as "rule_type subject object:class", and the value is a list
-        of MappedRule objects for each full rule matching the base rule."""
+        Return a Mapping object."""
         # Initialise variables
         mapping_rules = {}
         mapping_lines = {}
@@ -375,31 +375,44 @@ class Mapper(object):
             if not line.endswith(u';'):
                 continue
             # We have found the end of the rule, process it
-            # Join lines and normalise spaces
-            # TODO: evaluate whether to use string concatenation
-            # or list append + join/split for performance
-            original_rule = u" ".join(u" ".join(group).split())
-            # Expand the rule
-            try:
-                rules = self.expand_rule(original_rule)
-            except ValueError as e:
-                self.log.warning(e)
-                self.log.warning(u"Could not expand rule \"%s\" at %s:%s",
-                                 original_rule, current_file, current_line)
+            # Join the group as a string
+            l = u" ".join(group)
+            # There may be more than one rule in the group: if so, split them
+            # and process them individually
+            if l.count(u";") > 1:
+                # More than one rule
+                rules = []
+                for x in l.split(u";"):
+                    if x:
+                        # Normalise spaces
+                        rules.append(u" ".join(x.split()) + u";")
             else:
-                tmp = current_file + u":" + str(current_line)
-                # Save the original rule found at file:line
-                mapping_lines[tmp] = original_rule
-                for rule in rules:
-                    # Record the file/line mapping for each rule
-                    mpr = MappedRule(rules[rule], tmp)
-                    if rule not in mapping_rules:
-                        mapping_rules[rule] = [mpr]
-                    # TODO: verify that rules are unique and this check is
-                    # useless?
-                    # elif mpr not in mapping[rule]:
+                # Normalise spaces
+                rules = [u" ".join(l.split())]
+            # Expand the rules
+            for y in rules:
+                try:
+                    exp_rules = self.expand_rule(y)
+                except ValueError as e:
+                    self.log.warning(e)
+                    self.log.warning(u"Could not expand rule \"%s\" at %s:%s",
+                                     y, current_file, current_line)
+                else:
+                    tmp = current_file + u":" + str(current_line)
+                    # Save the original rule found at file:line
+                    # There could be more than one rule at file:line:
+                    # save them all in the order they are found
+                    if tmp in mapping_lines:
+                        mapping_lines[tmp].append(y)
                     else:
-                        mapping_rules[rule].append(mpr)
+                        mapping_lines[tmp] = [y]
+                    for rule in exp_rules:
+                        # Record the file/line mapping for each rule
+                        mpr = MappedRule(exp_rules[rule], y, tmp)
+                        if rule not in mapping_rules:
+                            mapping_rules[rule] = [mpr]
+                        else:
+                            mapping_rules[rule].append(mpr)
             # Empty the group
             del group[:]
         # Generate the Mapping object

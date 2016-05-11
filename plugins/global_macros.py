@@ -26,6 +26,7 @@ import itertools
 import os
 import os.path
 import logging
+import copy
 import policysource
 import policysource.policy
 import policysource.mapping
@@ -43,9 +44,6 @@ class GlobalMacroSuggestion(object):
         self.filelines = frozenset((r.fileline for r in rules))
         self.applies_to = rutc
         self.original_permset = permset
-
-    def __hash__(self):
-        return hash(self.name + u" ".join(self.filelines))
 
     def __repr__(self):
         return self.name + u":\n" + u"\n".join(self.filelines)
@@ -104,24 +102,26 @@ def main(policy, config):
 
     # Initialize a set fitter
     sf = SetFitter(macroset_dict)
-    for r_up_to_class in policy.mapping.rules:
+    # Cache results for set fitting
+    cached_fits = {}
+    for rutc in policy.mapping.rules:
         # Only match supported rules
-        if not r_up_to_class.startswith(plugin_conf.SUPPORTED_RULE_TYPES):
+        if not rutc.startswith(plugin_conf.SUPPORTED_RULE_TYPES):
             continue
-        rules = policy.mapping.rules[r_up_to_class]
+        # Get the different rules applying to the same Rule Up To the Class
+        rules = policy.mapping.rules[rutc]
         permset = set()
-        # Merge the various permission sets deriving from different rules
-        # applying to the same domain/type/class
+        # Merge the various permission sets deriving from these rules
         filtered_rules = []
         for r in rules:
             # Discard rules coming from ignored paths
-            if r.fileline.startswith(FULL_IGNORE_PATHS):
-                continue
-            filtered_rules.append(r)
-            # Get the permissions from the rule
-            # TODO: ugly, consider substituting with rule factory
-            perms = r.rule[len(r_up_to_class) + 1:].strip(u"{};").split()
-            permset.update(perms)
+            if not r.fileline.startswith(FULL_IGNORE_PATHS):
+                # Save the rule
+                filtered_rules.append(r)
+                # Get the permissions from the rule
+                perms = r.rule[len(rutc):].strip(u" {};").split()
+                # Update the permission set
+                permset.update(perms)
         # If there are no rules left or the permset is empty, process the next
         # set of rules
         if not filtered_rules or not permset:
@@ -129,8 +129,17 @@ def main(policy, config):
         # Get up to one full match (combination of one or more macros which
         # combined fit the permset exactly), and a list of macros that fit the
         # permset partially
-        (winner, part) = sf.fit(permset)
-        # TODO: cache this result for permset
+        # Cache set fitting results for speed
+        # Convert the permset to a frozen set to use it as a dictionary key
+        permset_frozen = frozenset(permset)
+        if permset_frozen in cached_fits:
+            # If the result is cached, use it
+            (winner, part) = cached_fits[permset_frozen]
+        else:
+            # Fit the permset
+            (winner, part) = sf.fit(permset)
+            # This computation was relatively expensive: cache it
+            cached_fits[permset_frozen] = copy((winner, part))
         # TODO: refactor next part, merge winner/part handling where possible
         # If we have a winner, we have a full (multi)set match
         if winner:
@@ -152,6 +161,10 @@ def main(policy, config):
                     # Also break out of the outer loop
                     break
                 # Do not suggest macro usages that are already in the policy
+                # TODO: this WILL NOT SUGGEST a valid macro if there are
+                # multiple rules on one line (i.e. rules separated only by
+                # semicolon and not by newline), and the rules could use
+                # identical macros or macros which are a superset of the other
                 alreadyused = [x for x in winner if x.name in (
                     x.name for x in macros_at_line)]
                 for a in alreadyused:
@@ -169,7 +182,7 @@ def main(policy, config):
                         continue
                     # Create the Suggestion object
                     g = GlobalMacroSuggestion(x.name, x.values, filtered_rules,
-                                              x.score, r_up_to_class, permset)
+                                              x.score, rutc, permset)
                     # Add it to the suggestions dictionary
                     if g.filelines not in suggestions:
                         suggestions[g.filelines] = [g]
@@ -201,7 +214,7 @@ def main(policy, config):
                 # the Suggestion object and add it to the dictionary
                 for x in sgs:
                     g = GlobalMacroSuggestion(x.name, x.values, filtered_rules,
-                                              x.score, r_up_to_class, permset)
+                                              x.score, rutc, permset)
                     if g.filelines not in suggestions:
                         suggestions[g.filelines] = [g]
                     elif g not in suggestions[g.filelines]:
@@ -217,21 +230,20 @@ def main(policy, config):
                 part.append(x)
         part.sort(reverse=True)
         if full or part:
-            print(u"The following macros match these lines:")
-            for x in filelines:
-                print x + u": " + policy.mapping.lines[x]
+            print(u"The following macros match a rule on these lines:")
+            print u"\n".join(filelines)
         if full:
             # Print full match suggestion(s)
             print(u"Full match:")
             print(u", ".join((x.name for x in full)))
             # Compute suggested usage
-            r_up_to_class = full[0].applies_to
+            rutc = full[0].applies_to
             orig_permset = full[0].original_permset
             permset = set()
             for x in full:
                 permset.update(x.macro_perms)
             extra_perms = orig_permset - permset
-            usage = r_up_to_class
+            usage = rutc
             if len(full) > 1 or extra_perms:
                 usage += u" { " + u" ".join([x.name for x in full])
                 if extra_perms:
@@ -247,13 +259,13 @@ def main(policy, config):
             print(u"\n".join([
                 u"{}: {}%".format(x.name, x.score * 100) for x in part]))
             # Compute suggested usage
-            r_up_to_class = part[0].applies_to
+            rutc = part[0].applies_to
             orig_permset = part[0].original_permset
             permset = set()
             for x in part:
                 permset.update(x.macro_perms)
             extra_perms = orig_permset - permset
-            usage = r_up_to_class
+            usage = rutc
             if len(part) > 1 or extra_perms:
                 usage += u" { " + u" ".join([x.name for x in part])
                 if extra_perms:
