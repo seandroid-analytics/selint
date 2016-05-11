@@ -139,7 +139,7 @@ def main(policy, config):
             # Fit the permset
             (winner, part) = sf.fit(permset)
             # This computation was relatively expensive: cache it
-            cached_fits[permset_frozen] = copy((winner, part))
+            cached_fits[permset_frozen] = copy.copy((winner, part))
         # TODO: refactor next part, merge winner/part handling where possible
         # If we have a winner, we have a full (multi)set match
         if winner:
