@@ -61,10 +61,6 @@ def main(policy, config):
     # Setup logging
     # log = logging.getLogger(__name__)
 
-    # Compute the absolute ignore paths
-    # FULL_IGNORE_PATHS = tuple(os.path.join(config.FULL_BASE_DIR, p)
-    #                          for p in plugin_conf.RULE_IGNORE_PATHS)
-
     mapper = policysource.mapping.Mapper(
         policy.policyconf, policy.attributes, policy.types, policy.classes)
     # Process the user-submitted neverallow rules into a dictionary of
@@ -78,11 +74,6 @@ def main(policy, config):
         if rutc in user_rules:
             allowed_perms = set()
             for r in rls:
-                # If this rule comes from an ignored path or its type is not
-                # supported, ignore it
-                # if r.fileline.startswith(FULL_IGNORE_PATHS)\
-                #        or not r.rule.startswith(plugin_conf.SUPPORTED_RULE_TYPES)\
-                #        or str(r) in plugin_conf.IGNORED_RULES:
                 # Generate the AVrule object for the allow rule coming from
                 # the policy
                 rule = mapper.rule_factory(r.rule)
