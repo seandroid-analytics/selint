@@ -129,20 +129,23 @@ def main(policy, config):
         # set of rules
         if not filtered_rules or not permset:
             continue
+        # Extract the class from the rutc
+        tclass = rutc.split(":")[1]
         # Get up to one full match (combination of one or more macros which
         # combined fit the permset exactly), and a list of macros that fit the
         # permset partially
         # Cache set fitting results for speed
         # Convert the permset to a frozen set to use it as a dictionary key
+        # together with the class.
         permset_frozen = frozenset(permset)
-        if permset_frozen in cached_fits:
+        if (tclass, permset_frozen) in cached_fits:
             # If the result is cached, use it
-            (winner, part) = cached_fits[permset_frozen]
+            (winner, part) = cached_fits[(tclass, permset_frozen)]
         else:
             # Fit the permset
-            (winner, part) = sf.fit(permset)
+            (winner, part) = sf.fit(permset, tclass)
             # This computation was relatively expensive: cache it
-            cached_fits[permset_frozen] = copy.copy((winner, part))
+            cached_fits[(tclass, permset_frozen)] = copy.copy((winner, part))
         # TODO: refactor next part, merge winner/part handling where possible
         # If we have a winner, we have a full (multi)set match
         if winner:
@@ -344,11 +347,26 @@ class SetFitter(object):
        """
         self.d = d
 
-    def fit(self, s):
-        u"""Fit a set with the pre-supplied available sets."""
+    def fit(self, s, tclass=None):
+        u"""Fit a set with the pre-supplied available sets.
+
+        Only use sets which match a given class."""
+        # Heuristics to filter by class
+        if not tclass:
+            cl = None
+        elif u"dir" in tclass:
+            cl = u"dir"
+        elif u"file" in tclass:
+            cl = u"file"
+        else:
+            cl = None
         # Initialise a new list of rich sets
-        rich_sets = [
-            SetFitter.RichSet(key, value) for key, value in iteritems(self.d)]
+        rich_sets = []
+        for (key, value) in iteritems(self.d):
+            # If the class is either None
+            # or assigned and contained in the macro name
+            if not cl or cl in key:
+                rich_sets.append(SetFitter.RichSet(key, value))
         # Fit the set
         for elem in s:
             for each in rich_sets:
