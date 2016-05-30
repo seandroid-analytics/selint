@@ -108,6 +108,9 @@ def main(policy, config):
         # Only match supported rules
         if not rutc.startswith(plugin_conf.SUPPORTED_RULE_TYPES):
             continue
+        # Skip rutcs purposefully ignored by the user
+        if rutc in plugin_conf.IGNORED_RULES:
+            continue
         # Get the different rules applying to the same Rule Up To the Class
         rules = policy.mapping.rules[rutc]
         permset = set()
@@ -164,7 +167,7 @@ def main(policy, config):
                 # TODO: this WILL NOT SUGGEST a valid macro if there are
                 # multiple rules on one line (i.e. rules separated only by
                 # semicolon and not by newline), and the rules could use
-                # identical macros or macros which are a superset of the other
+                # identical macros
                 alreadyused = [x for x in winner if x.name in (
                     x.name for x in macros_at_line)]
                 for a in alreadyused:
@@ -177,9 +180,6 @@ def main(policy, config):
                     break
             if suggest_this:
                 for x in winner:
-                    # Skip usages purposefully ignored by the user
-                    if x.name in plugin_conf.USAGES_IGNORE:
-                        continue
                     # Create the Suggestion object
                     g = GlobalMacroSuggestion(x.name, x.values, filtered_rules,
                                               x.score, rutc, permset)
@@ -207,8 +207,7 @@ def main(policy, config):
                 # above SUGGESTION_THRESHOLD from the results, which are not
                 # purposefully ignored by the user
                 sgs = sorted([x for x in part if
-                              x.score >= plugin_conf.SUGGESTION_THRESHOLD
-                              and x.name not in plugin_conf.USAGES_IGNORE],
+                              x.score >= plugin_conf.SUGGESTION_THRESHOLD],
                              reverse=True)[:plugin_conf.SUGGESTION_MAX_NO]
                 # For each of the selected close-matching suggestions, create
                 # the Suggestion object and add it to the dictionary

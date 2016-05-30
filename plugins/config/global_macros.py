@@ -33,6 +33,9 @@ SUGGESTION_THRESHOLD = 0.8
 # Make up to this number of suggestions
 SUGGESTION_MAX_NO = 3
 
-# Do not suggest these usages
+# Do not suggest global macros in these rules.
+# Specify rule masks up to the class, e.g.:
+# IGNORED_RULES = ["allow a b:c", "allow somedomain sometype:someclass"]
+# Matching rules will be ignored.
 # WARNING: Be careful what you put in here.
-USAGES_IGNORE = []
+IGNORED_RULES = []
