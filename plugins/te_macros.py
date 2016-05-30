@@ -34,6 +34,8 @@ import policysource.macro
 from setools.terulequery import TERuleQuery as TERuleQuery
 import plugins.config.te_macros as plugin_conf
 
+# Required by selint
+REQUIRED_RULES = plugin_conf.SUPPORTED_RULE_TYPES
 
 # Global variable to hold the log
 LOG = None

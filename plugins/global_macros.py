@@ -32,6 +32,9 @@ import policysource.policy
 import policysource.mapping
 import plugins.config.global_macros as plugin_conf
 
+# Required by selint
+REQUIRED_RULES = plugin_conf.SUPPORTED_RULE_TYPES
+
 
 class GlobalMacroSuggestion(object):
     u"""A global_macro usage suggestion for a specific combination of lines."""

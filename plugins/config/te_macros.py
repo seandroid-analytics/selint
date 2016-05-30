@@ -23,6 +23,10 @@
 RULE_IGNORE_PATHS = ["external/sepolicy",
                      "build/target/board/generic/sepolicy"]
 
+# Only make suggestions for the following rule types
+# SUPPORTED_RULE_TYPES = ("allow", "type_transition", "neverallow")
+SUPPORTED_RULE_TYPES = ("allow", "type_transition")
+
 # Do not try to reconstruct these macros
 MACRO_IGNORE = ["recovery_only", "non_system_app_set", "userdebug_or_eng",
                 "print", "permissive_or_unconfined", "userfastboot_only",

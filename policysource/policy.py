@@ -43,7 +43,7 @@ class SourcePolicy(object):
     regex_macrodef = re.compile(r'^define\(\`([^\']+)\',')
     regex_usageargstring = r'(\(.*\));?'
 
-    def __init__(self, policyfiles, extra_defs):
+    def __init__(self, policyfiles, extra_defs, load_neverallows=False):
         """Construct a SourcePolicy object by parsing the supplied files.
 
         Keyword arguments:
@@ -87,7 +87,7 @@ class SourcePolicy(object):
         # Build the origin file/line mapping
         mapper = policysource.mapping.Mapper(self.policyconf, self.attributes,
                                              self.types, self.classes)
-        self._mapping = mapper.get_mapping()
+        self._mapping = mapper.get_mapping(load_neverallows)
         if not self._mapping:
             raise RuntimeError(
                 u"Error creating the file/line mapping, aborting...")

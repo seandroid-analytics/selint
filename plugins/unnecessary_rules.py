@@ -60,6 +60,9 @@ import plugins.config.unnecessary_rules as plugin_conf
 import policysource
 import policysource.mapping
 
+# Required by selint
+REQUIRED_RULES = plugin_conf.SUPPORTED_RULE_TYPES
+
 # Global variable to hold the log
 LOG = None
 

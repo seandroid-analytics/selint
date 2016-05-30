@@ -26,6 +26,9 @@ import plugins.config.user_neverallows as plugin_conf
 import policysource
 import policysource.mapping
 
+# Required by selint
+REQUIRED_RULES = plugin_conf.SUPPORTED_RULE_TYPES
+
 
 def get_user_rules(expander, mapper):
     u"""Get the user-supplied rules from the configuration file.

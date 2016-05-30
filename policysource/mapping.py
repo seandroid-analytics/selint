@@ -313,11 +313,15 @@ class Mapper(object):
         self.types = types
         self.classes = classes
 
-    def get_mapping(self):
+    def get_mapping(self, map_neverallows=True):
         """Parse the policy and map every supported rule to its origin
         file/line.
 
         Return a Mapping object."""
+        # Map neverallows if required
+        if not map_neverallows:
+            self.supported_rules = tuple([
+                x for x in self.supported_rules if x != u"neverallow"])
         # Initialise variables
         mapping_rules = {}
         mapping_lines = {}

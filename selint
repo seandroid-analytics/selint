@@ -185,6 +185,15 @@ elif args.blacklist:
         x for x in plugins.available_plugins if x not in args.blacklist]
 else:
     selected_plugins = list(plugins.available_plugins)
+# Find plugins which require neverallow rules.
+# Run them on a different policy. This way all plugins which do not require
+# neverallow rules can run on a "slim" policy even when running some plugins
+# which do require neverallow rules.
+plugins_neverallow = []
+for each in selected_plugins:
+    plg = plugins.get_plugin(each)
+    if u"neverallow" in plg.REQUIRED_RULES:
+        plugins_neverallow.append(each)
 
 # Import config file as "config"
 if args.config is None:
@@ -268,7 +277,16 @@ config.FULL_BASE_DIR = os.path.abspath(
     os.path.expanduser(config.BASE_DIR_GLOBAL))
 
 # Create policy
-policy = policysource.policy.SourcePolicy(ALL_POLICY_FILES, args.extra_defs)
+# If neverallow rules are required by some plugin, create a "slim" policy
+# and a "fat" policy. Run all plugins which do not require neverallow rules on
+# the "slim" policy for speed
+policy_slim = policysource.policy.SourcePolicy(
+    ALL_POLICY_FILES, args.extra_defs, load_neverallows=False)
+if plugins_neverallow:
+    policy_fat = policysource.policy.SourcePolicy(
+        ALL_POLICY_FILES, args.extra_defs, load_neverallows=True)
+else:
+    policy_fat = None
 # Write the policy.conf to file, if requested
 if args.dumppolicyconf:
     try:
@@ -285,4 +303,7 @@ if args.dumppolicyconf:
 # Run plugins
 for plg in selected_plugins:
     print(u"Running plugin " + plg + u"...")
-    plugins.get_plugin(plg).main(policy, config)
+    if plg in plugins_neverallow:
+        plugins.get_plugin(plg).main(policy_fat, config)
+    else:
+        plugins.get_plugin(plg).main(policy_slim, config)

@@ -28,6 +28,9 @@ import plugins.config.risky_rules as plugin_conf
 import policysource
 import policysource.mapping
 
+# Required by selint
+REQUIRED_RULES = plugin_conf.SUPPORTED_RULE_TYPES
+
 
 def score_terule(rule):
     u"""Assign a score to a TE rule depending on the scoring system."""

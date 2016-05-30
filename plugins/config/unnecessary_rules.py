@@ -23,6 +23,10 @@
 RULE_IGNORE_PATHS = ["external/sepolicy",
                      "build/target/board/generic/sepolicy"]
 
+# Only make suggestions for the following rule types
+# SUPPORTED_RULE_TYPES = ("allow", "type_transition", "neverallow")
+SUPPORTED_RULE_TYPES = ("allow", "type_transition")
+
 # Functionality 1
 # Tuples of rules that must always be found together. If the first rule in the
 # tuple is found in the policy, report any other rule in the tuple which is
