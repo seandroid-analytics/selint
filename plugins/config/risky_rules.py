@@ -35,8 +35,11 @@ defined in the plugin configuration file.
 #       "high" type (lh), from "high" to "low" (hl), from high to high (hh) and
 #       from "low" to "low" (ll).
 SCORING_SYSTEM = "risk"
+
 # Only score the following type of rules
+# This must be a tuple: if there is only one element, insert a trailing comma
 SUPPORTED_RULE_TYPES = ("allow", "type_transition")
+
 # Dictionary containing the classification of types
 TYPES = {}
 # Dictionary containing the classification of permissions
@@ -104,6 +107,8 @@ TYPES["default_types"] = ["device", "unlabeled", "default_android_service",
 SCORE_TRUST["sensitive"] = 10
 SCORE_RISK["sensitive"] = 20
 TYPES["sensitive"] = ["graphics_device", "ram_device"]
+
+# TODO: add instructions on how to add a new bucket
 
 # TODO: add socket permissions, other permissions from access_vectors
 # High-risk permissions

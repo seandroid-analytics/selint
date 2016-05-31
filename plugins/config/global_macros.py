@@ -25,7 +25,8 @@ RULE_IGNORE_PATHS = ["external/sepolicy",
 
 # Only make suggestions for the following rule types
 # SUPPORTED_RULE_TYPES = ("allow", "auditallow", "dontaudit", "neverallow")
-SUPPORTED_RULE_TYPES = ("allow")
+# This must be a tuple: if there is only one element, insert a trailing comma
+SUPPORTED_RULE_TYPES = ("allow",)
 
 # Parameters for partial match macro suggestions
 # Only suggest macros that match above this threshold [0-1]

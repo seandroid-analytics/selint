@@ -43,7 +43,9 @@ for plugin_file in os.listdir(os.path.dirname(__file__)):
                 print(e)
                 LOG.debug(u"Found invalid plugin \"%s\"", plugin)
             else:
-                if inspect.isfunction(locals()[plugin].main):
+                if inspect.isfunction(locals()[plugin].main) and\
+                        hasattr(locals()[plugin], "REQUIRED_RULES") and\
+                        isinstance(locals()[plugin].REQUIRED_RULES, tuple):
                     available_plugins.append(plugin)
                     __plugins[plugin] = locals()[plugin]
                     LOG.debug(u"Found valid plugin \"%s\"", plugin)

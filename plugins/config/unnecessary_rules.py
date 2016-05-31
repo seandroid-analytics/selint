@@ -25,6 +25,7 @@ RULE_IGNORE_PATHS = ["external/sepolicy",
 
 # Only make suggestions for the following rule types
 # SUPPORTED_RULE_TYPES = ("allow", "type_transition", "neverallow")
+# This must be a tuple: if there is only one element, insert a trailing comma
 SUPPORTED_RULE_TYPES = ("allow", "type_transition")
 
 # Functionality 1

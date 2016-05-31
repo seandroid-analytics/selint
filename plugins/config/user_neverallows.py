@@ -17,7 +17,8 @@
 """Configuration file for the user_neverallow plugin."""
 
 # Only analyse rules of these types
-SUPPORTED_RULE_TYPES = ("allow")
+# This must be a tuple: if there is only one element, insert a trailing comma
+SUPPORTED_RULE_TYPES = ("allow",)
 
 # Report rules that do not obey these neverallow rules
 # The neverallow rules can contain global_macros
