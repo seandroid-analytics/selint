@@ -2,7 +2,7 @@
 SELint is an SEAndroid policy analysis tool. It performs a series of checks on a source policy, suggesting improvements to the policy developer.
 
 ## Obtaining SELint
-SELing may be obtained by cloning this repository. From the command line, do:
+SELint may be obtained by cloning this repository. From the command line, do:
 
 ```
 $ git clone git@github.com:seandroid-analytics/selint.git
