@@ -252,7 +252,7 @@ This means that, by combining the partial scores of its elements according to th
 You can develop new plugins to implement additional analysis functionality.
 SELint plugins are regular Python files. They must declare a `main(policy, config)` function and a `REQUIRED_RULES` tuple.
 
-The `main(policy, config)` function is passed the loaded policy as a `SourcePolicy` object and the selected configuration file as the `config` module.
+The `main(policy, config)` function is passed the loaded policy as a `SourcePolicy` object, and the selected global SELint configuration file as the `config` module.
 
 The `REQUIRED_RULES` tuple must contain the rule types that the plugin intends to work on.
 
