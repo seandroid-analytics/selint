@@ -242,7 +242,7 @@ The plugin produces this output:
 ```
 1.00: .../file.te:28: allow some_domain some_type:some_class { perm1 perm2 perm3 };
 ```
-This means that, by combining the partial scores of the elements according to the selected scoring system, the rule has been assigned score 1 (maximum).
+This means that, by combining the partial scores of its elements according to the selected scoring system, the rule has been assigned score 1 (maximum).
 
 ## unnecessary_rules
 
