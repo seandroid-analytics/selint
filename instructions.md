@@ -60,8 +60,8 @@ Currently, plugins automatically load the configuration file with the same name 
 We are planning to allow different plugin configuration files to be individually specified for each plugin in the future.
 
 # Existing plugins
-The existing plugins, how to configure them and how to interpret their output are explained in the sections below.
-## global_macros
+The following sections describe the existing plugins, how to configure them and how to interpret their output.
+## Global_macros
 The `global_macros` plugin suggests new usages of global macros.
 Using M4 macros where applicable produces a more compact and readable policy.
 #### Configuration
@@ -109,7 +109,7 @@ allow somedomain sometype:file ra_file_perms;
 This means that the rules found at lines 29 and 102 in `file.te` can be expressed more compactly by using the `ra_file_perms` macro.
 If you agree with the suggestion, you can insert the suggested usage in the policy.
 
-## te_macros
+## Te_macros
 The `te_macros` plugin suggests new usages of TE macros.
 Using M4 macros where applicable produces a more compact and readable policy.
 #### Configuration
@@ -149,7 +149,17 @@ USAGES_IGNORE = ["some_macro(arg1, arg2)"]
 ```
 
 #### Output
-
+The plugin produces this output:
+```
+These lines could be substituted by macro unix_socket_send(system_server, thermal, init) (100.0%):
+.../system_server.te:9: allow system_server thermal_socket:sock_file write;
+.../system_server.te:5: allow system_server init:unix_dgram_socket sendto;
+Corresponding rules in the macro expansion:
+allow system_server thermal_socket:sock_file write;
+allow system_server init:unix_dgram_socket sendto;
+```
+This means that the rules found at lines 5 and 9 of the `system_server.te` file could be expressed by using the `unix_socket_send(system_server, thermal, init)` macro.
+If you agree with the suggestion, you can insert the macro usage in the policy.
 
 ## risky_rules
 
