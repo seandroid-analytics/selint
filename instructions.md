@@ -13,7 +13,7 @@ The paths are relative to `BASE_DIR_GLOBAL`.
 This variable is a list; it can contain both strings and tuples `(string, bool)`, where a bool value of `True` means that the directory must be searched recursively.
 If the element is a simple string, an implicit value of `False` is assumed, and the directory is not searched recursively.
 E.g.:
-```
+```python
 POLICY_DIRS = ["external/sepolicy", ("device/intel/sepolicy", True)]
 ```
 Directories will be processed in the order in which they are specified.
@@ -22,7 +22,7 @@ Directories will be processed in the order in which they are specified.
 This is roughly the equivalent of the `sepolicy_build_files` variable in the `sepolicy` Android.mk makefile.
 This variable is a list of strings; it supports UNIX shell-style patterns ("\*", ...).
 E.g.:
-```
+```python
 POLICY_FILES =["attributes", "*.te"]
 ```
 Files will be processed in the order in which they are specified.
@@ -31,7 +31,7 @@ Files will be processed in the order in which they are specified.
 These correspond to the options which are found in the M4 invocation in the `sepolicy` Android.mk makefile.
 This variable is a list of strings.
 E.g.:
-```
+```python
 EXTRA_DEFS = ["mls_num_sens=1", "mls_num_cats=1024", "target_build_variant=user"]
 ```
 Additional definitions can also be specified on the command line: they will be combined with the options specified here.
@@ -45,7 +45,7 @@ Additional definitions can also be specified on the command line: they will be c
 4: debug
 ```
 E.g.:
-```
+```python
 VERBOSITY = 4
 ```
 This value can be overridden on the command line.
@@ -72,26 +72,26 @@ This variable is a list: it contains paths relative to `BASE_DIR_GLOBAL` defined
 
 **SUPPORTED_RULE_TYPES**: Only suggest M4 macros in rules of these types.
 This variable is a tuple: it contains rule types as strings. E.g.:
-```
+```python
 SUPPORTED_RULE_TYPES = ("allow",)
 ```
 If there is only one element in the tuple, insert a trailing comma as in the example to indicate the variable is in fact a tuple.
 
 **SUGGESTION_THRESHOLD**: Only suggest macros that match above this threshold.
 This variable is a number between 0 and 1. E.g.:
-```
+```python
 SUGGESTION_THRESHOLD = 0.8
 ```
 
 **SUGGESTION_MAX_NO**: Suggest at most N partial macro matches.
 This variable is an integer. E.g.:
-```
+```python
 SUGGESTION_MAX_NO = 3
 ```
 
 **IGNORED_RULES**: Do not suggest global macros in these rules.
 This variable is a list; it contains rule masks up to the class. Matching rules will be ignored. E.g.:
-```
+```python
 IGNORED_RULES = ["allow somedomain sometype:someclass"]
 ```
 
@@ -121,7 +121,7 @@ This variable is a list: it contains paths relative to `BASE_DIR_GLOBAL` defined
 
 **SUPPORTED_RULE_TYPES**: Only suggest M4 macros in rules of these types.
 This variable is a tuple: it contains rule types as strings. E.g.:
-```
+```python
 SUPPORTED_RULE_TYPES = ("allow", "type_transition")
 ```
 If there is only one element in the tuple, insert a trailing comma to indicate the variable is in fact a tuple.
@@ -131,13 +131,13 @@ This variable is a list of strings.
 This variable should contain all TE macros which do not expand into regular `allow` and `type_transition` rules.
 For example, conditional macros and macros which only define types/domains should be ignored.
 E.g.:
-```
+```python
 MACRO_IGNORE = ["recovery_only", "userdebug_or_eng", "print", "eng", "net_domain"]
 ```
 
 **SUGGESTION_THRESHOLD**: Only suggest macros that match above this threshold.
 This variable is a number between 0 and 1. E.g.:
-```
+```python
 SUGGESTION_THRESHOLD = 0.8
 ```
 
@@ -145,7 +145,7 @@ SUGGESTION_THRESHOLD = 0.8
 This variable is a list of strings.
 You can use this variable to blacklist specific macro usages which you do not want SELint to suggest.
 E.g.:
-```
+```python
 USAGES_IGNORE = ["some_macro(arg1, arg2)"]
 ```
 
@@ -175,7 +175,7 @@ The `risk` scoring system makes use of the `risk` partial scores, and the `trust
 
 Depending on the selected scoring system, the plugin will output different rules with different associated scores.
 The default configuration value is `risk`. You can select a different scoring system depending on what you are looking for in the policy. E.g.:
-```
+```python
 SCORING_SYSTEM = "trust_lh"
 ```
 
@@ -189,7 +189,7 @@ The `trust_ll` scoring system will assign a higher score to rules whose domain a
 
 **SUPPORTED_RULE_TYPES**: Only assign a score to rules of these types.
 This variable is a tuple: it contains rule types as strings. E.g.:
-```
+```python
 SUPPORTED_RULE_TYPES = ("allow", "type_transition")
 ```
 If there is only one element in the tuple, insert a trailing comma to indicate the variable is in fact a tuple.
@@ -218,7 +218,7 @@ The `sensitive` bin contains sensitive types which do not qualify as directly se
 This bin is assigned a medium-high `risk` score and a medium-low `trust` score.
 
 You may add extra ones to suit your needs: simply add an entry to the `TYPES`, `SCORE_RISK` and `SCORE_TRUST` dictionaries.  E.g.:
-```
+```python
 # User-defined bin 1
 SCORE_TRUST["user_bin_1"] = 10
 SCORE_RISK["user_bin_1"] = 30
@@ -232,7 +232,7 @@ TYPES["user_bin_1"] = ["user_type_1", "user_type_2", "user_type_3"]
 **PERMS**: The classification of permissions. This variable is a dictionary {string: set}: it classifies permissions into sets identified by a semantic label. These sets group permissions with similar levels of risk, to simplify the scoring. These sets are assigned a `risk` coefficient, filed in the `SCORE` dictionary under the set's label. Permissions are not assigned a `trust` score, as that scoring system only deals with types.
 
 The default configuration defines 3 sets for classifying permissions. You may add extra ones to suit your needs: simply add an entry to the `PERMS` and `SCORE` dictionaries. E.g.:
-```
+```python
 # User-defined set 1
 SCORE["perms_user_1"] = 0.8
 PERMS["perms_user_1"] = set(["perm1", "perm2"])
@@ -250,7 +250,7 @@ Currently we are targeting capabilities in an aggregate way (we assign a higher 
 
 **SCORE_THRESHOLD**: Don't report rules which score below this threshold.
 This variable is a number between 0 and 1. E.g.:
-```
+```python
 SCORE_THRESHOLD = 0.8
 ```
 
@@ -279,7 +279,7 @@ The `REQUIRED_RULES` tuple must contain the rule types that the plugin intends t
 
 You can put a configuration file for your plugin in the `plugins/config` directory: it must have the same name as the plugin.
 You can then import the configuration file as a module in your plugin:
-```
+```python
 import plugins.config.<NAME> as plugin_conf
 ```
 
