@@ -63,7 +63,7 @@ We are planning to allow different plugin configuration files to be individually
 The following sections describe the existing plugins, how to configure them and how to interpret their output.
 ## Global_macros
 The `global_macros` plugin suggests new usages of global macros.
-Using M4 macros where applicable produces a more compact and readable policy.
+Using M4 macros where applicable produces a more compact and readable policy. It also and reduces possibilities of errors.
 #### Configuration
 The plugin configuration file can contain the following variables.
 
@@ -107,11 +107,11 @@ Suggested usage:
 allow somedomain sometype:file ra_file_perms;
 ```
 This means that the rules found at lines 29 and 102 in `file.te` can be expressed more compactly by using the `ra_file_perms` macro.
-If you agree with the suggestion, you can insert the suggested usage in the policy.
+If you agree with the suggestion, you can insert the suggested usage in the policy. If you don't want this suggestion to be visible anymore, you can add the rule mask up to the class to the **IGNORED_RULES** configuration variable. 
 
 ## Te_macros
 The `te_macros` plugin suggests new usages of TE macros.
-Using M4 macros where applicable produces a more compact and readable policy.
+Using M4 macros where applicable produces a more compact and readable policy and reduces possibilities of errors.
 #### Configuration
 The plugin configuration file can contain the following variables.
 
