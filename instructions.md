@@ -268,6 +268,37 @@ This means that, by combining the partial scores of its elements according to th
 ## unnecessary_rules
 
 ## user_neverallows
+The `user_neverallows` plugin verifies that the `neverallow` rules provided in its configuration file are respected by the policy.
+
+#### Configuration
+The plugin configuration file can contain the following variables.
+
+**SUPPORTED_RULE_TYPES**: Only analyse rules of these types.
+This variable is a tuple: it contains rule types as strings. E.g.:
+```python
+SUPPORTED_RULE_TYPES = ("allow",)
+```
+If there is only one element in the tuple, insert a trailing comma to indicate the variable is in fact a tuple.
+
+This plugin only supports `allow` rules, since it enforces `neverallow` rules by checking that no corresponding `allow` rules exist.
+Therefore, this variable must not be changed.
+
+**NEVERALLOWS**: The `neverallow` rules to enforce.
+This variable is a list: it contains full `neverallow` rules a strings.
+The `neverallow` rules can contain `global_macros`. E.g.:
+```python
+NEVERALLOWS = ["neverallow some_domain some_type:some_class { w_file_perms create };"]
+```
+
+#### Output
+With the `NEVERALLOWS` variable configured as in the example above, the plugin produces this output:
+```
+Rule grants neverallowed permissions: "append lock open"
+  allow some_domain some_type:some_class { append getattr ioctl lock open read };
+    .../file.te:10: allow some_domain some_type:some_class { getattr ioctl lock open read };
+    .../file.te:13: allow some_domain some_type:some_class append;
+```
+This means that the rules found at lines 10 and 13 of `file.te`, combine to grant a number of permissions: of these, `append`, `lock` and `open` are forbidden by the `neverallow` rule.
 
 # Develop new SELint plugins
 You can develop new plugins to implement additional analysis functionality.
