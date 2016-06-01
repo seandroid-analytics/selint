@@ -283,4 +283,4 @@ You can then import the configuration file as a module in your plugin:
 import plugins.config.<NAME> as plugin_conf
 ```
 
-The plugin configuration file will be available as the plugin_conf module.
+The plugin configuration file will be available as the `plugin_conf` module.
