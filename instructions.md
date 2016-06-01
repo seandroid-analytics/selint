@@ -20,7 +20,7 @@ Directories will be processed in the order in which they are specified.
 
 **POLICY_FILES**: The names of the policy source files.
 This is roughly the equivalent of the `sepolicy_build_files` variable in the `sepolicy` Android.mk makefile.
-This variable is a list of strings; it supports UNIX shell-style patterns ("*", ...).
+This variable is a list of strings; it supports UNIX shell-style patterns ("\*", ...).
 E.g.:
 ```
 POLICY_FILES =["attributes", "*.te"]
@@ -169,10 +169,15 @@ The partial scores must be defined for each policy in the plugin configuration f
 #### Configuration
 The plugin configuration file can contain the following variables.
 
-**SCORING_SYSTEM**: The scoring system. This can be one of `risk`, `trust_lh`, `trust_hl`, `trust_hh`, `trust_ll`.
+**SCORING_SYSTEM**: The scoring system. This variable is a string; it can be one of `risk`, `trust_lh`, `trust_hl`, `trust_hh`, `trust_ll`.
 Rule elements are assigned a `risk` score, which denotes their level of risk, and a `trust` score, which denotes their level of trust.
+The `risk` scoring system makes use of the `risk` partial scores, and the `trust` scoring system makes use of the `trust` partial scores.
 
-Depending on the selected scoring system, rules will be assigned different scores.
+Depending on the selected scoring system, the plugin will output different rules with different associated scores.
+The default configuration value is `risk`. You can select a different scoring system depending on what you are looking for in the policy. E.g.:
+```
+SCORING_SYSTEM = "trust_lh"
+```
 
 The `risk` scoring system will assign a higher score to rules whose elements have higher combined `risk` scores.
 This scoring system takes into account the domain, type, permission and capabilities of an `allow` rule, and the domain and default type of a `type_transition` rule.
@@ -193,11 +198,26 @@ If there is only one element in the tuple, insert a trailing comma to indicate t
 This variable is a list: it contains paths relative to `BASE_DIR_GLOBAL` defined in the global SELint configuration file.
 
 **MAXIMUM_SCORE**: The maximum score a rule can have. This value is used to normalize scores between 0 and 1.
-Following from the formula for computing the score in both the `risk` and `trust` scoring systems, this value must be double the highest partial score assigned to a domain/type. The default configuration uses a `MAXIMUM_SCORE` value of 60, and a highest partial score of 30; these values can be changed if necessary.
+Following from the formula for computing the score in both the `risk` and `trust` scoring systems, this value must be double the highest partial score assigned to a domain/type.
+The default configuration uses a `MAXIMUM_SCORE` value of 60, and a highest partial score of 30; these values can be changed if necessary.
 
-**TYPES**: The classification of types. This variable is a dictionary {string: list}: it classifies types into "*bins*" identified by a semantic label. Bins group types with similar roles in the policy, to simplify the scoring.  Bins are assigned both a `risk` and a `trust` score: these are filed in the `SCORE_RISK` and `SCORE_TRUST` dictionaries under the bin's label.
+**TYPES**: The classification of types. This variable is a dictionary {string: list}: it classifies types into "*bins*" identified by a semantic label.
+Bins group types with similar roles in the policy, to simplify the scoring.
+Bins are assigned both a `risk` and a `trust` score: these are filed in the `SCORE_RISK` and `SCORE_TRUST` dictionaries under the bin's label.
 
-The default configuration defines 5 bins for classifying types. You may add extra ones to suit your needs: simply add an entry to the `TYPES`, `SCORE_RISK` and `SCORE_TRUST` dictionaries.  E.g.:
+The default configuration defines 5 bins for classifying types: `security_sensitive`, `user_app`, `core_domains`, `default_types` and `sensitive`.
+The `security_sensitive` bin contains types directly related to system security functionality (e.g. `tee`, `keystore`, ...).
+Since misuse of these types could result in severe consequences, this bin is assigned the highest `risk` score; since these are very important system types, this bin is assigned the highest `trust` score.
+The `user_app` bin contains types assigned to user-installed apps (e.g. `untrusted_app`).
+Since user applications can come from a variety of sources and can access most user data, this bin is assigned the highest `risk` score; since these applications are completely untrusted by the system, this bin is assigned the lowest `trust` score.
+The `core_domains` bin contains core system domains (e.g. `adbd`, `installd`, `kernel`, ...).
+Since these are important but not directly security-critical domains, this bin is assigned a medium `risk` score and a medium-low `trust` score.
+The `default_types` bin contains default types, used to label objects which are not assigned any specific label in the policy.
+Default types should almost never be used outside of the AOSP policy, therefore this bin is assigned the highest `risk` score; since these types are assigned automatically, they are assigned a low `trust` score.
+The `sensitive` bin contains sensitive types which do not qualify as directly security-critical, but are still somewhat more important than core system domains.
+This bin is assigned a medium-high `risk` score and a medium-low `trust` score.
+
+You may add extra ones to suit your needs: simply add an entry to the `TYPES`, `SCORE_RISK` and `SCORE_TRUST` dictionaries.  E.g.:
 ```
 # User-defined bin 1
 SCORE_TRUST["user_bin_1"] = 10
