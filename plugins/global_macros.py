@@ -236,7 +236,7 @@ def main(policy, config):
         part.sort(reverse=True)
         if full or part:
             print(u"The following macros match a rule on these lines:")
-            print u"\n".join(filelines)
+            print(u"\n".join(filelines))
         if full:
             # Print full match suggestion(s)
             print(u"Full match:")
@@ -342,6 +342,9 @@ class SetFitter(object):
         def __ge__(self, other):
             return self.score >= other.score
 
+        def __hash__(self):
+            return hash(str(self))
+
     def __init__(self, d):
         u"""Initialise a SetFitter with a dictionary of the available sets.
 
@@ -392,12 +395,12 @@ class SetFitter(object):
             # The combination is a tuple, make it a set
             c = set(c)
             # The set of permissions that results from the combination
-            c_set = set()
+            c_permset = set()
             for x in c:
-                c_set.update(x.values)
+                c_permset.update(x.values)
             # Compute the extra permissions in the set that are not covered by
             # the expansion of the selected combination of macros
-            extra = s - c_set
+            extra = s - c_permset
             # Index the combinations by score (number of extra elements, lower
             # is better)
             if len(extra) in extra_dim:

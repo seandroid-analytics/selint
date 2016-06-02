@@ -57,7 +57,7 @@ class TEBlock(object):
             self._valid = True
             # Tokenize the macro definition line, removing empy tokens
             # "# macro(arg1,arg2)" -> ["macro", "arg1", "arg2"]
-            definition = [x for x in re.split(ur'\W+', content[1]) if x]
+            definition = [x for x in re.split(r'\W+', content[1]) if x]
             self._name = definition[0]    # ["macro"]
             self._args = definition[1:]   # ["arg1", "arg2"]
         else:
@@ -190,8 +190,8 @@ def parse(f_to_parse, macro_expander):
     if not f_to_parse or not expects(f_to_parse):
         raise ValueError(u"{} can't handle {}.".format(MACRO_FILE, f_to_parse))
     macros = {}
-    macrodef = re.compile(ur'^define\(\`([^\']+)\'')
-    macroargs = re.compile(ur'\$[0-9]+')
+    macrodef = re.compile(r'^define\(\`([^\']+)\'')
+    macroargs = re.compile(r'\$[0-9]+')
     # Parse the te_macros file
     # Read the te_macros file in as a list of lines
     with open(f_to_parse, encoding=u'utf-8') as ftp:

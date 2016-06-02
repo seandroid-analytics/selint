@@ -20,6 +20,7 @@ u"""Verify that custom user-defined neverallow rules are obeyed."""
 from __future__ import absolute_import
 from __future__ import division
 from future.utils import iteritems
+import sys
 
 # import logging
 import plugins.config.user_neverallows as plugin_conf
@@ -37,7 +38,8 @@ def get_user_rules(expander, mapper):
     supplied_rules = {}
     for r in plugin_conf.NEVERALLOWS:
         # Convert the rules to unicode
-        if not isinstance(r, unicode):
+        # If this is Python 2 and this is a str, convert to unicode
+        if isinstance(r, str) and (sys.version_info < (3, 0)):
             r = r.decode("utf-8")
         # Expand the possible global_macros in the rule
         exp_r = expander.expand(r)

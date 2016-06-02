@@ -136,6 +136,8 @@ class M4MacroExpander(object):
             # Log the error and change the function return value to None
             self.log.warning(u"%s", e.output)
             expansion = None
+        else:
+            expansion = expansion.decode("utf-8")
         return expansion
 
     def dump(self, text):
@@ -151,6 +153,8 @@ class M4MacroExpander(object):
             # Log the error and change the function return value to None
             self.log.warning(u"%s", e.output)
             definition = None
+        else:
+            definition = definition.decode("utf-8")
         return definition
 
     @property

@@ -47,7 +47,7 @@ def parse(f_to_parse, macro_expander):
         raise ValueError(u"{} can't handle {}.".format(MACRO_FILE, f_to_parse))
     macros = {}
     # Parse the global_macros file
-    macrodef = re.compile(ur'^define\(\`([^\']+)\',\s+`([^\']+)\'')
+    macrodef = re.compile(r'^define\(\`([^\']+)\',\s+`([^\']+)\'')
     with open(f_to_parse, encoding=u'utf-8') as global_macros_file:
         for lineno, line in enumerate(global_macros_file):
             # If the line contains a macro, parse it
