@@ -26,7 +26,6 @@ import itertools
 import os
 import os.path
 import logging
-import copy
 import policysource
 import policysource.policy
 import policysource.mapping
@@ -148,7 +147,7 @@ def main(policy, config):
             # Fit the permset
             (winner, part) = sf.fit(permset, tclass)
             # This computation was relatively expensive: cache it
-            cached_fits[(tclass, permset_frozen)] = copy.copy((winner, part))
+            cached_fits[(tclass, permset_frozen)] = (winner, part)
         # TODO: refactor next part, merge winner/part handling where possible
         # If we have a winner, we have a full (multi)set match
         if winner:
@@ -174,11 +173,9 @@ def main(policy, config):
                 # multiple rules on one line (i.e. rules separated only by
                 # semicolon and not by newline), and the rules could use
                 # identical macros
-                alreadyused = [x for x in winner if x.name in (
+                # Remove already used macros from the winner
+                winner = [x for x in winner if x.name not in (
                     x.name for x in macros_at_line)]
-                for a in alreadyused:
-                    # Remove already used macros from the winner
-                    winner.remove(a)
                 if not winner:
                     # If the winner is now empty, we don't care about this
                     # suggestion anymore
