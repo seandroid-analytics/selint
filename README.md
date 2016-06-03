@@ -8,6 +8,8 @@ SELint may be obtained by cloning this repository. From the command line, do:
 $ git clone git@github.com:seandroid-analytics/selint.git
 ```
 
+You may also [download the latest release](https://github.com/seandroid-analytics/selint/releases).
+
 ## Requirements
 SELint requires the `setools` library from [SEToolsv4](https://github.com/TresysTechnology/setools), and the `future` Python module.
 
@@ -17,7 +19,8 @@ $ pip install --upgrade future
 ```
 
 ### Using `setools4` from the AOSP tree (recommended)
-The `setools` library is distributed as part of the [AOSP tree](https://source.android.com/source/index.html), where it is bundled as a prebuilt. After [downloading the AOSP tree](https://source.android.com/source/downloading.html) in `<WORKING_DIRECTORY>`, the `setools` package will be in
+The `setools` library is distributed as part of the [AOSP tree](https://source.android.com/source/index.html), where it is bundled as a prebuilt.
+After [downloading the AOSP tree](https://source.android.com/source/downloading.html) in `<WORKING_DIRECTORY>`, the `setools` package will be in
 ```
 <WORKING_DIRECTORY>/prebuilts/python/linux-x86/2.7.5/lib/python2.7/site-packages
 ```
@@ -29,16 +32,11 @@ export PYTHONPATH="<WORKING_DIRECTORY>/prebuilts/python/linux-x86/2.7.5/lib/pyth
 ### Using `setools4` from the official git repository
 You may also use the latest version of the `setools` library from the [official git repo](https://github.com/TresysTechnology/setools).
 
-After cloning the repo in `<SETOOLS4_DIRECTORY>`, you need to build SETools for local use: follow the instructions on the official SETools repo.
-To use the newly built software, add the directory to your `$PYTHONPATH`; for example, on Ubuntu 14.04 LTS add this to your `.profile`:
-```
-export PYTHONPATH="<SETOOLS4_DIRECTORY>:$PYTHONPATH"
-```
+After cloning the repo in `<SETOOLS4_DIRECTORY>`, you need to install SETools: follow the instructions on the SETools repo.
 
 ## Running SELint
-Before running SELint, you need to configure it to work on the desired SEAndroid policy source files. You can specify them in a configuration file.
-The configuration file is a regular Python file; the default one is `config.py` in the project directory, which you can modify directly or use as reference to see what configuration parameters are available.
-You can pass SELint a different configuration file with the `-c` option.
+Before running SELint, you need to configure it to work on the desired SEAndroid policy source files.
+Please follow the [configuration instructions](instructions.md).
 
 After configuring the software, you can run it:
 ```
@@ -109,6 +107,11 @@ You can report bugs in the project [issue tracker](https://github.com/seandroid-
 ## License
 Copyright 2015 Aalto University
 
-The SELint program and its plugins are licensed under the Apache License 2.0 (see [LICENSE.APACHE](LICENSE.APACHE)). The `policysource` library is licensed under the GNU Lesser General Public License (see [LICENSE.LGPL](LICENSE.LGPL)). All files distributed with this package indicate the appropriate license to use.
+The SELint program and its plugins are licensed under the Apache License 2.0 (see [LICENSE.APACHE](LICENSE.APACHE)).
+The `policysource` library is licensed under the GNU Lesser General Public License (see [LICENSE.LGPL](LICENSE.LGPL)).
+All files distributed with this package indicate the appropriate license to use.
 
-SELint is an open source project being developed by Filippo Bonazzi and Elena Reshetova from the [Secure Systems research group (SSG)](http://cse.aalto.fi/en/research/secure-systems/) at Aalto University. The project is part of the [Intel Collaborative Research Institute for Secure Computing (ICRI-SC)](http://www.icri-sc.org).
+SELint is an open source project being developed by Filippo Bonazzi and Elena Reshetova from the [Secure Systems research group (SSG)](http://cse.aalto.fi/en/research/secure-systems/) at Aalto University.
+The project is part of the [Intel Collaborative Research Institute for Secure Computing (ICRI-SC)](http://www.icri-sc.org).
+
+You can find more information on the [project site](https://ssg.aalto.fi/projects/selint/).
