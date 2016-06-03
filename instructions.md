@@ -266,6 +266,62 @@ The plugin produces this output:
 This means that, by combining the partial scores of its elements according to the selected scoring system, the rule has been assigned score 1 (maximum).
 
 ## unnecessary_rules
+The `unnecessary_rules` plugin searches the policy for rules which are ineffective or unnecessary.
+It also looks for debug rules mistakenly visible in the user policy.
+
+#### Configuration
+The plugin configuration file can contain the following variables.
+
+**RULE_IGNORE_PATHS**: Do not make suggestions on rules coming from files in these paths.
+This variable is a list: it contains paths relative to `BASE_DIR_GLOBAL` defined in the global SELint configuration file.
+
+**SUPPORTED_RULE_TYPES**: Only make suggestions on the following rule types.
+This variable is a tuple: it contains rule types as strings. E.g.:
+```python
+SUPPORTED_RULE_TYPES = ("allow",)
+```
+If there is only one element in the tuple, insert a trailing comma as in the example to indicate the variable is in fact a tuple.
+
+**RULES_TUPLES**: Tuples of rules which must be always found together.
+This variable is a list of tuples: the tuples contain rules as strings.
+The rules can contain numbered placeholder arguments in the format `@@ARGN@@`. E.g.:
+```python
+RULES_TUPLES = [("type_transition @@ARG0@@ @@ARG1@@:process @@ARG2@@;",
+                 "allow @@ARG0@@ @@ARG1@@:file execute;",
+                 "allow @@ARG2@@ @@ARG1@@:file entrypoint;",
+                 "allow @@ARG0@@ @@ARG2@@:process transition;")]
+```
+If a rule is found matching the first rule in the tuple, the arguments are extracted and substituted in the remaining rules; each of these rules must then be found in the policy.
+
+The first rule in the tuple must contain all the placeholder arguments used in the tuple.
+
+**DEBUG_TYPES**: The debug types.
+This variable is a list of strings. It contains the debug types used in the policy.
+If one of these types is found in a rule in the policy, the rule is reported.
+
+**REQUIRED_PERMS**: The minimum permissions which must be granted for a specific class.
+This variable is a dictionary {class: tuple}. The class is a policy class represented as a string (`file`, `dir`, ...).
+The tuple contains two sets and a dictionary.
+The two sets contain permissions represented as strings (`write`, `open`, ...); the dictionary is a dictionary {class: set}, where the class is again a string and the set is again a set of permissions as strings.
+E.g.:
+```python
+REQUIRED_PERMS = {"file": (set(["write", "read", "append", "ioctl"]),
+                           set(["open"]),
+                           {"fd": set(["use"])})
+                 }
+```
+If a rule is found granting the `file` class any permission in the first set (`write`, `read`, `append`, `ioctl`), then it must either grant all the permissions in the second set (`open`), or other rules in the policy must, for every class in the second dictionary (`fd`), grant the class all the permissions found in the associated set (`use`).
+If neither of these two conditions is met, then the rule is reported.
+
+**IGNORED_RULES**: Never report these rules.
+This variable is a list of strings; it contains full policy rules.
+E.g.:
+```python
+IGNORED_RULES = ["allow domain type:class permission;"]
+```
+Rules in this variable will be ignored when looking for the first rule in a `RULES_TUPLE` tuple, a rule containing a `DEBUG_TYPE` type, and a rule not satisfying the conditions expressed in `REQUIRED_PERMS`.
+Rules in this variable will still be detected when looking for matching additional rules in a `RULES_TUPLE` tuple.
+
 
 ## user_neverallows
 The `user_neverallows` plugin verifies that the `neverallow` rules provided in its configuration file are respected by the policy.
