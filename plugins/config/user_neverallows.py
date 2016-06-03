@@ -14,4 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""TODO: file docstring"""
+"""Configuration file for the user_neverallow plugin."""
+
+# Only analyse rules of these types
+# This must be a tuple: if there is only one element, insert a trailing comma
+SUPPORTED_RULE_TYPES = ("allow",)
+
+# Report rules that do not obey these neverallow rules
+# The neverallow rules can contain global_macros
+# e.g.
+# NEVERALLOWS = ["neverallow domain type:class permission;"]
+NEVERALLOWS = ["neverallow adbd shell:process noatsecure;"]
