@@ -31,8 +31,7 @@ export PYTHONPATH="<WORKING_DIRECTORY>/prebuilts/python/linux-x86/2.7.5/lib/pyth
 
 ### Using `setools4` from the official git repository
 You may also use the latest version of the `setools` library from the [official git repo](https://github.com/TresysTechnology/setools).
-
-After cloning the repo in `<SETOOLS4_DIRECTORY>`, you need to install SETools: follow the instructions on the SETools repo.
+Follow the instructions to download and install the software on the SETools repo.
 
 ## Running SELint
 Before running SELint, you need to configure it to work on the desired SEAndroid policy source files.
