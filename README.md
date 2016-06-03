@@ -113,8 +113,4 @@ All files distributed with this package indicate the appropriate license to use.
 SELint is an open source project being developed by Filippo Bonazzi and Elena Reshetova from the [Secure Systems research group (SSG)](http://cse.aalto.fi/en/research/secure-systems/) at Aalto University.
 The project is part of the [Intel Collaborative Research Institute for Secure Computing (ICRI-SC)](http://www.icri-sc.org).
 
-<<<<<<< HEAD
 You can find more information on the [project site](https://ssg.aalto.fi/projects/selint/).
-=======
-SELint is an open source project being developed by Filippo Bonazzi and Elena Reshetova from the [Secure Systems research group (SSG)](http://cse.aalto.fi/en/research/secure-systems/) at Aalto University. The project is part of the [Intel Collaborative Research Institute for Secure Computing (ICRI-SC)](http://www.icri-sc.org).
->>>>>>> master
