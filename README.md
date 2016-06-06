@@ -99,6 +99,13 @@ List all the recognized policy files from a user-provided configuration file and
 $ ./selint -c user-config.py --listpolicyfiles
 ```
 
+## Known issues
+
+### `xperms` rules
+The version of `setools` from your Android tree might not support `xperms` rules.
+If you are using `setools` from your Android tree and your policy contains `xperms` rules, `setools` may crash when trying to parse the policy.
+
+To avoid this issue, you can either [use `setools` from the GitHub repo](#using-setools4-from-the-official-git-repository) or comment out the affected lines in your policy.
 
 ## Reporting bugs
 You can report bugs in the project [issue tracker](https://github.com/seandroid-analytics/selint/issues).
