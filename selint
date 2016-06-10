@@ -301,9 +301,12 @@ if args.dumppolicyconf:
         logging.info(u"Wrote policy.conf to %s", args.dumppolicyconf)
 
 # Run plugins
-for plg in selected_plugins:
+# Run plugins which require the fat policy first, then delete it to save memory
+for plg in plugins_neverallow:
     print(u"Running plugin " + plg + u"...")
-    if plg in plugins_neverallow:
-        plugins.get_plugin(plg).main(policy_fat, config)
-    else:
+    plugins.get_plugin(plg).main(policy_fat, config)
+del policy_fat
+for plg in selected_plugins:
+    if plg not in plugins_neverallow:
+        print(u"Running plugin " + plg + u"...")
         plugins.get_plugin(plg).main(policy_slim, config)
