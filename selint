@@ -290,7 +290,7 @@ else:
 # Write the policy.conf to file, if requested
 if args.dumppolicyconf:
     try:
-        shutil.copyfile(policy.policyconf, args.dumppolicyconf)
+        shutil.copyfile(policy_slim.policyconf, args.dumppolicyconf)
     except shutil.Error as e:
         logging.error(u"%s", e)
         logging.error(u"Could not dump policy.conf")
